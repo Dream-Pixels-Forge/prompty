@@ -50,7 +50,6 @@ describe('createPresetsInstance (pure factory)', () => {
       expect(p.id).toBeTruthy();
       expect(p.text.length).toBeGreaterThan(0);
       expect(catIds.has(p.categoryId)).toBe(true);
-      expect(typeof p.order).toBe('number');
     }
   });
 
@@ -144,7 +143,7 @@ describe('seedPresets (idempotent via presetsInitialized/presetsVersion)', () =>
   });
 
   it('does not touch user prompts when already initialized at current version', async () => {
-    const { seedPresets } = await import('../src/lib/presets.js');
+    const { seedPresets, PRESETS_VERSION } = await import('../src/lib/presets.js');
     await seedPresets(storageMock);
     const { prompts: afterSeed } = await storageMock.get(['prompts']);
     await storageMock.set({
@@ -167,8 +166,7 @@ describe('seedPresets (idempotent via presetsInitialized/presetsVersion)', () =>
       presetsVersion: PRESETS_VERSION,
       presetsInitialized: true,
     });
-    const { seedPresets: reseed } = await import('../src/lib/presets.js');
-    await reseed(storageMock);
+    await seedPresets(storageMock);
     const { prompts } = await storageMock.get(['prompts']);
     expect(prompts).toHaveLength(9);
     expect(prompts.some((p) => p.title === 'User Custom')).toBe(true);

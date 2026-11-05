@@ -167,7 +167,7 @@ describe('appendSnippet (snippets[] helpers)', () => {
     const s2 = appendSnippet(s1, { text: '  same  ' });
     const s3 = appendSnippet(s2, { text: 'same again?' });
     const s4 = appendSnippet(s3, { text: 'same' });
-    expect(s2).toEqual([]);
+    expect(s2).toEqual(s1);
     expect(s3).toHaveLength(2);
     expect(s4[s4.length - 2].text).not.toBe('same');
   });

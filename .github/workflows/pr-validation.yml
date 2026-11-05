@@ -19,7 +19,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
-      - name: web-ext lint (both targets)
+      - name: web-ext lint (firefox) + addons-linter (chrome)
         run: |
-          pnpm dlx web-ext@8 lint --source-dir dist/chrome --warnings-as-errors
           pnpm dlx web-ext@8 lint --source-dir dist/firefox --warnings-as-errors
+          pnpm dlx addons-linter dist/chrome --no-summary

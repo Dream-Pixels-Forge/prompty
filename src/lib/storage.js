@@ -114,23 +114,39 @@ export function normalizeCategory(raw) {
 /* ------------------------------------------------------------------ */
 
 /**
- * MERGE mode: union of both arrays keyed by `id`; incoming wins on collision
- * (last occurrence of an incoming id wins). Pure. Works for prompts & categories.
+ * MERGE mode: union of both arrays keyed by `id`; incoming wins on collision.
+ * Ordering semantics (SPEC §1 import MERGE): existing items NOT overwritten
+ * preserve their relative order first; then incoming items (both overwriting
+ * and new) follow in their relative order. Duplicate incoming IDs are
+ * deduped: last occurrence wins.
  * @template {{ id: unknown }} T
  * @param {T[]|null|undefined} existing
  * @param {T[]|null|undefined} incoming
  * @returns {T[]}
  */
 export function mergeById(existing, incoming) {
-  /** @type {Map<unknown, T>} */
-  const map = new Map();
+  const incomingArr = asArray(incoming);
+  /** @type {Map<unknown, number>} */
+  const incomingLastIndex = new Map();
+  for (let i = 0; i < incomingArr.length; i++) {
+    incomingLastIndex.set(incomingArr[i].id, i);
+  }
+  const incomingIds = new Set(incomingLastIndex.keys());
+  /** @type {T[]} */
+  const result = [];
+  // First: existing items that aren't overwritten, in their original order
   for (const item of asArray(existing)) {
-    map.set(item.id, item);
+    if (!incomingIds.has(item.id)) {
+      result.push(item);
+    }
   }
-  for (const item of asArray(incoming)) {
-    map.set(item.id, item);
+  // Then: incoming items (overwrites + new), in their original order (deduped to last occurrence)
+  for (let i = 0; i < incomingArr.length; i++) {
+    if (incomingLastIndex.get(incomingArr[i].id) === i) {
+      result.push(incomingArr[i]);
+    }
   }
-  return [...map.values()];
+  return result;
 }
 
 /**

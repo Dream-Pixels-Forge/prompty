@@ -12,6 +12,7 @@ const VARIABLE_PATTERN = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
  * @returns {string[]}
  */
 export function extractVariables(text) {
+  /** @type {string[]} */
   const out = [];
   if (typeof text !== 'string') return out;
   const seen = new Set();
@@ -54,13 +55,18 @@ export function resolveVariables(text, values) {
 export function humanizeVar(name) {
   if (typeof name !== 'string' || name.length === 0) return '';
   const words = name
-    .replace(/([a-z0-9])([A-Z])/g, '$1 \u0000$2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .toLowerCase()
-    .split(/[\s_\u0000]+/)
+    .split(/[\s_]+/)
     .filter(Boolean);
   return words.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 }
 
+/**
+ * @param {object} obj
+ * @param {string} key
+ * @returns {boolean}
+ */
 function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }

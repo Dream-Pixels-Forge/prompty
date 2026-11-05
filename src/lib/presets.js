@@ -5,23 +5,33 @@
 import browser from './browser.js';
 import { mergePresets, normalizeCategory, normalizePrompt } from './storage.js';
 
-/** Current seed version (v1→v2 history prompt). Bump when seed data changes. */
+/**
+ * @typedef {import('./storage.js').Category} Category
+ */
+
+/**
+ * @typedef {import('./storage.js').Prompt} Prompt
+ */
+
+/** Current seed version (v1→v2 history). Bump when seed data changes. */
 export const PRESETS_VERSION = 2;
 
 /** 6 categories per SPEC §1 palette (#hex + emoji + order). */
+/** @type {Array<import('./storage.js').Category>} */
 export const SEED_CATEGORIES = [
-  { name: 'Characters', color: '#8b5cf6', icon: '👤', order: 0 },
-  { name: 'Landscapes', color: '#10b981', icon: '🏔️', order: 1 },
-  { name: 'Objects', color: '#f59e0b', icon: '📦', order: 2 },
-  { name: 'Styles', color: '#ec4899', icon: '🎨', order: 3 },
-  { name: 'Abstract', color: '#6366f1', icon: '✨', order: 4 },
-  { name: 'Camera Angles', color: '#06b6d4', icon: '🎬', order: 5 },
+  { id: '', name: 'Characters', color: '#8b5cf6', icon: '👤', order: 0 },
+  { id: '', name: 'Landscapes', color: '#10b981', icon: '🏔️', order: 1 },
+  { id: '', name: 'Objects', color: '#f59e0b', icon: '📦', order: 2 },
+  { id: '', name: 'Styles', color: '#ec4899', icon: '🎨', order: 3 },
+  { id: '', name: 'Abstract', color: '#6366f1', icon: '✨', order: 4 },
+  { id: '', name: 'Camera Angles', color: '#06b6d4', icon: '🎬', order: 5 },
 ];
 
 /**
  * 8 generic seed prompt definitions (category = SEED_CATEGORIES index).
  * Texts are generic — Prompty works on any site, not only one platform.
  */
+/** @type {Array<{title: string, text: string, categoryIndex: number, aspectRatio: string, quality: string}>} */
 export const SEED_PROMPT_DEFS = [
   {
     title: 'Full-Body Character Portrait',
@@ -32,7 +42,7 @@ export const SEED_PROMPT_DEFS = [
   },
   {
     title: 'Character Design Sheet',
-    text: 'Character design sheet for {character}, multiple views (front, side, back), expression thumbnails, clean lineart, flat colors, character turnaround on a neutral background',
+    text: 'Character design sheet for {character}, multiple views (front, side, back), expression thumbnails, clean lineart, flat colors, neutral background',
     categoryIndex: 0,
     aspectRatio: '1:1',
     quality: 'high',
@@ -84,48 +94,62 @@ export const SEED_PROMPT_DEFS = [
 /**
  * Pure factory: builds a seeded {prompts, categories} instance with injected ids
  * (callers pass crypto.randomUUID() values to keep the function testable).
- * @param {{ categoryIds?: string[], promptIds?: string[] }} seedIds
- * @returns {{ prompts: object[], categories: object[] }}
+ * @param {{ categoryIds?: unknown[], promptIds?: unknown[] }} [seedIds]
+ * @returns {{ prompts: Prompt[], categories: Category[] }}
  */
 export function createPresetsInstance({ categoryIds = [], promptIds = [] } = {}) {
-  const categories = SEED_CATEGORIES.map((def, i) =>
-    normalizeCategory({ ...def, id: categoryIds[i] }),
-  );
-  const prompts = SEED_PROMPT_DEFS.map((def, i) =>
-    normalizePrompt({
+  /** @type {Category[]} */
+  const categories = [];
+  SEED_CATEGORIES.forEach((def, i) => {
+    const category = normalizeCategory({ ...def, id: categoryIds[i] });
+    if (category) categories.push(category);
+  });
+  /** @type {Prompt[]} */
+  const prompts = [];
+  SEED_PROMPT_DEFS.forEach((def, i) => {
+    const prompt = normalizePrompt({
       ...def,
       categoryId: categories[def.categoryIndex]?.id ?? null,
       id: promptIds[i],
       createdAt: Date.now(),
-    }),
-  );
+    });
+    if (prompt) prompts.push(prompt);
+  });
   return { prompts, categories };
 }
 
 /**
  * Seed presets into a storage area — idempotent:
- * - never initialized → append full instance once
+ * - never initialized → append the full instance once
  * - initialized and current version → no-op (user data untouched)
  * - initialized but older version (v1→v2) → repair-merge: add missing presets,
- *   dedupe on title/text signature, then bump version
- * @param {{ get: Function, set: Function }|null} [area=browser.storage.local]
+ *   dedupe on title/name signature, then bump version
+ * @param {{ get: Function, set: Function }} [area] defaults to browser.storage.local
  * @returns {Promise<void>}
  */
 export async function seedPresets(area) {
-  const store = area ?? browser.storage.local;
+  const store = area ?? browser?.storage?.local;
+  if (!store) throw new Error('Prompty: storage.local is unavailable');
   const keys = ['prompts', 'categories', 'presetsInitialized', 'presetsVersion'];
+  /** @type {Record<string, unknown>} */
   const raw = await store.get(keys);
   const initialized = raw.presetsInitialized === true;
   const version = typeof raw.presetsVersion === 'number' ? raw.presetsVersion : 0;
 
   if (initialized && version >= PRESETS_VERSION) return; // already seeded — no-op
 
-  const existingPrompts = Array.isArray(raw.prompts)
-    ? raw.prompts.map(normalizePrompt).filter((p) => p !== null)
-    : [];
-  const existingCategories = Array.isArray(raw.categories)
-    ? raw.categories.map(normalizeCategory).filter((c) => c !== null)
-    : [];
+  /** @type {Prompt[]} */
+  const existingPrompts = [];
+  for (const item of Array.isArray(raw.prompts) ? raw.prompts : []) {
+    const normalized = normalizePrompt(item);
+    if (normalized) existingPrompts.push(normalized);
+  }
+  /** @type {Category[]} */
+  const existingCategories = [];
+  for (const item of Array.isArray(raw.categories) ? raw.categories : []) {
+    const normalized = normalizeCategory(item);
+    if (normalized) existingCategories.push(normalized);
+  }
 
   const instance = createPresetsInstance({
     categoryIds: SEED_CATEGORIES.map(() => randomId()),
@@ -149,6 +173,9 @@ export async function seedPresets(area) {
   });
 }
 
+/**
+ * @returns {string}
+ */
 function randomId() {
   return globalThis.crypto.randomUUID();
 }

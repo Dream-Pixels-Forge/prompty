@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('lib/browser.js shim', () => {
   const originalBrowser = globalThis.browser;
   const originalChrome = globalThis.chrome;
+
+  beforeEach(() => {
+    // Re-evaluate the shim module for each test so the globals are read fresh.
+    vi.resetModules();
+  });
 
   afterEach(() => {
     globalThis.browser = originalBrowser;
@@ -10,23 +15,23 @@ describe('lib/browser.js shim', () => {
   });
 
   it('prefers globalThis.browser when present', async () => {
-    globalThis.browser = { storage: { local: 'FX' } };
-    globalThis.chrome = { storage: { local: 'CR' } };
-    const mod = await import(`../src/lib/browser.js?prefers-browser`);
-    expect(mod.default).toEqual({ storage: { local: 'FX' } });
+    globalThis.browser = /** @type {any} */ ({ storage: { local: 'FX' } });
+    globalThis.chrome = /** @type {any} */ ({ storage: { local: 'CR' } });
+    const mod = await import('../src/lib/browser.js');
+    expect(mod.default?.storage?.local).toBe('FX');
   });
 
   it('falls back to globalThis.chrome (MV3) when browser is absent', async () => {
-    delete globalThis.browser;
-    globalThis.chrome = { storage: { local: 'CR' } };
-    const mod = await import(`../src/lib/browser.js?falls-back-chrome`);
-    expect(mod.default).toEqual({ storage: { local: 'CR' } });
+    globalThis.browser = undefined;
+    globalThis.chrome = /** @type {any} */ ({ storage: { local: 'CR' } });
+    const mod = await import('../src/lib/browser.js');
+    expect(mod.default?.storage?.local).toBe('CR');
   });
 
   it('exposes undefined cleanly when neither global exists', async () => {
-    delete globalThis.browser;
-    delete globalThis.chrome;
-    const mod = await import(`../src/lib/browser.js?neither`);
+    globalThis.browser = undefined;
+    globalThis.chrome = undefined;
+    const mod = await import('../src/lib/browser.js');
     expect(mod.default).toBeUndefined();
   });
 });

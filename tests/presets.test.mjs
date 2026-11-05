@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+/**
+ * @typedef {import('../src/lib/storage.js').Prompt} Prompt
+ */
+
 const SEED_TITLES = [
   'Full-Body Character Portrait',
   'Character Design Sheet',
@@ -27,8 +31,8 @@ describe('createPresetsInstance (pure factory)', () => {
     expect(SEED_PROMPT_DEFS).toHaveLength(8);
     expect(SEED_CATEGORIES).toHaveLength(6);
     const instance = createPresetsInstance({
-      categoryIds: SEED_CATEGORIES.map((_, i) => `cat-${i}`),
-      promptIds: SEED_PROMPT_DEFS.map((_, i) => `p-${i}`),
+      categoryIds: Array.from(SEED_CATEGORIES, (_, i) => `cat-${i}`),
+      promptIds: Array.from(SEED_PROMPT_DEFS, (_, i) => `p-${i}`),
     });
     expect(instance.categories.map((c) => c.name)).toEqual(SEED_CATEGORY_NAMES);
     expect(instance.prompts.map((p) => p.title)).toEqual(SEED_TITLES);
@@ -42,14 +46,14 @@ describe('createPresetsInstance (pure factory)', () => {
       '../src/lib/presets.js'
     );
     const instance = createPresetsInstance({
-      categoryIds: SEED_CATEGORIES.map((_, i) => `cat-${i}`),
-      promptIds: SEED_PROMPT_DEFS.map((_, i) => `p-${i}`),
+      categoryIds: Array.from(SEED_CATEGORIES, (_, i) => `cat-${i}`),
+      promptIds: Array.from(SEED_PROMPT_DEFS, (_, i) => `p-${i}`),
     });
     const catIds = new Set(instance.categories.map((c) => c.id));
     for (const p of instance.prompts) {
       expect(p.id).toBeTruthy();
       expect(p.text.length).toBeGreaterThan(0);
-      expect(catIds.has(p.categoryId)).toBe(true);
+      expect(catIds.has(/** @type {string} */ (p.categoryId))).toBe(true);
     }
   });
 
@@ -82,6 +86,7 @@ describe('createPresetsInstance (pure factory)', () => {
 });
 
 describe('seedPresets (idempotent via presetsInitialized/presetsVersion)', () => {
+  /** @type {ReturnType<typeof mockStorageArea>} */
   let storageMock;
 
   beforeEach(() => {
@@ -91,9 +96,20 @@ describe('seedPresets (idempotent via presetsInitialized/presetsVersion)', () =>
   it('seeds empty storage once: 8 prompts + 6 categories, flags set', async () => {
     const { seedPresets, PRESETS_VERSION } = await import('../src/lib/presets.js');
     await seedPresets(storageMock);
-    const data = await storageMock.get(['prompts', 'categories', 'presetsInitialized', 'presetsVersion']);
-    expect(data.prompts).toHaveLength(8);
-    expect(data.categories).toHaveLength(6);
+    const data = await storageMock.get([
+      'prompts',
+      'categories',
+      'presetsInitialized',
+      'presetsVersion',
+    ]);
+    /** @type {Prompt[]} */
+    const prompts = /** @type {Prompt[]} */ (data.prompts);
+    /** @type {Array<import('../src/lib/storage.js').Category>} */
+    const categories = /** @type {Array<import('../src/lib/storage.js').Category>} */ (
+      data.categories
+    );
+    expect(prompts).toHaveLength(8);
+    expect(categories).toHaveLength(6);
     expect(data.presetsInitialized).toBe(true);
     expect(data.presetsVersion).toBe(PRESETS_VERSION);
   });
@@ -104,30 +120,36 @@ describe('seedPresets (idempotent via presetsInitialized/presetsVersion)', () =>
     const first = await storageMock.get(['prompts', 'categories']);
     await seedPresets(storageMock);
     const second = await storageMock.get(['prompts', 'categories']);
-    expect(second.prompts).toHaveLength(8);
-    expect(second.categories).toHaveLength(6);
     expect(second).toEqual(first);
+    /** @type {Prompt[]} */
+    const prompts = /** @type {Prompt[]} */ (second.prompts);
+    /** @type {Array<import('../src/lib/storage.js').Category>} */
+    const categories = /** @type {Array<import('../src/lib/storage.js').Category>} */ (
+      second.categories
+    );
+    expect(prompts).toHaveLength(8);
+    expect(categories).toHaveLength(6);
   });
 
   it('v1→v2 repair-merge: adds missing presets, dedupes existing ones', async () => {
     const { seedPresets, PRESETS_VERSION } = await import('../src/lib/presets.js');
-    // Simulate a v1 install: one prompt seeded, then user (or partial v1 seed) lost 7.
+    // Simulate a v1 install: one prompt seeded, then the user lost the other 7.
+    /** @type {Prompt} */
+    const legacy = {
+      id: 'legacy-p1',
+      title: SEED_TITLES[0],
+      text: 'legacy text with same title signature',
+      createdAt: 1,
+      useCount: 3,
+      isFavorite: false,
+      categoryId: 'legacy-cat',
+      tags: [],
+      aspectRatio: null,
+      quality: null,
+      lastUsedAt: null,
+    };
     await storageMock.set({
-      prompts: [
-        {
-          id: 'legacy-p1',
-          title: SEED_TITLES[0],
-          text: 'legacy text with same title signature',
-          createdAt: 1,
-          useCount: 3,
-          isFavorite: false,
-          categoryId: 'legacy-cat',
-          tags: [],
-          aspectRatio: null,
-          quality: null,
-          lastUsedAt: null,
-        },
-      ],
+      prompts: [legacy],
       categories: [],
       presetsInitialized: true,
       presetsVersion: 1,
@@ -135,20 +157,28 @@ describe('seedPresets (idempotent via presetsInitialized/presetsVersion)', () =>
     await seedPresets(storageMock);
     const data = await storageMock.get(['prompts', 'categories', 'presetsVersion']);
     expect(data.presetsVersion).toBe(PRESETS_VERSION);
-    expect(data.prompts).toHaveLength(8);
-    expect(data.prompts.map((p) => p.title)).toEqual(
+    /** @type {Prompt[]} */
+    const prompts = /** @type {Prompt[]} */ (data.prompts);
+    /** @type {Array<import('../src/lib/storage.js').Category>} */
+    const categories = /** @type {Array<import('../src/lib/storage.js').Category>} */ (
+      data.categories
+    );
+    expect(prompts).toHaveLength(8);
+    expect(prompts.map((p) => p.title)).toEqual(
       expect.arrayContaining(SEED_TITLES),
     );
-    expect(data.categories.map((c) => c.name)).toEqual(SEED_CATEGORY_NAMES);
+    expect(categories.map((c) => c.name)).toEqual(SEED_CATEGORY_NAMES);
   });
 
   it('does not touch user prompts when already initialized at current version', async () => {
     const { seedPresets, PRESETS_VERSION } = await import('../src/lib/presets.js');
     await seedPresets(storageMock);
-    const { prompts: afterSeed } = await storageMock.get(['prompts']);
+    const afterSeed = await storageMock.get(['prompts']);
+    /** @type {Prompt[]} */
+    const seededPrompts = /** @type {Prompt[]} */ (afterSeed.prompts);
     await storageMock.set({
       prompts: [
-        ...afterSeed,
+        ...seededPrompts,
         {
           id: 'user-1',
           title: 'User Custom',
@@ -167,20 +197,38 @@ describe('seedPresets (idempotent via presetsInitialized/presetsVersion)', () =>
       presetsInitialized: true,
     });
     await seedPresets(storageMock);
-    const { prompts } = await storageMock.get(['prompts']);
+    const { prompts: userPrompts } = await storageMock.get(['prompts']);
+    /** @type {Prompt[]} */
+    const prompts = /** @type {Prompt[]} */ (userPrompts);
     expect(prompts).toHaveLength(9);
     expect(prompts.some((p) => p.title === 'User Custom')).toBe(true);
   });
 });
 
+/** ---- mock storage.local (structuredClone deep-copy, Chrome-like) ---- */
+
+/**
+ * @typedef {object} MockArea
+ * @property {(keys: string | string[] | null) => Promise<Record<string, unknown>>} get
+ * @property {(patch: Record<string, unknown>) => Promise<void>} set
+ * @property {() => Record<string, unknown>} _dump
+ */
+
+/**
+ * @returns {MockArea}
+ */
 function mockStorageArea() {
+  /** @type {Map<string, unknown>} */
   const data = new Map();
   return {
     async get(keys) {
+      /** @type {Record<string, unknown>} */
       const out = {};
+      /** @type {string[]} */
       const list = Array.isArray(keys) ? keys : keys == null ? [...data.keys()] : [keys];
       for (const k of list) {
-        if (data.has(k)) out[k] = structuredClone(data.get(k));
+        const value = data.get(k);
+        if (value !== undefined) out[k] = structuredClone(value);
       }
       return out;
     },
@@ -190,4 +238,3 @@ function mockStorageArea() {
     _dump: () => Object.fromEntries(data),
   };
 }
-

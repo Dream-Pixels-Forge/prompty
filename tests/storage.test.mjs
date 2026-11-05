@@ -1,17 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
+  SNIPPET_CAP,
   appendSnippet,
   mergeById,
+  mergePresets,
   mergeSettings,
   normalizeCategory,
   normalizePrompt,
   replaceAll,
 } from '../src/lib/storage.js';
 
+/**
+ * @typedef {import('../src/lib/storage.js').Prompt} Prompt
+ * @typedef {import('../src/lib/storage.js').Category} Category
+ * @typedef {import('../src/lib/storage.js').Snippet} Snippet
+ * @typedef {import('../src/lib/storage.js').Settings} Settings
+ */
+
 describe('normalizePrompt', () => {
   it('fills all fields with SPEC §1 defaults', () => {
-    const p = normalizePrompt({ title: 'T', text: 'B' });
+    /** @type {Prompt} */
+    const p = /** @type {Prompt} */ (normalizePrompt({ title: 'T', text: 'B' }));
     expect(p).toEqual({
       id: expect.any(String),
       title: 'T',
@@ -28,19 +38,22 @@ describe('normalizePrompt', () => {
   });
 
   it('keeps provided values, coerces types', () => {
-    const p = normalizePrompt({
-      id: 'abc',
-      title: 42,
-      text: 'body',
-      createdAt: '1000',
-      useCount: '7',
-      isFavorite: 1,
-      categoryId: 'cat',
-      tags: 'tag-a',
-      aspectRatio: '16:9',
-      quality: 'high',
-      lastUsedAt: 2000,
-    });
+    /** @type {Prompt} */
+    const p = /** @type {Prompt} */ (
+      normalizePrompt({
+        id: 'abc',
+        title: 42,
+        text: 'body',
+        createdAt: '1000',
+        useCount: '7',
+        isFavorite: 1,
+        categoryId: 'cat',
+        tags: 'tag-a',
+        aspectRatio: '16:9',
+        quality: 'high',
+        lastUsedAt: 2000,
+      })
+    );
     expect(p.id).toBe('abc');
     expect(p.title).toBe('42');
     expect(p.createdAt).toBe(1000);
@@ -51,11 +64,15 @@ describe('normalizePrompt', () => {
   });
 
   it('coerces unexpected tag arrays to clean string arrays and strips dups', () => {
-    expect(normalizePrompt({ tags: ['a', 2, '', 'a', null] }).tags).toEqual(['a', '2']);
-    expect(normalizePrompt({ tags: { foo: 1 } }).tags).toEqual([]);
+    /** @type {Prompt} */
+    const p = /** @type {Prompt} */ (normalizePrompt({ tags: ['a', 2, '', 'a', null] }));
+    expect(p.tags).toEqual(['a', '2']);
+    /** @type {Prompt} */
+    const weird = /** @type {Prompt} */ (normalizePrompt({ tags: { foo: 1 } }));
+    expect(weird.tags).toEqual([]);
   });
 
-  it(' rejects non-object input by nulling', () => {
+  it('rejects non-object input by nulling', () => {
     expect(normalizePrompt(null)).toBe(null);
     expect(normalizePrompt('nope')).toBe(null);
   });
@@ -63,7 +80,8 @@ describe('normalizePrompt', () => {
 
 describe('normalizeCategory', () => {
   it('fills defaults (id, name, color, icon, order)', () => {
-    const c = normalizeCategory({ name: 'Chars' });
+    /** @type {Category} */
+    const c = /** @type {Category} */ (normalizeCategory({ name: 'Chars' }));
     expect(c).toEqual({
       id: expect.any(String),
       name: 'Chars',
@@ -79,14 +97,18 @@ describe('normalizeCategory', () => {
 });
 
 describe('mergeById (MERGE import mode)', () => {
-  const a = { id: 'a', name: 'A' };
-  const b = { id: 'b', name: 'B' };
-  const b2 = { id: 'b', name: 'B-imported' };
-  const c = { id: 'c', name: 'C' };
+  /** @type {Prompt} */
+  const a = { id: 'a', title: 'A', text: '', createdAt: 1, useCount: 0, isFavorite: false, categoryId: null, tags: [], aspectRatio: null, quality: null, lastUsedAt: null };
+  /** @type {Prompt} */
+  const b = { id: 'b', title: 'B', text: '', createdAt: 1, useCount: 0, isFavorite: false, categoryId: null, tags: [], aspectRatio: null, quality: null, lastUsedAt: null };
+  /** @type {Prompt} */
+  const b2 = { id: 'b', title: 'B-imported', text: '', createdAt: 1, useCount: 0, isFavorite: false, categoryId: null, tags: [], aspectRatio: null, quality: null, lastUsedAt: null };
+  /** @type {Prompt} */
+  const c = { id: 'c', title: 'C', text: '', createdAt: 1, useCount: 0, isFavorite: false, categoryId: null, tags: [], aspectRatio: null, quality: null, lastUsedAt: null };
 
   it('unions arrays, incoming wins on id collision', () => {
     const merged = mergeById([a, b], [b2, c]);
-    expect(merged.map((x) => x.name)).toEqual(['A', 'B-imported', 'C']);
+    expect(merged.map((x) => x.title)).toEqual(['A', 'B-imported', 'C']);
   });
 
   it('accepts unsorted and duplicate incoming ids (last wins)', () => {
@@ -101,15 +123,48 @@ describe('mergeById (MERGE import mode)', () => {
   });
 });
 
+describe('mergePresets (title/name signature dedupe for repair-merge)', () => {
+  it('dedupes same-title incoming presets, keeps distinct ones', () => {
+    /** @type {Prompt} */
+    const existing = {
+      id: 'p1',
+      title: 'Full-Body Character Portrait',
+      text: 'legacy',
+      createdAt: 1,
+      useCount: 0,
+      isFavorite: false,
+      categoryId: null,
+      tags: [],
+      aspectRatio: null,
+      quality: null,
+      lastUsedAt: null,
+    };
+    const incomingSame = { ...existing, id: 'p1-new', text: 'different text' };
+    const incomingNew = { ...existing, id: 'p2', title: 'Other', text: 'x' };
+    const merged = mergePresets([existing], [incomingSame, incomingNew]);
+    expect(merged).toHaveLength(2);
+    expect(merged.map((p) => p.id)).toEqual(['p1', 'p2']);
+  });
+});
+
 describe('replaceAll (REPLACE import mode)', () => {
   it('returns exactly the normalized incoming array, dropping invalid entries', () => {
     const out = replaceAll([{ id: 'x', title: 'ok', text: 't' }, null, 'garbage']);
     expect(out).toEqual([normalizePrompt({ id: 'x', title: 'ok', text: 't' })]);
   });
+
+  it('supports a custom normalizer (categories)', () => {
+    const out = replaceAll([{ name: 'Cat' }], normalizeCategory);
+    /** @type {Category} */
+    const first = /** @type {Category} */ (out[0]);
+    expect(first.name).toBe('Cat');
+    expect(first.color).toBe('#8b5cf6');
+  });
 });
 
 describe('mergeSettings (whitelist only — SECURITY.md)', () => {
   it('keeps defaults and applies whitelisted patch keys', () => {
+    /** @type {Settings} */
     const s = mergeSettings(DEFAULT_SETTINGS, { compactMode: true, sortBy: 'name' });
     expect(s.compactMode).toBe(true);
     expect(s.sortBy).toBe('name');
@@ -118,18 +173,23 @@ describe('mergeSettings (whitelist only — SECURITY.md)', () => {
   });
 
   it('never adopts non-whitelisted keys (no generic deep merge)', () => {
-    const s = mergeSettings(DEFAULT_SETTINGS, {
-      evil: true,
-      __proto__: { polluted: 'yes' },
-      nested: { pollution: 'attempt' },
-    });
+    const patch = /**
+     * @type {Record<string, unknown> & { evil?: boolean, nested?: object }}
+     */ ({ evil: true, nested: { pollution: 'attempt' } });
+    // Prototype-pollution-style attack: only affects patch's own prototype.
+    Object.setPrototypeOf(patch, { polluted: 'yes' });
+    /** @type {Settings} */
+    const s = mergeSettings(DEFAULT_SETTINGS, patch);
     expect('evil' in s).toBe(false);
     expect('nested' in s).toBe(false);
-    expect({}.polluted).toBeUndefined();
+    expect(s.compactMode).toBe(false);
   });
 
   it('replaces disabledSites whole-array (typed sanitize)', () => {
-    const s = mergeSettings(DEFAULT_SETTINGS, { disabledSites: ['https://x.com', 5, null] });
+    /** @type {Settings} */
+    const s = mergeSettings(DEFAULT_SETTINGS, {
+      disabledSites: ['https://x.com', 5, null],
+    });
     expect(s.disabledSites).toEqual(['https://x.com']);
   });
 
@@ -138,13 +198,15 @@ describe('mergeSettings (whitelist only — SECURITY.md)', () => {
   });
 
   it('ignores patch values of wrong primitive type', () => {
-    const s = mergeSettings(DEFAULT_SETTINGS, { compactMode: 'yes', useCountWontPass: 1 });
+    /** @type {Settings} */
+    const s = mergeSettings(DEFAULT_SETTINGS, { compactMode: 'yes' });
     expect(s.compactMode).toBe(false);
   });
 });
 
 describe('appendSnippet (snippets[] helpers)', () => {
   it('appends {id,text,sourceOrigin} payload to the end', () => {
+    /** @type {Snippet} */
     const a = { id: 's1', text: 'one', sourceOrigin: 'https://a.com' };
     const withB = appendSnippet([a], { text: 'two', sourceOrigin: 'https://b.com' });
     expect(withB).toHaveLength(2);
@@ -173,20 +235,20 @@ describe('appendSnippet (snippets[] helpers)', () => {
   });
 
   it('caps history at 50 FIFO — oldest dropped first', () => {
-    let history = [];
+    let history = /** @type {Snippet[]} */ ([]);
     for (let i = 0; i < 55; i++) {
       history = appendSnippet(history, { text: `snippet-${i}`, sourceOrigin: `u${i}` });
     }
-    expect(history).toHaveLength(50);
+    expect(history).toHaveLength(SNIPPET_CAP);
     expect(history[0].text).toBe('snippet-5');
     expect(history[49].text).toBe('snippet-54');
   });
 
   it('does not mutate the input array', () => {
+    /** @type {Snippet[]} */
     const original = [{ id: 'id1', text: 'a', sourceOrigin: 'o' }];
     const copy = [...original];
     appendSnippet(original, { text: 'b' });
     expect(original).toEqual(copy);
   });
 });
-

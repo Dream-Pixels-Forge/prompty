@@ -3,19 +3,68 @@
  *
  * SECURITY.md rules honored here:
  * - imports are merged only via whitelist/id helpers — never a generic deep merge
- *   (prototype-pollution safe: own-property checks, no recursive spread of untrusted keys)
+ * - prototype-pollution safe: own-property checks only, no spread of untrusted keys
  */
 import browser from './browser.js';
 
-/** Allowed settings keys (whitelist). NO generic deep merge. */
-export const DEFAULT_SETTINGS = Object.freeze({
+/**
+ * @typedef {object} Prompt
+ * @property {string} id
+ * @property {string} title
+ * @property {string} text
+ * @property {number} createdAt
+ * @property {number} useCount
+ * @property {boolean} isFavorite
+ * @property {string|null} categoryId
+ * @property {string[]} tags
+ * @property {string|null} aspectRatio
+ * @property {string|null} quality
+ * @property {number|null} lastUsedAt
+ */
+
+/**
+ * @typedef {object} Category
+ * @property {string} id
+ * @property {string} name
+ * @property {string} color
+ * @property {string} icon
+ * @property {number} order
+ */
+
+/**
+ * @typedef {object} Settings
+ * @property {'all'|'favorites'|'recent'} defaultView
+ * @property {'recent'|'created'|'name'|'mostUsed'} sortBy
+ * @property {boolean} compactMode
+ * @property {boolean} showFloatingWidget
+ * @property {string[]} disabledSites
+ * @property {boolean} autoUnlimited
+ */
+
+/**
+ * @typedef {object} Snippet
+ * @property {string} id
+ * @property {string} text
+ * @property {string} sourceOrigin
+ */
+
+/**
+ * @typedef {object} LibraryData
+ * @property {Prompt[]} prompts
+ * @property {Category[]} categories
+ * @property {Settings} settings
+ */
+
+/** Allowed settings keys (whitelist). NO generic deep merge — SECURITY.md. */
+/** @type {Settings} */
+export const DEFAULT_SETTINGS = {
   defaultView: 'all',
   sortBy: 'recent',
   compactMode: false,
   showFloatingWidget: true,
   disabledSites: [],
   autoUnlimited: false,
-});
+};
 
 /* ------------------------------------------------------------------ */
 /* Prompt / category normalization                                     */
@@ -25,10 +74,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
  * Normalize a raw prompt object (e.g. from import JSON) to the SPEC §1 schema.
  * Non-object inputs return null (caller drops them).
  * @param {unknown} raw
- * @returns {object|null}
+ * @returns {Prompt|null}
  */
 export function normalizePrompt(raw) {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  if (!isRecord(raw)) return null;
   return {
     id: stringOr(raw.id) || generateId(),
     title: stringOr(raw.title),
@@ -37,7 +86,7 @@ export function normalizePrompt(raw) {
     useCount: numberOr(raw.useCount, 0),
     isFavorite: boolOr(raw.isFavorite, false),
     categoryId: stringOr(raw.categoryId) || null,
-    tags: stringArrayOr(raw.tags),
+    tags: stringArrayCoerce(raw.tags),
     aspectRatio: stringOr(raw.aspectRatio) || null,
     quality: stringOr(raw.quality) || null,
     lastUsedAt: numberOr(raw.lastUsedAt, null),
@@ -47,10 +96,10 @@ export function normalizePrompt(raw) {
 /**
  * Normalize a raw category object (id, name, color, icon, order).
  * @param {unknown} raw
- * @returns {object|null}
+ * @returns {Category|null}
  */
 export function normalizeCategory(raw) {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  if (!isRecord(raw)) return null;
   return {
     id: stringOr(raw.id) || generateId(),
     name: stringOr(raw.name),
@@ -67,12 +116,13 @@ export function normalizeCategory(raw) {
 /**
  * MERGE mode: union of both arrays keyed by `id`; incoming wins on collision
  * (last occurrence of an incoming id wins). Pure. Works for prompts & categories.
- * @template {{ id?: string|null }} T
+ * @template {{ id: unknown }} T
  * @param {T[]|null|undefined} existing
  * @param {T[]|null|undefined} incoming
  * @returns {T[]}
  */
 export function mergeById(existing, incoming) {
+  /** @type {Map<unknown, T>} */
   const map = new Map();
   for (const item of asArray(existing)) {
     map.set(item.id, item);
@@ -87,12 +137,15 @@ export function mergeById(existing, incoming) {
  * MERGE mode for preset repair (presets.js): like mergeById, but additionally
  * dedupes on the display signature ("title" for prompts, "name" for categories)
  * so re-seeded v1→v2 data cannot duplicate entries that predate stable ids.
- * @param {object[]|null|undefined} existing normalized items
- * @param {object[]|null|undefined} incoming normalized items
- * @returns {object[]}
+ * @template {{ id: unknown, title?: unknown, name?: unknown }} T
+ * @param {T[]|null|undefined} existing
+ * @param {T[]|null|undefined} incoming
+ * @returns {T[]}
  */
 export function mergePresets(existing, incoming) {
+  /** @type {Map<unknown, T>} */
   const byId = new Map();
+  /** @type {Set<unknown>} */
   const signature = new Set();
   for (const item of asArray(existing)) {
     byId.set(item.id, item);
@@ -106,48 +159,51 @@ export function mergePresets(existing, incoming) {
   return [...byId.values()];
 }
 
-function displaySignature(item) {
-  return item.name ?? item.title ?? '';
-}
-
 /**
  * REPLACE mode (import): exactly the normalized incoming array — invalid
  * entries dropped, valid ones normalized to the SPEC schema. Defaults to
- * prompt normalization; callers importing categories pass {@link normalizeCategory}.
- * @template {object} T
- * @param {(unknown)[]|null|undefined} incoming
- * @param {(raw: unknown) => T|null} [normalizer=normalize]
- * @returns {T[]}
+ * prompt normalization; callers importing categories pass {@link} a normalizer.
+ * @param {unknown[]|null|undefined} incoming
+ * @param {((raw: unknown) => Prompt|Category|null)} [normalizer]
+ * @returns {(Prompt|Category)[]}
  */
 export function replaceAll(incoming, normalizer) {
+  /** @type {(raw: unknown) => Prompt|Category|null} */
   const normalize = normalizer ?? normalizeAny;
+  /** @type {(Prompt|Category)[]} */
   const out = [];
   for (const item of asArray(incoming)) {
-    const n = normalize(item);
-    if (n !== null && typeof n === 'object') out.push(n);
+    const normalized = normalize(item);
+    if (normalized !== null && typeof normalized === 'object') {
+      out.push(normalized);
+    }
   }
   return out;
 }
 
 /**
- * Whitelist merge for settings: only keys of {@link DEFAULT_SETTINGS} are adopted,
- * with per-key type coercion. Never performs a generic/object-value deep merge,
- * never trusts `__proto__`/constructor keys, never mutates base.
- * @param {typeof DEFAULT_SETTINGS|object} base current settings (may be partial)
- * @param {object|undefined|null} patch untrusted patch (e.g. import JSON)
- * @returns {typeof DEFAULT_SETTINGS}
+ * Whitelist merge for settings: only keys of {@link DEFAULT_SETTINGS} are
+ * adopted, with per-key type coercion. Never performs a generic/object-value
+ * deep merge, never trusts `__proto__`/`constructor` keys, never mutates base.
+ * @param {Record<string, unknown>|null|undefined} [base] current settings (may be partial)
+ * @param {Record<string, unknown>|null|undefined} [patch] untrusted patch (e.g. import JSON)
+ * @returns {Settings}
  */
 export function mergeSettings(base, patch) {
-  if (patch === null || typeof patch !== 'object') return mergeSettings(base, {});
-  const current = base === null || typeof base !== 'object' ? {} : base;
+  /** @type {Record<string, unknown>} */
+  const current = isRecord(base) ? base : /** @type {Record<string, unknown>} */ ({});
+  /** @type {Record<string, unknown>} */
+  const untrusted = isRecord(patch) ? patch : /** @type {Record<string, unknown>} */ ({});
+  /** @type {Record<string, unknown>} */
   const out = {};
   for (const key of Object.keys(DEFAULT_SETTINGS)) {
-    const fallback = DEFAULT_SETTINGS[key];
-    if (!hasOwn(patch, key)) {
-      out[key] = cloneSetting(current[key] ?? fallback, fallback);
+    const fallback = /** @type {Record<string, unknown>} */ (DEFAULT_SETTINGS)[key];
+    if (!hasOwn(untrusted, key)) {
+      const valued = hasOwn(current, key) ? current[key] : fallback;
+      out[key] = sameKindOr(valued, fallback);
       continue;
     }
-    const proposed = patch[key];
+    const proposed = untrusted[key];
     if (key === 'disabledSites') {
       // Strict: only well-formed, non-empty string origins are kept.
       out[key] = Array.isArray(proposed)
@@ -159,7 +215,7 @@ export function mergeSettings(base, patch) {
       out[key] = stringOr(proposed) || fallback;
     }
   }
-  return out;
+  return /** @type {Settings} */ (out);
 }
 
 /* ------------------------------------------------------------------ */
@@ -173,15 +229,16 @@ export const SNIPPET_CAP = 50;
  * Pure: append a snippet ({id,text,sourceOrigin}) to history.
  * - trims text; whitespace-only text is rejected
  * - dedupes `text` if it matches the most recent entry
- * - caps history at {@link SNIPPET_CAP} oldest-first
- * @param {object[]|null|undefined} snippets
+ * - caps history at {@link SNIPPET_CAP} by dropping the oldest first
+ * @param {Snippet[]|null|undefined} snippets
  * @param {{ text?: unknown, sourceOrigin?: unknown }} data
- * @returns {object[]}
+ * @returns {Snippet[]}
  */
 export function appendSnippet(snippets, data) {
-  const text = stringOr(data && data.text).trim();
+  const text = stringOr(data?.text).trim();
   if (text === '') return asArray(snippets);
   const history = asArray(snippets);
+  /** @type {Snippet|undefined} */
   const mostRecent = history[history.length - 1];
   if (mostRecent && mostRecent.text === text) return history;
   const next = [
@@ -189,7 +246,7 @@ export function appendSnippet(snippets, data) {
     {
       id: generateId(),
       text,
-      sourceOrigin: stringOr(data && data.sourceOrigin) || '',
+      sourceOrigin: stringOr(data?.sourceOrigin),
     },
   ];
   const overflow = next.length - SNIPPET_CAP;
@@ -197,42 +254,76 @@ export function appendSnippet(snippets, data) {
 }
 
 /* ------------------------------------------------------------------ */
-/* storage.local wrappers (all default to the browser shim)            */
+/* storage.local wrappers (default to the browser shim)                */
 /* ------------------------------------------------------------------ */
 
 const STORAGE_KEYS = /** @type {const} */ (['prompts', 'categories', 'settings']);
 
 /**
+ * Resolve the storage area to use: an injected area (tests, background) or
+ * the shared `browser.storage.local`.
+ * @param {{ get: Function, set: Function }|undefined} [area]
+ * @returns {{ get: Function, set: Function }}
+ */
+function storageArea(area) {
+  const store = area ?? browser?.storage?.local;
+  if (!store) throw new Error('Prompty: storage.local is unavailable');
+  return store;
+}
+
+/**
  * Read and normalize the full library from a storage area.
- * @param {{ get: Function, set: Function }|null} [area=browser.storage.local]
- * @returns {Promise<{prompts: object[], categories: object[], settings: object}>}
+ * @param {{ get: Function, set: Function }} [area] defaults to browser.storage.local
+ * @returns {Promise<LibraryData>}
  */
 export async function readAll(area) {
-  const store = area ?? browser.storage.local;
+  const store = storageArea(area);
+  /** @type {Record<string, unknown>} */
   const raw = await store.get([...STORAGE_KEYS]);
-  const prompts = asArray(raw.prompts)
-    .map(normalizePrompt)
-    .filter((p) => p !== null);
-  const categories = asArray(raw.categories)
-    .map(normalizeCategory)
-    .filter((c) => c !== null);
-  const settings = mergeSettings(DEFAULT_SETTINGS, raw.settings);
+  /** @type {unknown[]} */
+  const rawPrompts = Array.isArray(raw.prompts) ? raw.prompts : [];
+  /** @type {unknown[]} */
+  const rawCategories = Array.isArray(raw.categories) ? raw.categories : [];
+  /** @type {Prompt[]} */
+  const prompts = [];
+  for (const item of rawPrompts) {
+    const normalized = normalizePrompt(item);
+    if (normalized) prompts.push(normalized);
+  }
+  /** @type {Category[]} */
+  const categories = [];
+  for (const item of rawCategories) {
+    const normalized = normalizeCategory(item);
+    if (normalized) categories.push(normalized);
+  }
+  const settings = mergeSettings(
+    DEFAULT_SETTINGS,
+    isRecord(raw.settings) ? raw.settings : null,
+  );
   return { prompts, categories, settings };
 }
 
 /**
  * Write the library back to a storage area.
- * @param {{ get: Function, set: Function }|null} [area=browser.storage.local]
- * @param {{ prompts?: object[], categories?: object[], settings?: object }} data
+ * @param {{ get: Function, set: Function }} [area] defaults to browser.storage.local
+ * @param {{ prompts?: Prompt[], categories?: Category[], settings?: unknown }|undefined} [partialData]
  * @returns {Promise<void>}
  */
-export async function writeAll(area, data) {
-  const store = area ?? browser.storage.local;
+export async function writeAll(area, partialData) {
+  const store = storageArea(area);
+  /** @type {Record<string, unknown>} */
   const payload = {};
-  if (Array.isArray(data.prompts)) payload.prompts = data.prompts;
-  if (Array.isArray(data.categories)) payload.categories = data.categories;
-  if (data.settings !== undefined) {
-    payload.settings = mergeSettings(DEFAULT_SETTINGS, data.settings);
+  if (Array.isArray(partialData?.prompts)) {
+    payload.prompts = partialData.prompts.filter((item) => item !== null);
+  }
+  if (Array.isArray(partialData?.categories)) {
+    payload.categories = partialData.categories.filter((item) => item !== null);
+  }
+  if (partialData && hasOwn(partialData, 'settings') && partialData.settings !== undefined) {
+    payload.settings = mergeSettings(
+      DEFAULT_SETTINGS,
+      isRecord(partialData.settings) ? partialData.settings : null,
+    );
   }
   if (Object.keys(payload).length > 0) await store.set(payload);
 }
@@ -241,29 +332,64 @@ export async function writeAll(area, data) {
 /* internals                                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * @template T
+ * @param {T[]|null|undefined} value
+ * @returns {T[]}
+ */
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+/**
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * @param {unknown} obj
+ * @param {string} key
+ * @returns {boolean}
+ */
 function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
+/**
+ * @param {unknown} value
+ * @param {string} [fallback]
+ * @returns {string}
+ */
 function stringOr(value, fallback = '') {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return fallback;
 }
 
+/**
+ * @template T
+ * @param {unknown} value
+ * @param {T} fallback
+ * @returns {number|T}
+ */
 function numberOr(value, fallback) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim() !== '') {
-    const n = Number(value);
-    if (Number.isFinite(n)) return n;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
   }
   return fallback;
 }
 
+/**
+ * @template T
+ * @param {unknown} value
+ * @param {T} fallback
+ * @returns {boolean|T}
+ */
 function boolOr(value, fallback) {
   if (typeof value === 'boolean') return value;
   if (value === 1) return true;
@@ -271,36 +397,67 @@ function boolOr(value, fallback) {
   return fallback;
 }
 
-function stringArrayOr(value) {
+/**
+ * Tags: coerce everything string-able, trim, drop empties and duplicates.
+ * @param {unknown} value
+ * @returns {string[]}
+ */
+function stringArrayCoerce(value) {
   if (typeof value === 'string') {
-    const t = value.trim();
-    return t === '' ? [] : [t];
+    const trimmed = value.trim();
+    return trimmed === '' ? [] : [trimmed];
   }
   if (!Array.isArray(value)) return [];
+  /** @type {string[]} */
   const out = [];
   const seen = new Set();
   for (const item of value) {
-    const s = stringOr(item).trim();
-    if (s === '' || seen.has(s)) continue;
-    seen.add(s);
-    out.push(s);
+    const entry = stringOr(item).trim();
+    if (entry === '' || seen.has(entry)) continue;
+    seen.add(entry);
+    out.push(entry);
   }
   return out;
 }
 
-function cloneSetting(value, fallback) {
-  if (Array.isArray(fallback)) return stringArrayOr(value);
-  if (typeof value === typeof fallback) return value;
+/**
+ * Keep a value only if it has the same primitive "kind" as the fallback
+ * (arrays fall back through the stringArray path).
+ * @param {unknown} value
+ * @param {unknown} fallback
+ * @returns {unknown}
+ */
+function sameKindOr(value, fallback) {
+  if (Array.isArray(fallback)) return stringArrayCoerce(value);
+  if (typeof value === typeof fallback && value !== null && value !== undefined) {
+    return value;
+  }
   return fallback;
 }
 
-function generateId() {
-  return globalThis.crypto?.randomUUID?.() ?? '';
+/**
+ * @param {{ title?: unknown, name?: unknown }} item
+ * @returns {unknown}
+ */
+function displaySignature(item) {
+  return item.name ?? item.title ?? '';
 }
 
+/**
+ * @param {unknown} raw
+ * @returns {Prompt|Category|null}
+ */
 function normalizeAny(raw) {
-  if (raw !== null && typeof raw === 'object' && hasOwn(raw, 'name')) {
+  if (isRecord(raw) && hasOwn(raw, 'name') && hasOwn(raw, 'color')) {
     return normalizeCategory(raw);
   }
   return normalizePrompt(raw);
+}
+
+/**
+ * Prefer crypto.randomUUID (SECURITY.md); empty string if unavailable.
+ * @returns {string}
+ */
+function generateId() {
+  return globalThis.crypto?.randomUUID?.() ?? '';
 }

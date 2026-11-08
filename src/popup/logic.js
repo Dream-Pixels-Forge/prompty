@@ -324,3 +324,93 @@ function isRecord(thing) {
 function stringOrBlank(value) {
   return typeof value === 'string' ? value : '';
 }
+
+/* ------------------------------------------------------------------ */
+/* Recipes (G3)                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @typedef {import('../lib/storage.js').Recipe} Recipe
+ */
+
+/**
+ * Filter recipes by search query against originPattern and notes.
+ * @param {Recipe[]|null|undefined} recipes
+ * @param {string|null|undefined} query
+ * @returns {Recipe[]}
+ */
+export function filterRecipes(recipes, query) {
+  const needle = String(query ?? '').trim().toLowerCase();
+  if (needle === '') return Array.isArray(recipes) ? recipes : [];
+  return (Array.isArray(recipes) ? recipes : []).filter((recipe) => {
+    const pattern = typeof recipe.originPattern === 'string' ? recipe.originPattern.toLowerCase() : '';
+    const notes = typeof recipe.notes === 'string' ? recipe.notes.toLowerCase() : '';
+    return pattern.includes(needle) || notes.includes(needle);
+  });
+}
+
+/**
+ * Validate a recipe JSON string using the same schema as the content script.
+ * @param {string} jsonText
+ * @returns {{ ok: boolean, errors: string[], recipe?: Recipe }}
+ */
+export function validateRecipeInput(jsonText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch (e) {
+    return { ok: false, errors: ['Invalid JSON: ' + (e instanceof Error ? e.message : String(e))] };
+  }
+
+  const errors = [];
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    errors.push('Recipe must be an object');
+    return { ok: false, errors };
+  }
+
+  const r = /** @type {Record<string, unknown>} */ (parsed);
+
+  if (typeof r.originPattern !== 'string' || r.originPattern.trim() === '') {
+    errors.push('originPattern is required and must be a non-empty string');
+  }
+
+  if (!Array.isArray(r.promptInput)) {
+    errors.push('promptInput must be an array of strings');
+  } else if (!r.promptInput.every((s) => typeof s === 'string' && s.trim() !== '')) {
+    errors.push('promptInput must contain only non-empty strings');
+  }
+
+  if (!Array.isArray(r.submit)) {
+    errors.push('submit must be an array of strings');
+  } else if (!r.submit.every((s) => typeof s === 'string' && s.trim() !== '')) {
+    errors.push('submit must contain only non-empty strings');
+  }
+
+  if (!r.selects || typeof r.selects !== 'object' || Array.isArray(r.selects)) {
+    errors.push('selects must be an object with aspect and quality properties');
+  } else {
+    const selects = /** @type {Record<string, unknown>} */ (r.selects);
+    if (typeof selects.aspect !== 'string' || selects.aspect.trim() === '') {
+      errors.push('selects.aspect is required and must be a non-empty string');
+    }
+    if (typeof selects.quality !== 'string' || selects.quality.trim() === '') {
+      errors.push('selects.quality is required and must be a non-empty string');
+    }
+  }
+
+  if (!Array.isArray(r.qualityValues)) {
+    errors.push('qualityValues must be an array of strings');
+  } else if (!r.qualityValues.every((s) => typeof s === 'string' && s.trim() !== '')) {
+    errors.push('qualityValues must contain only non-empty strings');
+  }
+
+  if (r.notes !== undefined && typeof r.notes !== 'string') {
+    errors.push('notes must be a string if provided');
+  }
+
+  if (errors.length === 0) {
+    return { ok: true, errors: [], recipe: /** @type {Recipe} */ (parsed) };
+  }
+  return { ok: false, errors };
+}

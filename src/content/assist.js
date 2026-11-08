@@ -84,11 +84,12 @@
    * `src/lib/storage.js mergeSettings` for exactly these keys. Never merges
    * unknown keys, never mutates the input.
    * @param {unknown} raw stored settings (may be partial/garbage)
-   * @returns {{ showFloatingWidget: boolean, disabledSites: string[], sortBy: string, compactMode: boolean }}
+   * @returns {{ showFloatingWidget: boolean, disabledSites: string[], sortBy: string, compactMode: boolean, quickTrigger: string, quickTriggerEnabled: boolean }}
    */
   function normalizeSettings(raw) {
     const record = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
     const sortBy = record.sortBy;
+    const quickTrigger = record.quickTrigger;
     return {
       showFloatingWidget: typeof record.showFloatingWidget === 'boolean' ? record.showFloatingWidget : true,
       disabledSites: Array.isArray(record.disabledSites)
@@ -99,6 +100,8 @@
           ? sortBy
           : 'recent',
       compactMode: typeof record.compactMode === 'boolean' ? record.compactMode : false,
+      quickTrigger: typeof quickTrigger === 'string' && quickTrigger.length === 1 ? quickTrigger : '!',
+      quickTriggerEnabled: typeof record.quickTriggerEnabled === 'boolean' ? record.quickTriggerEnabled : true,
     };
   }
 
@@ -274,6 +277,207 @@
     };
   }
 
+  // ---- inline port of src/lib/recipes.js (same algorithms) ----
+  /**
+   * Check if a URL matches a glob-style pattern.
+   * Matches against the host + pathname (without protocol) with minimatch-like logic.
+   * Supports * at start, end, or both (e.g., '*.example.com/*', 'example.com/*', 'example.com').
+   * @param {string} url - Full URL to test
+   * @param {string} pattern - Glob-style pattern
+   * @returns {boolean}
+   */
+  function matchOriginPattern(url, pattern) {
+    if (typeof url !== 'string' || typeof pattern !== 'string') return false;
+
+    let hostPath;
+    try {
+      const u = new URL(url);
+      hostPath = u.host + u.pathname;
+    } catch {
+      return false;
+    }
+
+    // Escape regex special chars except *
+    const escaped = pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*');
+
+    const regex = new RegExp(`^${escaped}$`);
+    return regex.test(hostPath);
+  }
+
+  /**
+   * Find the first recipe that matches the given URL.
+   * @param {string} url - Full URL to match
+   * @param {Array} recipes - Array of recipe objects
+   * @returns {object|null} The first matching recipe, or null if none match
+   */
+  function matchRecipe(url, recipes) {
+    if (!Array.isArray(recipes)) return null;
+
+    for (const recipe of recipes) {
+      if (matchOriginPattern(url, recipe.originPattern)) {
+        return recipe;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get the default generic fallback recipe (heuristic selectors from original).
+   * @returns {object}
+   */
+  function getDefaultRecipe() {
+    return {
+      originPattern: '*',
+      promptInput: [
+        'textarea[placeholder*="prompt" i]',
+        'textarea[placeholder*="describe" i]',
+        'textarea[placeholder*="scene" i]',
+        'textarea',
+        'input[type="text"][placeholder*="prompt" i]',
+        '[contenteditable="true"]',
+      ],
+      submit: [
+        'button[type="submit"]',
+        'button:has-text("Generate")',
+        'button:has-text("Create")',
+        'button:has-text("Submit")',
+        '[role="button"]:has-text("Generate")',
+      ],
+      selects: {
+        aspect: 'select[options*="1:1" i][options*="16:9" i][options*="9:16" i]',
+        quality: 'select[options*="1k" i][options*="2k" i][options*="4k" i]',
+      },
+      qualityValues: ['1k', '2k', '4k'],
+      notes: 'Generic fallback — heuristic chain from original behavior',
+    };
+  }
+
+  // Built-in recipes (embedded from assets/recipes.json at build time)
+  const BUILTIN_RECIPES = [
+    {
+      originPattern: '*.higgsfield.ai/*',
+      promptInput: [
+        'textarea.reference-prompt',
+        'textarea[placeholder*="Describe the scene" i]',
+        'textarea[placeholder*="prompt" i]',
+        'main textarea',
+      ],
+      submit: [
+        '#hf\\:image-form-submit',
+        'button[type="submit"]:has-text("Generate")',
+      ],
+      selects: {
+        aspect: 'select[options*="1:1"][options*="16:9"][options*="9:16"]',
+        quality: 'select[options*="1k"][options*="2k"][options*="4k"]',
+      },
+      qualityValues: ['1k', '2k', '4k'],
+      notes: 'Higgsfield AI — ported from original hardcoded selectors',
+    },
+    {
+      originPattern: 'chat.openai.com/*',
+      promptInput: [
+        'textarea#prompt-textarea',
+        'textarea[placeholder*="Message" i]',
+        'textarea[data-testid="prompt-textarea"]',
+        'div[contenteditable="true"][data-testid="prompt-textarea"]',
+      ],
+      submit: [
+        'button[data-testid="send-button"]',
+        'button:has-text("Send")',
+        'button[type="submit"]',
+      ],
+      selects: {
+        aspect: 'select[name*="aspect" i]',
+        quality: 'select[name*="quality" i]',
+      },
+      qualityValues: ['standard', 'hd', '4k'],
+      notes: 'ChatGPT / OpenAI — primary chat interface',
+    },
+    {
+      originPattern: 'claude.ai/*',
+      promptInput: [
+        'div[contenteditable="true"][placeholder*="Talk" i]',
+        'div[contenteditable="true"][data-testid="chat-input"]',
+        'textarea[placeholder*="Talk" i]',
+      ],
+      submit: [
+        'button[aria-label*="Send" i]',
+        'button:has-text("Send")',
+        'button[type="submit"]',
+      ],
+      selects: {
+        aspect: 'select[name*="aspect" i]',
+        quality: 'select[name*="quality" i]',
+      },
+      qualityValues: ['standard', 'high'],
+      notes: 'Claude AI — Anthropic chat interface',
+    },
+    {
+      originPattern: 'gemini.google.com/*',
+      promptInput: [
+        'div[contenteditable="true"][aria-label*="Enter" i]',
+        'div[contenteditable="true"][placeholder*="Enter" i]',
+        'textarea[placeholder*="Enter" i]',
+      ],
+      submit: [
+        'button[aria-label*="Send" i]',
+        'button:has-text("Send")',
+        'button[type="submit"]',
+      ],
+      selects: {
+        aspect: 'select[name*="aspect" i]',
+        quality: 'select[name*="quality" i]',
+      },
+      qualityValues: ['standard', 'high'],
+      notes: 'Google Gemini — chat interface',
+    },
+    {
+      originPattern: 'perplexity.ai/*',
+      promptInput: [
+        'textarea[placeholder*="Ask" i]',
+        'textarea[placeholder*="Search" i]',
+        'div[contenteditable="true"][placeholder*="Ask" i]',
+      ],
+      submit: [
+        'button[aria-label*="Submit" i]',
+        'button:has-text("Submit")',
+        'button[type="submit"]',
+      ],
+      selects: {
+        aspect: 'select[name*="aspect" i]',
+        quality: 'select[name*="quality" i]',
+      },
+      qualityValues: ['standard', 'detailed'],
+      notes: 'Perplexity AI — search/chat interface',
+    },
+    {
+      originPattern: '*',
+      promptInput: [
+        'textarea[placeholder*="prompt" i]',
+        'textarea[placeholder*="describe" i]',
+        'textarea[placeholder*="scene" i]',
+        'textarea',
+        'input[type="text"][placeholder*="prompt" i]',
+        '[contenteditable="true"]',
+      ],
+      submit: [
+        'button[type="submit"]',
+        'button:has-text("Generate")',
+        'button:has-text("Create")',
+        'button:has-text("Submit")',
+        '[role="button"]:has-text("Generate")',
+      ],
+      selects: {
+        aspect: 'select[options*="1:1" i][options*="16:9" i][options*="9:16" i]',
+        quality: 'select[options*="1k" i][options*="2k" i][options*="4k" i]',
+      },
+      qualityValues: ['1k', '2k', '4k'],
+      notes: 'Generic fallback — heuristic chain from original behavior',
+    },
+  ];
+
   /* ------------------------------------------------------------------ *
    * Sandbox hook — ONLY fires when no document exists (vitest stub). A   *
    * live page always has `document`, so site scripts can never invoke    *
@@ -296,6 +500,16 @@
       truncatedTitle,
       buildPromptObject,
       randomId,
+      matchOriginPattern,
+      matchRecipe,
+      getDefaultRecipe,
+      BUILTIN_RECIPES,
+      // G1 trigger-char palette functions
+      subsequenceScoreInline,
+      extractMatchesInline,
+      extractVariablesInline,
+      humanizeVarInline,
+      resolveVariablesInline,
     });
     return;
   }
@@ -326,6 +540,17 @@
   /** @type {any} */ let saveTitleInput = null;
   /** @type {any} */ let toastEl = null;
 
+  // Quick-insert palette (G1)
+  /** @type {any} */ let palette = null;
+  /** @type {any} */ let paletteList = null;
+  /** @type {any} */ let paletteSearch = null;
+  /** @type {any} */ let paletteSelectedIndex = 0;
+  /** @type {any} */ let paletteItems = [];
+  /** @type {any} */ let paletteTarget = null;
+  /** @type {any} */ let paletteVariablePrompt = null;
+  /** @type {any} */ let paletteVariableInputs = null;
+  let paletteVisible = false;
+
   /** @type {any} */ let pillAnchor = null;
   let pillVisible = false;
   /** @type {any} */ let lastPageEditable = null;
@@ -344,6 +569,9 @@
   /** @type {any} */ let storageChangedListener = null;
   /** @type {any} */ let messageListener = null;
   /** @type {any} */ let observer = null;
+
+  // Site recipes (merged built-in + user from storage)
+  let siteRecipes = [];
 
   /* ------------------------------------------------------------------ */
   /* DOM construction helpers (CSSOM only — CSP-proof, textContent only) */
@@ -602,6 +830,107 @@
       overflow: 'hidden',
       pointerEvents: 'none',
     },
+    // Quick-insert palette (G1)
+    palette: {
+      position: 'absolute',
+      background: 'rgba(17,17,24,0.98)',
+      border: '1px solid rgba(255,255,255,0.18)',
+      borderRadius: '10px',
+      boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+      padding: '6px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px',
+      pointerEvents: 'auto',
+      minWidth: '280px',
+      maxWidth: '420px',
+      maxHeight: '360px',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      zIndex: '2147483647',
+    },
+    paletteSearch: {
+      width: '100%',
+      background: 'rgba(255,255,255,0.08)',
+      border: '1px solid rgba(255,255,255,0.18)',
+      borderRadius: '7px',
+      color: '#f0f0f8',
+      fontSize: '13px',
+      padding: '6px 8px',
+      outline: 'none',
+      boxSizing: 'border-box',
+    },
+    paletteList: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      overflowY: 'auto',
+      maxHeight: '280px',
+    },
+    paletteItem: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '3px',
+      padding: '7px 9px',
+      background: 'rgba(255,255,255,0.04)',
+      borderRadius: '7px',
+      cursor: 'pointer',
+      border: '1px solid transparent',
+      transition: 'background 0.08s, border-color 0.08s',
+    },
+    paletteItemSelected: {
+      background: 'rgba(139,92,246,0.25)',
+      borderColor: 'rgba(139,92,246,0.5)',
+    },
+    paletteItemTitle: {
+      color: '#f2f2f8',
+      fontSize: '13px',
+      fontWeight: '600',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    paletteItemText: {
+      color: 'rgba(240,240,248,0.6)',
+      fontSize: '11px',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+    paletteItemHighlight: {
+      background: 'rgba(139,92,246,0.35)',
+      borderRadius: '2px',
+      padding: '0 1px',
+    },
+    paletteVarForm: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      padding: '6px 2px',
+      borderTop: '1px solid rgba(255,255,255,0.1)',
+      marginTop: '2px',
+    },
+    paletteVarLabel: {
+      color: 'rgba(240,240,248,0.7)',
+      fontSize: '11px',
+      fontWeight: '500',
+    },
+    paletteVarInput: {
+      width: '100%',
+      background: 'rgba(255,255,255,0.08)',
+      border: '1px solid rgba(255,255,255,0.18)',
+      borderRadius: '6px',
+      color: '#f0f0f8',
+      fontSize: '12px',
+      padding: '5px 7px',
+      outline: 'none',
+      boxSizing: 'border-box',
+    },
+    paletteHint: {
+      color: 'rgba(240,240,248,0.45)',
+      fontSize: '11px',
+      textAlign: 'center',
+      padding: '2px 0',
+    },
   };
 
   /* ------------------------------------------------------------------ */
@@ -717,6 +1046,30 @@
     applyStyles(toastEl, STYLES.toast);
     toastEl.hidden = true;
     shadow.appendChild(toastEl);
+
+    // Quick-insert palette (G1) — built but hidden initially
+    palette = elInShadow('div');
+    applyStyles(palette, STYLES.palette);
+    palette.hidden = true;
+
+    paletteSearch = elInShadow('input');
+    paletteSearch.type = 'search';
+    paletteSearch.placeholder = 'Search prompts…';
+    applyStyles(paletteSearch, STYLES.paletteSearch);
+    paletteSearch.addEventListener('input', () => filterPalette());
+    paletteSearch.addEventListener('keydown', (ev) => handlePaletteKeydown(ev));
+    palette.appendChild(paletteSearch);
+
+    paletteList = elInShadow('div');
+    applyStyles(paletteList, STYLES.paletteList);
+    palette.appendChild(paletteList);
+
+    const paletteHint = elInShadow('div');
+    paletteHint.textContent = '↑↓ navigate · Enter insert · Esc close';
+    applyStyles(paletteHint, STYLES.paletteHint);
+    palette.appendChild(paletteHint);
+
+    shadow.appendChild(palette);
   }
 
   /**
@@ -757,7 +1110,7 @@
     const store = api.storage && api.storage.local;
     if (!store) return;
     const posKey = `widgetPositions:${pageOrigin}`;
-    const data = await store.get(['settings', posKey, 'prompts']);
+    const data = await store.get(['settings', posKey, 'prompts', 'siteRecipes']);
     settings = normalizeSettings(data?.settings);
     prompts = storedPromptList(data?.prompts);
     const pos = data?.[posKey];
@@ -769,6 +1122,9 @@
         Number.isFinite(y) ? y : Math.round(window.innerHeight * 0.35),
       );
     }
+    // Merge built-in recipes with user recipes from storage
+    const userRecipes = Array.isArray(data?.siteRecipes) ? data.siteRecipes : [];
+    siteRecipes = [...BUILTIN_RECIPES, ...userRecipes];
     applyWidgetVisibility();
     renderList();
   }
@@ -932,8 +1288,26 @@
   }
 
   /**
+   * Get the selected value from a <select> element matching the selector.
+   * @param {string} selector
+   * @returns {string|null}
+   */
+  function getSelectValue(selector) {
+    try {
+      const el = document.querySelector(selector);
+      if (el && el.tagName === 'SELECT') {
+        return el.value || null;
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  }
+
+  /**
    * Confirm: append the prompt to storage.prompts (own whitelist-built
    * object; existing entries pass through untouched — no untrusted merge).
+   * Uses matched site recipe to capture aspectRatio/quality from page selects.
    */
   async function confirmSave() {
     const store = api.storage && api.storage.local;
@@ -947,7 +1321,25 @@
     try {
       const data = await store.get(['prompts']);
       const list = storedPromptList(data?.prompts);
-      list.push(buildPromptObject(title, text));
+
+      // Match recipe for current URL to capture aspect/quality
+      const recipe = matchRecipe(location.href, siteRecipes);
+      let aspectRatio = null;
+      let quality = null;
+      if (recipe) {
+        aspectRatio = getSelectValue(recipe.selects?.aspect);
+        quality = getSelectValue(recipe.selects?.quality);
+        // Validate quality against recipe's qualityValues
+        if (quality && Array.isArray(recipe.qualityValues) && !recipe.qualityValues.includes(quality)) {
+          quality = null;
+        }
+      }
+
+      const promptObj = buildPromptObject(title, text);
+      promptObj.aspectRatio = aspectRatio;
+      promptObj.quality = quality;
+
+      list.push(promptObj);
       await store.set({ prompts: list });
       prompts = list;
       renderList();
@@ -1152,6 +1544,593 @@
       root = typeof root.host === 'object' ? root.host : null;
     }
     return false;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Quick-insert palette (G1)                                           */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Get caret coordinates for an editable element.
+   * Returns {x, y, height} relative to viewport.
+   * @param {any} el
+   * @returns {{x: number, y: number, height: number}}
+   */
+  function getCaretCoordinates(el) {
+    const tag = elementTag(el);
+    if (tag === 'TEXTAREA' || tag === 'INPUT') {
+      // For textarea/input, create a mirror div to measure caret position
+      const value = el.value;
+      const prefix = value.slice(0, el.selectionStart);
+      const mirror = document.createElement('div');
+      const style = window.getComputedStyle(el);
+      mirror.style.cssText = `
+        position: absolute;
+        visibility: hidden;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font: ${style.font};
+        line-height: ${style.lineHeight};
+        padding: ${style.padding};
+        border: ${style.border};
+        box-sizing: ${style.boxSizing};
+        width: ${style.width};
+        top: -9999px;
+        left: -9999px;
+      `;
+      mirror.textContent = prefix + '\u200B'; // zero-width space at caret
+      document.body.appendChild(mirror);
+      const rect = mirror.getBoundingClientRect();
+      const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+      document.body.removeChild(mirror);
+      const elRect = el.getBoundingClientRect();
+      return {
+        x: rect.left - mirror.getBoundingClientRect().left + elRect.left,
+        y: rect.top - mirror.getBoundingClientRect().top + elRect.top,
+        height: lineHeight,
+      };
+    }
+    if (el.isContentEditable === true) {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        return {
+          x: rect.left,
+          y: rect.top,
+          height: rect.height || 20,
+        };
+      }
+    }
+    // Fallback: element position
+    const rect = el.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, height: 20 };
+  }
+
+  /**
+   * Open the quick-insert palette anchored near the caret.
+   * @param {any} target
+   */
+  function openPalette(target) {
+    if (!palette || !settings.quickTriggerEnabled) return;
+    paletteTarget = target;
+    paletteVisible = true;
+    paletteSelectedIndex = 0;
+    paletteVariablePrompt = null;
+    paletteVariableInputs = null;
+
+    // Load prompts from storage
+    loadPromptsForPalette().then(() => {
+      filterPalette();
+      positionPalette();
+      palette.hidden = false;
+      paletteSearch.focus({ preventScroll: true });
+      paletteSearch.value = '';
+    });
+  }
+
+  /**
+   * Load prompts from storage for the palette.
+   */
+  async function loadPromptsForPalette() {
+    const store = api.storage && api.storage.local;
+    if (!store) return;
+    try {
+      const data = await store.get(['prompts']);
+      paletteItems = storedPromptList(data?.prompts);
+    } catch {
+      paletteItems = [];
+    }
+  }
+
+  /**
+   * Position the palette near the caret of the target element.
+   */
+  function positionPalette() {
+    if (!palette || !paletteTarget || !paletteVisible) return;
+    const coords = getCaretCoordinates(paletteTarget);
+    const paletteWidth = palette.offsetWidth || 320;
+    const paletteHeight = palette.offsetHeight || 300;
+
+    let x = coords.x;
+    let y = coords.y + coords.height + 4;
+
+    // Clamp to viewport
+    x = clampNumber(x, 8, Math.max(8, window.innerWidth - paletteWidth - 8));
+    if (y + paletteHeight > window.innerHeight - 8) {
+      y = Math.max(8, coords.y - paletteHeight - 4);
+    }
+
+    palette.style.left = `${x}px`;
+    palette.style.top = `${y}px`;
+  }
+
+  /**
+   * Close the palette and reset state.
+   */
+  function closePalette() {
+    paletteVisible = false;
+    paletteTarget = null;
+    paletteVariablePrompt = null;
+    paletteVariableInputs = null;
+    if (palette) palette.hidden = true;
+    if (paletteSearch) paletteSearch.value = '';
+    if (paletteList) {
+      while (paletteList.firstChild) paletteList.removeChild(paletteList.firstChild);
+    }
+  }
+
+  /**
+   * Filter and render palette items based on search input.
+   */
+  function filterPalette() {
+    if (!paletteList || !paletteSearch) return;
+    const query = paletteSearch.value.trim().toLowerCase();
+
+    // Use inline fuzzy match (non-drift via test hook)
+    const scored = [];
+    for (const item of paletteItems) {
+      const key = `${String(item.title ?? '')} ${String(item.text ?? '')}`;
+      const subScore = subsequenceScoreInline(key, query);
+      if (subScore !== null) {
+        let recencyScore = 0;
+        const ts = item.lastUsedAt || item.createdAt;
+        if (typeof ts === 'number' && ts > 0) {
+          const ageMs = Date.now() - ts;
+          const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+          recencyScore = Math.max(0, 0.2 * (1 - ageMs / thirtyDaysMs));
+        }
+        scored.push({ item, score: subScore + recencyScore, key });
+      }
+    }
+    scored.sort((a, b) => b.score - a.score);
+    const topItems = scored.slice(0, 8);
+
+    // Render
+    while (paletteList.firstChild) paletteList.removeChild(paletteList.firstChild);
+    for (let i = 0; i < topItems.length; i++) {
+      const { item, key } = topItems[i];
+      paletteList.appendChild(createPaletteItem(item, key, query, i === paletteSelectedIndex));
+    }
+
+    // Update selected index if out of bounds
+    if (paletteSelectedIndex >= topItems.length) {
+      paletteSelectedIndex = Math.max(0, topItems.length - 1);
+    }
+    updatePaletteSelection(topItems.length);
+  }
+
+  /**
+   * Inline subsequence score (copied from src/lib/search.js for non-drift testing).
+   * @param {string} target
+   * @param {string} query
+   * @returns {number|null}
+   */
+  function subsequenceScoreInline(target, query) {
+    if (typeof target !== 'string' || typeof query !== 'string') return null;
+    const t = target.toLowerCase();
+    const q = query.toLowerCase();
+    if (q.length === 0) return 1;
+    if (q.length > t.length) return null;
+
+    let ti = 0;
+    let qi = 0;
+    let firstMatchIndex = -1;
+    const matchIndices = [];
+
+    while (ti < t.length && qi < q.length) {
+      if (t[ti] === q[qi]) {
+        if (firstMatchIndex === -1) firstMatchIndex = ti;
+        matchIndices.push(ti);
+        qi++;
+      }
+      ti++;
+    }
+
+    if (qi < q.length) return null;
+
+    const spread = matchIndices[matchIndices.length - 1] - matchIndices[0] + 1;
+    const compactness = q.length / spread;
+    const prefixBonus = firstMatchIndex === 0 ? 0.15 : 0;
+    const positionPenalty = firstMatchIndex / t.length * 0.2;
+    const lengthBonus = Math.min(q.length / t.length, 0.1);
+
+    const score = compactness * 0.7 + (1 - positionPenalty) * 0.15 + prefixBonus + lengthBonus;
+    return Math.min(1, Math.max(0, score));
+  }
+
+  /**
+   * Extract match indices for highlighting (inline copy).
+   * @param {string} text
+   * @param {string} query
+   * @returns {{start: number, end: number}[]}
+   */
+  function extractMatchesInline(text, query) {
+    if (typeof text !== 'string' || typeof query !== 'string' || query.length === 0) return [];
+    const t = text.toLowerCase();
+    const q = query.toLowerCase();
+
+    const indices = [];
+    let ti = 0;
+    let qi = 0;
+
+    while (ti < t.length && qi < q.length) {
+      if (t[ti] === q[qi]) {
+        indices.push(ti);
+        qi++;
+      }
+      ti++;
+    }
+
+    if (qi < q.length) return [];
+
+    const ranges = [];
+    let rangeStart = indices[0];
+    let prev = indices[0];
+
+    for (let i = 1; i < indices.length; i++) {
+      if (indices[i] === prev + 1) {
+        prev = indices[i];
+      } else {
+        ranges.push({ start: rangeStart, end: prev + 1 });
+        rangeStart = indices[i];
+        prev = indices[i];
+      }
+    }
+    ranges.push({ start: rangeStart, end: prev + 1 });
+
+    return ranges;
+  }
+
+  /**
+   * Create a palette item element.
+   * @param {any} prompt
+   * @param {string} key
+   * @param {string} query
+   * @param {boolean} selected
+   * @returns {any}
+   */
+  function createPaletteItem(prompt, key, query, selected) {
+    const item = elInShadow('div');
+    applyStyles(item, STYLES.paletteItem);
+    if (selected) applyStyles(item, STYLES.paletteItemSelected);
+
+    const title = elInShadow('div');
+    applyStyles(title, STYLES.paletteItemTitle);
+    highlightText(title, String(prompt.title ?? '') || '(untitled)', query);
+    item.appendChild(title);
+
+    const snippet = elInShadow('div');
+    applyStyles(snippet, STYLES.paletteItemText);
+    highlightText(snippet, String(prompt.text ?? ''), query);
+    item.appendChild(snippet);
+
+    item.addEventListener('mousedown', (ev) => {
+      ev.preventDefault(); // keep focus in page editable
+      paletteSelectedIndex = Array.from(paletteList.children).indexOf(item);
+      insertFromPalette();
+    });
+    item.addEventListener('mouseenter', () => {
+      paletteSelectedIndex = Array.from(paletteList.children).indexOf(item);
+      updatePaletteSelection(paletteList.children.length);
+    });
+
+    return item;
+  }
+
+  /**
+   * Highlight matched characters in text.
+   * @param {any} container
+   * @param {string} text
+   * @param {string} query
+   */
+  function highlightText(container, text, query) {
+    const ranges = extractMatchesInline(text, query);
+    if (ranges.length === 0) {
+      container.textContent = text;
+      return;
+    }
+    let lastEnd = 0;
+    for (const range of ranges) {
+      if (range.start > lastEnd) {
+        container.appendChild(document.createTextNode(text.slice(lastEnd, range.start)));
+      }
+      const highlight = document.createElement('mark');
+      applyStyles(highlight, STYLES.paletteItemHighlight);
+      highlight.textContent = text.slice(range.start, range.end);
+      container.appendChild(highlight);
+      lastEnd = range.end;
+    }
+    if (lastEnd < text.length) {
+      container.appendChild(document.createTextNode(text.slice(lastEnd)));
+    }
+  }
+
+  /**
+   * Update visual selection state.
+   * @param {number} count
+   */
+  function updatePaletteSelection(count) {
+    if (!paletteList) return;
+    const children = Array.from(paletteList.children);
+    for (let i = 0; i < count; i++) {
+      const child = children[i];
+      if (i === paletteSelectedIndex) {
+        applyStyles(child, STYLES.paletteItemSelected);
+        child.scrollIntoView({ block: 'nearest' });
+      } else {
+        // Reset to base style
+        applyStyles(child, STYLES.paletteItem);
+      }
+    }
+  }
+
+  /**
+   * Handle keyboard navigation in palette.
+   * @param {KeyboardEvent} ev
+   */
+  function handlePaletteKeydown(ev) {
+    if (!paletteVisible) return;
+
+    switch (ev.key) {
+      case 'ArrowDown':
+        ev.preventDefault();
+        paletteSelectedIndex = Math.min(paletteSelectedIndex + 1, count - 1);
+        updatePaletteSelection(count);
+        break;
+      case 'ArrowUp':
+        ev.preventDefault();
+        paletteSelectedIndex = Math.max(paletteSelectedIndex - 1, 0);
+        updatePaletteSelection(count);
+        break;
+      case 'Enter':
+        ev.preventDefault();
+        insertFromPalette();
+        break;
+      case 'Escape':
+        ev.preventDefault();
+        closePalette();
+        // Restore focus to target
+        if (paletteTarget && typeof paletteTarget.focus === 'function') {
+          paletteTarget.focus({ preventScroll: true });
+        }
+        break;
+      case 'Tab':
+        // Allow tab to close palette and move focus naturally
+        closePalette();
+        break;
+      default:
+        // Let search input handle other keys
+        break;
+    }
+  }
+
+  /**
+   * Insert the selected prompt from palette into target.
+   */
+  function insertFromPalette() {
+    if (!paletteList || !paletteTarget || paletteSelectedIndex < 0) return;
+    const children = Array.from(paletteList.children);
+    if (paletteSelectedIndex >= children.length) return;
+
+    // Find the actual selected prompt from the filtered list
+    const query = paletteSearch.value.trim().toLowerCase();
+    const scored = [];
+    for (const item of paletteItems) {
+      const key = `${String(item.title ?? '')} ${String(item.text ?? '')}`;
+      const subScore = subsequenceScoreInline(key, query);
+      if (subScore !== null) {
+        let recencyScore = 0;
+        const ts = item.lastUsedAt || item.createdAt;
+        if (typeof ts === 'number' && ts > 0) {
+          const ageMs = Date.now() - ts;
+          const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+          recencyScore = Math.max(0, 0.2 * (1 - ageMs / thirtyDaysMs));
+        }
+        scored.push({ item, score: subScore + recencyScore });
+      }
+    }
+    scored.sort((a, b) => b.score - a.score);
+    const topItems = scored.slice(0, 8);
+
+    if (paletteSelectedIndex >= topItems.length) return;
+    const selectedPrompt = topItems[paletteSelectedIndex].item;
+
+    // Check for variables
+    const variables = extractVariablesInline(String(selectedPrompt.text ?? ''));
+    if (variables.length > 0) {
+      showVariableForm(selectedPrompt, variables);
+      return;
+    }
+
+    // Direct insert
+    const text = String(selectedPrompt.text ?? '');
+    const result = insertInto(paletteTarget, text, 'insert');
+    if (result.success) {
+      showToast({ message: 'Inserted', icon: '✓' });
+      // Update lastUsedAt
+      updatePromptLastUsed(selectedPrompt.id);
+    } else {
+      showToast({ message: result.error || 'Insert failed', isError: true });
+    }
+    closePalette();
+    if (paletteTarget && typeof paletteTarget.focus === 'function') {
+      paletteTarget.focus({ preventScroll: true });
+    }
+  }
+
+  /**
+   * Inline variable extraction (copied from src/lib/variables.js for non-drift).
+   * @param {string} text
+   * @returns {string[]}
+   */
+  function extractVariablesInline(text) {
+    const VARIABLE_PATTERN = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
+    const out = [];
+    if (typeof text !== 'string') return out;
+    const seen = new Set();
+    for (const match of text.matchAll(VARIABLE_PATTERN)) {
+      const name = match[1];
+      if (!seen.has(name)) {
+        seen.add(name);
+        out.push(name);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Show variable fill-in form for the selected prompt.
+   * @param {any} prompt
+   * @param {string[]} variables
+   */
+  function showVariableForm(prompt, variables) {
+    paletteVariablePrompt = prompt;
+    paletteVariableInputs = {};
+
+    // Clear list and show form
+    while (paletteList.firstChild) paletteList.removeChild(paletteList.firstChild);
+
+    const form = elInShadow('div');
+    applyStyles(form, STYLES.paletteVarForm);
+
+    for (const varName of variables) {
+      const label = elInShadow('div');
+      label.textContent = humanizeVarInline(varName);
+      applyStyles(label, STYLES.paletteVarLabel);
+      form.appendChild(label);
+
+      const input = elInShadow('input');
+      input.type = 'text';
+      input.placeholder = humanizeVarInline(varName);
+      applyStyles(input, STYLES.paletteVarInput);
+      input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          confirmVariableInsert();
+        }
+        if (ev.key === 'Escape') {
+          ev.preventDefault();
+          filterPalette(); // back to list
+        }
+      });
+      form.appendChild(input);
+      paletteVariableInputs[varName] = input;
+    }
+
+    const confirmBtn = elInShadow('button');
+    confirmBtn.textContent = 'Insert';
+    applyStyles(confirmBtn, STYLES.modalPrimary);
+    confirmBtn.style.width = '100%';
+    confirmBtn.style.marginTop = '4px';
+    confirmBtn.addEventListener('click', confirmVariableInsert);
+    form.appendChild(confirmBtn);
+
+    paletteList.appendChild(form);
+
+    // Focus first input
+    const firstInput = form.querySelector('input');
+    if (firstInput) firstInput.focus();
+  }
+
+  /**
+   * Inline humanizeVar (copied from src/lib/variables.js for non-drift).
+   * @param {string} name
+   * @returns {string}
+   */
+  function humanizeVarInline(name) {
+    if (typeof name !== 'string' || name.length === 0) return '';
+    const words = name
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .toLowerCase()
+      .split(/[\s_]+/)
+      .filter(Boolean);
+    return words.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+  }
+
+  /**
+   * Confirm variable insert: resolve variables and insert.
+   */
+  function confirmVariableInsert() {
+    if (!paletteVariablePrompt || !paletteVariableInputs || !paletteTarget) return;
+    const values = {};
+    for (const [name, input] of Object.entries(paletteVariableInputs)) {
+      values[name] = input.value;
+    }
+    const resolved = resolveVariablesInline(String(paletteVariablePrompt.text ?? ''), values);
+    const result = insertInto(paletteTarget, resolved, 'insert');
+    if (result.success) {
+      showToast({ message: 'Inserted', icon: '✓' });
+      updatePromptLastUsed(paletteVariablePrompt.id);
+    } else {
+      showToast({ message: result.error || 'Insert failed', isError: true });
+    }
+    closePalette();
+    if (paletteTarget && typeof paletteTarget.focus === 'function') {
+      paletteTarget.focus({ preventScroll: true });
+    }
+  }
+
+  /**
+   * Inline variable resolution (copied from src/lib/variables.js for non-drift).
+   * @param {string} text
+   * @param {Record<string, unknown>} values
+   * @returns {string}
+   */
+  function resolveVariablesInline(text, values) {
+    if (typeof text !== 'string') return text;
+    if (values === null || typeof values !== 'object') return text;
+    let out = text;
+    for (const name of extractVariablesInline(text)) {
+      if (Object.prototype.hasOwnProperty.call(values, name)) {
+        out = out.replaceAll(`{${name}}`, () => String(values[name]));
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Update prompt's lastUsedAt in storage.
+   * @param {string} id
+   */
+  async function updatePromptLastUsed(id) {
+    const store = api.storage && api.storage.local;
+    if (!store) return;
+    try {
+      const data = await store.get(['prompts']);
+      const list = storedPromptList(data?.prompts);
+      for (const p of list) {
+        if (p.id === id) {
+          p.lastUsedAt = Date.now();
+          p.useCount = (p.useCount || 0) + 1;
+          break;
+        }
+      }
+      await store.set({ prompts: list });
+      prompts = list; // update local cache
+    } catch {
+      // non-fatal
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -1625,22 +2604,78 @@
 
   /**
    * Esc collapses the pill (Δ2) / closes modal / closes menu.
+   * Trigger-char opens quick-insert palette (G1).
    * @param {KeyboardEvent} ev
    */
   function onKeyDown(ev) {
-    if (ev.key !== 'Escape') return;
-    if (saveModal && !saveModal.hidden) {
-      closeSaveModal();
-      ev.stopPropagation();
+    // If palette is visible, let it handle keys first
+    if (paletteVisible) {
+      handlePaletteKeydown(ev);
       return;
     }
-    if (pillMenu && !pillMenu.hidden) {
-      pillMenu.hidden = true;
+
+    // Escape handling (existing)
+    if (ev.key === 'Escape') {
+      if (saveModal && !saveModal.hidden) {
+        closeSaveModal();
+        ev.stopPropagation();
+        return;
+      }
+      if (pillMenu && !pillMenu.hidden) {
+        pillMenu.hidden = true;
+        return;
+      }
+      if (pillVisible) {
+        hidePill();
+        ev.stopPropagation();
+      }
       return;
     }
-    if (pillVisible) {
-      hidePill();
-      ev.stopPropagation();
+
+    // Trigger-char detection (G1)
+    if (settings.quickTriggerEnabled && ev.key === settings.quickTrigger && ev.key.length === 1) {
+      const target = ev.target;
+      // Only trigger on page editables, not our own UI
+      if (isPageEditableElement(target) && !isInsideOurHost(target)) {
+        // Check word boundary: cursor at start, or preceded by space/linebreak
+        const tag = elementTag(target);
+        let atBoundary = false;
+        if (tag === 'TEXTAREA' || tag === 'INPUT') {
+          const pos = target.selectionStart;
+          if (pos === 0) {
+            atBoundary = true;
+          } else {
+            const charBefore = target.value[pos - 1];
+            atBoundary = /\s/.test(charBefore);
+          }
+        } else if (target.isContentEditable === true) {
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            // Check if at start of text node or after whitespace
+            if (range.startOffset === 0) {
+              atBoundary = true;
+            } else if (range.startContainer.nodeType === Node.TEXT_NODE) {
+              const text = range.startContainer.textContent;
+              if (text && range.startOffset > 0) {
+                const charBefore = text[range.startOffset - 1];
+                atBoundary = /\s/.test(charBefore);
+              } else {
+                atBoundary = true;
+              }
+            } else {
+              atBoundary = true;
+            }
+          } else {
+            atBoundary = true;
+          }
+        }
+        if (atBoundary) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          openPalette(target);
+        }
+      }
     }
   }
 

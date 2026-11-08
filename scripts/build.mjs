@@ -83,8 +83,8 @@ for (const target of targets) {
     'utf8',
   );
 
-  // Shared assets: background entry, lib ES modules, content script, popup, icons.
-  for (const asset of ['background.js', 'lib', 'content', 'popup', 'icons']) {
+  // Shared assets: background entry, lib ES modules, content script, popup, icons, assets (recipes.json).
+  for (const asset of ['background.js', 'lib', 'content', 'popup', 'icons', 'assets']) {
     await cp(path.join(SRC, asset), path.join(outDir, asset), { recursive: true });
   }
 

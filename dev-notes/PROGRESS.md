@@ -2,7 +2,7 @@
 
 - Project: prompty
 - Started: 2026-11-05
-- Current Phase: v0.1 complete → v0.2 wave ready
+- Current Phase: v0.2 complete → v0.3 wave ready
 
 ## Phase completion
 - [x] REA analysis of upstream artifact (ev_84b4661a…) + behavior spec ses_e568a18b…
@@ -18,20 +18,41 @@
 | #4 | #10 | background: dual background + context menu + keyboard shortcuts | ✅ Merged |
 | #6 | #7 | bug: CI red on main — tsc can't find node:fs/promises types | ✅ Merged |
 
-### Deliverables verified
+### v0.2 "Reflex" Complete — Issues merged
+| Issue | PR | Title | Status |
+|-------|----|-------|--------|
+| #11 | #13 | feat(G3): site recipes pack — data-driven save/insert anchors for AI sites | ✅ Merged |
+| #12 | #14 | feat(G1): trigger-char quick-insert ('!' palette in any input) | ✅ Merged |
+
+### Deliverables verified (v0.1 + v0.2)
 - ✅ `dist/chrome/` — Chromium MV3 (service_worker) build
 - ✅ `dist/firefox/` — Firefox MV3 (event page) build
 - ✅ Both pass `web-ext@8 lint --warnings-as-errors` (Firefox) and `addons-linter` (Chrome)
-- ✅ 88 tests passing (TDD: tests written before implementation)
+- ✅ 191 tests passing (TDD: tests written before implementation)
 - ✅ Zero network calls; `storage.local` only; no telemetry
 
-### Next wave: v0.2 "Reflex" (ROADMAP.md)
+### v0.2 Features Delivered
+| Feature | Spec | Status |
+|---------|------|--------|
+| Site recipes pack (6 seeded: higgsfield, ChatGPT, Claude, Gemini, Perplexity, generic) | G3 | ✅ |
+| Custom recipe editor in settings (paste JSON, validate, enable/disable) | G3 | ✅ |
+| Recipe priority overrides heuristic selectors | G3 | ✅ |
+| Trigger-char quick-insert (`!` opens fuzzy palette at caret) | G1 | ✅ |
+| Subsequence fuzzy matching + recency boost | G1 | ✅ |
+| Variable fill-in form in palette | G1 | ✅ |
+| Shared `src/lib/search.js` (reusable by G2) | G1 | ✅ |
+| Settings: `quickTrigger`, `quickTriggerEnabled`, `siteRecipes[]`, `enabledRecipes[]` | G1/G3 | ✅ |
+
+### Next wave: v0.3 "Differentiators" (ROADMAP.md)
 Priority order per ROADMAP:
-1. **G3** Site recipes pack (AI-aware save/insert anchors — data-driven, user-extensible)
-2. **G1** Trigger-char quick-insert (`!` palette in any input — 150ms flow)
-3. **G2** Ctrl+K command palette in popup
-4. **G5** Prompt version history + diff + revert
-5. **G4** Multi-select bulk ops + drag-to-category
-6. **G6** Variables 2.0 (enums, ranges, session memory)
-7. **G7** Local usage insights panel
-8. **G8** Theming + a11y + i18n baseline
+1. **G2** Ctrl+K command palette in popup
+2. **G5** Prompt version history + diff + revert
+3. **G4** Multi-select bulk ops + drag-to-category + undoable delete
+4. **G6** Variables 2.0 (enums `{style:a\|b}`, ranges `{seed:1-999}`, session memory)
+5. **G7** Local usage insights panel
+6. **G8** Theming + a11y + i18n baseline
+7. **G9** Prompt Composer (block builder)
+8. **G10** Vault Mode (AES-GCM passphrase)
+9. **G11** Migration Suite (import upstream export format)
+10. **G12** IndexedDB engine for 5k+ prompts
+11. **G13** `.prompty` share packs

@@ -32,6 +32,16 @@ import browser from './browser.js';
  */
 
 /**
+ * @typedef {object} Recipe
+ * @property {string} originPattern
+ * @property {string[]} promptInput
+ * @property {string[]} submit
+ * @property {{ aspect: string, quality: string }} selects
+ * @property {string[]} qualityValues
+ * @property {string} [notes]
+ */
+
+/**
  * @typedef {object} Settings
  * @property {'all'|'favorites'|'recent'} defaultView
  * @property {'recent'|'created'|'name'|'mostUsed'} sortBy
@@ -39,6 +49,8 @@ import browser from './browser.js';
  * @property {boolean} showFloatingWidget
  * @property {string[]} disabledSites
  * @property {boolean} autoUnlimited
+ * @property {Recipe[]} siteRecipes
+ * @property {string[]} enabledRecipes
  */
 
 /**
@@ -64,6 +76,8 @@ export const DEFAULT_SETTINGS = {
   showFloatingWidget: true,
   disabledSites: [],
   autoUnlimited: false,
+  siteRecipes: [],
+  enabledRecipes: [],
 };
 
 /* ------------------------------------------------------------------ */
@@ -220,10 +234,28 @@ export function mergeSettings(base, patch) {
       continue;
     }
     const proposed = untrusted[key];
-    if (key === 'disabledSites') {
+    if (key === 'disabledSites' || key === 'enabledRecipes') {
       // Strict: only well-formed, non-empty string origins are kept.
       out[key] = Array.isArray(proposed)
         ? proposed.filter((v) => typeof v === 'string' && v.trim() !== '')
+        : [];
+    } else if (key === 'siteRecipes') {
+      // Validate each recipe object
+      out[key] = Array.isArray(proposed)
+        ? proposed.filter((r) => {
+            if (!r || typeof r !== 'object' || Array.isArray(r)) return false;
+            const rec = /** @type {{ originPattern?: unknown, promptInput?: unknown, submit?: unknown, selects?: unknown, qualityValues?: unknown }} */ (r);
+            return (
+              typeof rec.originPattern === 'string' &&
+              rec.originPattern.trim() !== '' &&
+              Array.isArray(rec.promptInput) &&
+              Array.isArray(rec.submit) &&
+              rec.selects && typeof rec.selects === 'object' &&
+              /** @type {{ aspect?: unknown, quality?: unknown }} */ (rec.selects).aspect !== undefined &&
+              /** @type {{ aspect?: unknown, quality?: unknown }} */ (rec.selects).quality !== undefined &&
+              Array.isArray(rec.qualityValues)
+            );
+          })
         : [];
     } else if (typeof fallback === 'boolean') {
       out[key] = boolOr(proposed, fallback);

@@ -108,7 +108,7 @@ export function matchOriginPattern(url, pattern) {
 /**
  * Find the first recipe that matches the given URL.
  * @param {string} url - Full URL to match
- * @param {Recipe[]} recipes - Array of recipe objects
+ * @param {unknown} recipes - Array of recipe objects
  * @returns {Recipe|null} The first matching recipe, or null if none match
  */
 export function matchRecipe(url, recipes) {
@@ -160,7 +160,7 @@ export function getDefaultRecipe() {
 
 /**
  * Validate all recipes in an array.
- * @param {unknown[]} recipes
+ * @param {unknown} recipes
  * @returns {{ valid: Recipe[], invalid: { recipe: unknown, errors: string[] }[] }}
  */
 export function validateRecipes(recipes) {

@@ -34,8 +34,10 @@ describe('Recipe schema validation (validateRecipe)', () => {
   it('requires originPattern as non-empty string', () => {
     expect(validateRecipe({ ...validRecipe, originPattern: '' }).ok).toBe(false);
     expect(validateRecipe({ ...validRecipe, originPattern: 123 }).ok).toBe(false);
-    // @ts-expect-error testing missing originPattern
-    expect(validateRecipe({ promptInput: validRecipe.promptInput, submit: validRecipe.submit, selects: validRecipe.selects, qualityValues: validRecipe.qualityValues }).ok).toBe(false);
+    // originPattern missing entirely
+    /** @type {unknown} */
+    const missingOrigin = { promptInput: validRecipe.promptInput, submit: validRecipe.submit, selects: validRecipe.selects, qualityValues: validRecipe.qualityValues };
+    expect(validateRecipe(missingOrigin).ok).toBe(false);
   });
 
   it('requires promptInput as array of non-empty strings', () => {
@@ -86,7 +88,9 @@ describe('validateRecipes (batch validation)', () => {
   });
 
   it('handles non-array input', () => {
-    const { valid, invalid } = validateRecipes('not-array');
+    /** @type {unknown} */
+    const badInput = 'not-array';
+    const { valid, invalid } = validateRecipes(badInput);
     expect(valid).toEqual([]);
     expect(invalid).toHaveLength(1);
     expect(invalid[0].errors).toContain('Input must be an array');
@@ -131,6 +135,7 @@ describe('matchOriginPattern (glob-style matching against host+pathname)', () =>
     expect(matchOriginPattern('', '*.example.com/*')).toBe(false);
     expect(matchOriginPattern('not-a-url', '*.example.com/*')).toBe(false);
     expect(matchOriginPattern('https://example.com/', '')).toBe(false);
+    // @ts-expect-error testing invalid input type
     expect(matchOriginPattern(null, '*.example.com/*')).toBe(false);
   });
 });
@@ -144,20 +149,20 @@ describe('matchRecipe (priority: first match wins)', () => {
 
   it('matches specific pattern first', () => {
     const match = matchRecipe('https://app.higgsfield.ai/generate', recipes);
-    expect(match).toBe(recipes[0]);
-    expect(match.promptInput).toEqual(['higgsfield']);
+    expect(match).not.toBeNull();
+    if (match) expect(match.promptInput).toEqual(['higgsfield']);
   });
 
   it('matches second specific pattern', () => {
     const match = matchRecipe('https://chat.openai.com/chat', recipes);
-    expect(match).toBe(recipes[1]);
-    expect(match.promptInput).toEqual(['openai']);
+    expect(match).not.toBeNull();
+    if (match) expect(match.promptInput).toEqual(['openai']);
   });
 
   it('falls back to generic * pattern', () => {
     const match = matchRecipe('https://unknown-site.com/page', recipes);
-    expect(match).toBe(recipes[2]);
-    expect(match.promptInput).toEqual(['generic']);
+    expect(match).not.toBeNull();
+    if (match) expect(match.promptInput).toEqual(['generic']);
   });
 
   it('returns null for empty recipes array', () => {
@@ -165,8 +170,12 @@ describe('matchRecipe (priority: first match wins)', () => {
   });
 
   it('returns null for non-array input', () => {
-    expect(matchRecipe('https://example.com', null)).toBeNull();
-    expect(matchRecipe('https://example.com', 'not-array')).toBeNull();
+    /** @type {unknown} */
+    const nullRecipes = null;
+    /** @type {unknown} */
+    const stringRecipes = 'not-array';
+    expect(matchRecipe('https://example.com', nullRecipes)).toBeNull();
+    expect(matchRecipe('https://example.com', stringRecipes)).toBeNull();
   });
 });
 

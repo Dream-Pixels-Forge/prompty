@@ -2,14 +2,15 @@
 // @ts-nocheck
 /**
  * Prompty background — context menus, command routing, message handlers.
+ */
+import browser from './lib/browser.js';
+import { seedPresets } from './lib/presets.js';
 import { mergeSettings, DEFAULT_SETTINGS } from './lib/storage.js';
 import {
   MSG_OPEN_POPUP,
   MSG_SAVE_SELECTION,
   MSG_SHOW_TOAST,
   MSG_TOGGLE_WIDGET,
-  isOpenPopupMessage,
-  isSaveSelectionMessage,
 } from './lib/message.js';
 
 /* ------------------------------------------------------------------ */
@@ -210,6 +211,11 @@ browser.runtime.onStartup.addListener(() => {
 /* ------------------------------------------------------------------ */
 /* Listeners                                                           */
 /* ------------------------------------------------------------------ */
+
+// Seed the 8 starter prompts whenever the background starts. Idempotent
+// (no-op once seeded; repairs v1→v2), so it is safe on every wake-up and does
+// not depend on onInstalled firing.
+void seedPresets().catch(() => {});
 
 browser.runtime.onMessage.addListener(onMessage);
 browser.commands.onCommand.addListener(onCommand);

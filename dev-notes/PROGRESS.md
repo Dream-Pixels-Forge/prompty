@@ -2,7 +2,7 @@
 
 - Project: prompty
 - Started: 2026-11-05
-- Current Phase: v0.2 complete → v0.3 wave ready
+- Current Phase: v0.3 in progress — G2 command palette landed
 
 ## Phase completion
 - [x] REA analysis of upstream artifact (ev_84b4661a…) + behavior spec ses_e568a18b…
@@ -42,6 +42,21 @@
 | Variable fill-in form in palette | G1 | ✅ |
 | Shared `src/lib/search.js` (reusable by G2) | G1 | ✅ |
 | Settings: `quickTrigger`, `quickTriggerEnabled`, `siteRecipes[]`, `enabledRecipes[]` | G1/G3 | ✅ |
+
+### Audit findings (2026-11-09) — gaps behind earlier ✅ marks
+- **Popup UI was never built**: #2/#8 shipped only `popup/logic.js`; `popup.js`/`index.html` were stubs.
+  G2 palette is now the popup's first real UI. Still missing: library grid, prompt editor,
+  categories manager, snippets tab, settings (incl. the **custom recipe editor** marked ✅ above).
+- **background.js imports were commented out** (unclosed `/**` header): every background message,
+  command and `mergeSettings` call threw `ReferenceError`. Fixed; ESLint `no-undef` now guards the file.
+- **Seed presets never ran** (`seedPresets()` had no caller). Background now seeds on every start (idempotent).
+- **Context-menu "Save Selection" has no `onClicked` listener**, and save-selection only records a
+  snippet, never a prompt. Open.
+
+### v0.3 progress
+| Goal | Status |
+|------|--------|
+| G2 Ctrl+K command palette (`src/popup/palette.js` + popup UI) | ✅ prompts/snippets/commands ranked; insert/append/copy/promote keyboard-only; variable fill-in; category scope; compact/widget/export commands |
 
 ### Next wave: v0.3 "Differentiators" (ROADMAP.md)
 Priority order per ROADMAP:

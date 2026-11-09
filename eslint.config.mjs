@@ -21,6 +21,12 @@ export default tseslint.config(
     },
   },
   {
+    // background.js is @ts-nocheck, so tsc can't catch undefined identifiers there.
+    // A swallowed import once left every message constant undefined at runtime.
+    files: ['src/background.js'],
+    rules: { 'no-undef': 'error' },
+  },
+  {
     files: ['**/*.mjs'],
     languageOptions: {
       globals: { ...globals.node },

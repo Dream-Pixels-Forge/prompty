@@ -2,6 +2,8 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -18,8 +20,14 @@ jobs:
       - run: pnpm type-check
       - run: pnpm lint
       - run: pnpm test
-      - run: pnpm build
+      - run: pnpm package
       - name: web-ext lint (firefox) + addons-linter (chrome)
         run: |
           pnpm dlx web-ext@8 lint --source-dir dist/firefox --warnings-as-errors
           pnpm dlx addons-linter dist/chrome --no-summary
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prompty-packages
+          path: |
+            dist/*.zip
+            dist/*.xpi

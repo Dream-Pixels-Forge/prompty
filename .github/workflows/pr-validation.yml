@@ -25,9 +25,13 @@ jobs:
         run: |
           pnpm dlx web-ext@8 lint --source-dir dist/firefox --warnings-as-errors
           pnpm dlx addons-linter dist/chrome --no-summary
-      - uses: actions/upload-artifact@v4
+      - name: Upload packages
+        # Convenience only — never fail the quality gate on artifact storage quota.
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
         with:
           name: prompty-packages
+          retention-days: 7
           path: |
             dist/*.zip
             dist/*.xpi

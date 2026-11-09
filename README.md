@@ -10,7 +10,9 @@ Everything lives in `browser.storage.local`.
 
 ## Features (v0.2)
 
-- **Prompt library popup** — search, categorize, insert, append, or copy prompts; 8 seed prompts.
+- **Prompt library popup** — browse by view or category, search (`/`), sort, star, and insert, append, copy, edit or delete (with undo) prompts; manage categories; 8 seed prompts.
+- **Command palette (`Ctrl/Cmd+K`)** — one keyboard-only list of prompts, snippets and commands.
+- **Settings** — default view, compact cards, floating widget, quick-insert trigger, sites to skip, custom site recipes, JSON import/export.
 - **Template variables** — `{subject}`-style tokens open a fill-in form with live preview.
 - **Smart assist pill + floating widget** — save the current input or insert a prompt on any page.
 - **Clipboard snippets** — capped history of copied text you can promote to prompts.

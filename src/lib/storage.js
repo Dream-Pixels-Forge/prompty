@@ -50,7 +50,9 @@ import browser from './browser.js';
  * @property {string[]} disabledSites
  * @property {boolean} autoUnlimited
  * @property {Recipe[]} siteRecipes
- * @property {string[]} enabledRecipes
+ * @property {string[]} enabledRecipes originPatterns of user recipes that are active
+ * @property {string} quickTrigger single character that opens the in-page palette
+ * @property {boolean} quickTriggerEnabled
  */
 
 /**
@@ -78,6 +80,8 @@ export const DEFAULT_SETTINGS = {
   autoUnlimited: false,
   siteRecipes: [],
   enabledRecipes: [],
+  quickTrigger: '!',
+  quickTriggerEnabled: true,
 };
 
 /* ------------------------------------------------------------------ */
@@ -257,6 +261,12 @@ export function mergeSettings(base, patch) {
             );
           })
         : [];
+    } else if (key === 'quickTrigger') {
+      // Content script requires exactly one non-whitespace character.
+      out[key] =
+        typeof proposed === 'string' && proposed.length === 1 && proposed.trim() !== ''
+          ? proposed
+          : fallback;
     } else if (typeof fallback === 'boolean') {
       out[key] = boolOr(proposed, fallback);
     } else {

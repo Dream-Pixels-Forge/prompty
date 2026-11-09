@@ -1,466 +1,459 @@
 /**
- * Popup entry — mounts the G2 keyboard-first command palette.
- * All ranking/keys logic lives in ./palette.js (tested); this file is the thin
- * DOM + extension-API layer. Untrusted text is only ever set via textContent.
+ * Popup entry — library shell (SPEC §1): sidebar views + categories CRUD,
+ * prompt grid with insert/append/copy/edit/delete/favorite, snippets tab,
+ * settings, and the Ctrl/Cmd+K command palette (G2).
  */
-import browser from '../lib/browser.js';
-import { MSG_INSERT_PROMPT } from '../lib/message.js';
-import { seedPresets } from '../lib/presets.js';
-import { appendSnippet, readAll, writeAll } from '../lib/storage.js';
-import { humanizeVar, resolveVariables } from '../lib/variables.js';
-import { buildExport } from './logic.js';
+import { extractVariables } from '../lib/variables.js';
+import { usePrompt } from './actions.js';
+import { h, mount } from './dom.js';
 import {
-  buildCommands,
-  keyIntent,
-  markUsed,
-  moveSelection,
-  promoteSnippet,
-  rankPalette,
-  requiredVariables,
-  resolveAction,
-} from './palette.js';
+  countByCategory,
+  deleteCategory,
+  moveCategory,
+  orderedCategories,
+  removePrompt,
+  restorePrompt,
+  toggleFavorite,
+  upsertCategory,
+  upsertPrompt,
+  viewPrompts,
+} from './library.js';
+import { SORT_OPTIONS, chipsFor, relativeTime } from './logic.js';
+import { categoryEditor, confirmDialog, promptEditor, toast } from './modals.js';
+import { exportLibrary, openPalette } from './palette-ui.js';
+import { renderSettings } from './settings-view.js';
+import { renderSnippets } from './snippets-view.js';
+import { load, save, state, subscribe, watchStorage } from './store.js';
 
 /**
  * @typedef {import('../lib/storage.js').Prompt} Prompt
  * @typedef {import('../lib/storage.js').Category} Category
- * @typedef {import('../lib/storage.js').Settings} Settings
- * @typedef {import('../lib/storage.js').Snippet} Snippet
- * @typedef {import('./palette.js').PaletteItem} PaletteItem
- * @typedef {import('./palette.js').PaletteAction} PaletteAction
+ * @typedef {'all'|'favorites'|'recent'|'category'|'snippets'|'settings'} View
  */
 
 /** @param {string} id */
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
-const queryEl = /** @type {HTMLInputElement} */ ($('query'));
-const listEl = $('results');
-const scopeEl = $('scope');
-const statusEl = $('status');
-const varsForm = /** @type {HTMLFormElement} */ ($('vars'));
-const varsTitle = $('vars-title');
-const varsFields = $('vars-fields');
-const varsPreview = $('vars-preview');
-const hintsEl = $('hints');
+const navEl = $('nav');
+const navBottomEl = $('nav-bottom');
+const categoriesEl = $('categories');
+const viewEl = $('view');
+const searchEl = /** @type {HTMLInputElement} */ ($('search'));
+const sortEl = /** @type {HTMLSelectElement} */ ($('sort'));
 
-const ICONS = { prompt: '✦', snippet: '⧉', command: '›' };
-
-const state = {
-  /** @type {Prompt[]} */ prompts: [],
-  /** @type {Category[]} */ categories: [],
-  /** @type {Settings|null} */ settings: null,
-  /** @type {Snippet[]} */ snippets: [],
-  /** @type {string|null} */ scope: null,
-  /** @type {PaletteItem[]} */ items: [],
-  selected: 0,
-  /** @type {{ item: PaletteItem, action: PaletteAction, names: string[] } | null} */
-  pending: null,
+const route = {
+  /** @type {View} */ view: 'all',
+  /** @type {string|null} */ categoryId: null,
 };
 
+const NAV = /** @type {const} */ ([
+  ['all', '◎', 'All prompts'],
+  ['favorites', '★', 'Favorites'],
+  ['recent', '↺', 'Recently used'],
+  ['snippets', '⧉', 'Snippets'],
+]);
+
+/**
+ * @param {View} view
+ * @param {string|null} [categoryId]
+ */
+function go(view, categoryId = null) {
+  route.view = view;
+  route.categoryId = categoryId;
+  render();
+  viewEl.scrollTop = 0;
+}
+
 /* ------------------------------------------------------------------ */
-/* Data                                                                */
+/* Sidebar                                                             */
 /* ------------------------------------------------------------------ */
 
-async function load() {
-  try {
-    await seedPresets();
-  } catch {
-    // seeding is best-effort; an empty library still renders
+function renderSidebar() {
+  const counts = countByCategory(state.prompts);
+  /**
+   * @param {View} view
+   * @param {string} icon
+   * @param {string} label
+   * @param {number|null} [count]
+   */
+  const navButton = (view, icon, label, count = null) =>
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'nav__item',
+        'aria-current': route.view === view ? 'page' : 'false',
+        on: { click: () => go(view) },
+      },
+      h('span', { class: 'nav__icon', 'aria-hidden': 'true' }, icon),
+      h('span', { class: 'nav__label' }, label),
+      count !== null ? h('span', { class: 'nav__count' }, String(count)) : null,
+    );
+
+  mount(
+    navEl,
+    NAV.map(([view, icon, label]) =>
+      navButton(
+        view,
+        icon,
+        label,
+        view === 'all'
+          ? state.prompts.length
+          : view === 'favorites'
+            ? state.prompts.filter((p) => p.isFavorite).length
+            : view === 'snippets'
+              ? state.snippets.length
+              : null,
+      ),
+    ),
+  );
+  mount(navBottomEl, navButton('settings', '⚙', 'Settings'));
+
+  const cats = orderedCategories(state.categories);
+  mount(
+    categoriesEl,
+    cats.length === 0 ? h('p', { class: 'nav__empty' }, 'No categories yet') : null,
+    cats.map((cat, i) =>
+      h(
+        'div',
+        { class: 'nav__row' },
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'nav__item',
+            'aria-current':
+              route.view === 'category' && route.categoryId === cat.id ? 'page' : 'false',
+            on: { click: () => go('category', cat.id) },
+          },
+          h('span', { class: 'dot', style: { background: cat.color }, 'aria-hidden': 'true' }),
+          h('span', { class: 'nav__label' }, `${cat.icon} ${cat.name}`),
+          h('span', { class: 'nav__count' }, String(counts.get(cat.id) ?? 0)),
+        ),
+        h(
+          'span',
+          { class: 'nav__tools' },
+          i > 0 ? iconButton('↑', `Move ${cat.name} up`, () => reorderCategory(cat.id, -1)) : null,
+          i < cats.length - 1
+            ? iconButton('↓', `Move ${cat.name} down`, () => reorderCategory(cat.id, 1))
+            : null,
+          iconButton('✎', `Edit ${cat.name}`, () => void editCategory(cat)),
+          iconButton('✕', `Delete ${cat.name}`, () => void removeCategory(cat)),
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * @param {string} glyph
+ * @param {string} label
+ * @param {() => void} onClick
+ * @param {string} [extraClass]
+ */
+function iconButton(glyph, label, onClick, extraClass = '') {
+  return h(
+    'button',
+    {
+      type: 'button',
+      class: `icon-btn ${extraClass}`.trim(),
+      title: label,
+      'aria-label': label,
+      on: {
+        click: (e) => {
+          e.stopPropagation();
+          onClick();
+        },
+      },
+    },
+    glyph,
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Category CRUD                                                       */
+/* ------------------------------------------------------------------ */
+
+async function addCategory() {
+  const draft = await categoryEditor();
+  if (!draft) return;
+  const id = crypto.randomUUID();
+  await save({ categories: upsertCategory(state.categories, draft, { id }) });
+  go('category', id);
+}
+
+/** @param {Category} cat */
+async function editCategory(cat) {
+  const draft = await categoryEditor(cat);
+  if (draft) await save({ categories: upsertCategory(state.categories, draft, { id: cat.id }) });
+}
+
+/** @param {Category} cat */
+async function removeCategory(cat) {
+  const count = state.prompts.filter((p) => p.categoryId === cat.id).length;
+  const ok = await confirmDialog(
+    `Delete “${cat.name}”?`,
+    count > 0
+      ? `Its ${count} prompt${count === 1 ? '' : 's'} will stay in your library, uncategorized.`
+      : 'This category is empty.',
+    { confirmLabel: 'Delete', danger: true },
+  );
+  if (!ok) return;
+  await save(deleteCategory({ prompts: state.prompts, categories: state.categories }, cat.id));
+  if (route.categoryId === cat.id) go('all');
+}
+
+/**
+ * @param {string} id
+ * @param {number} delta
+ */
+function reorderCategory(id, delta) {
+  void save({ categories: moveCategory(state.categories, id, delta) });
+}
+
+/* ------------------------------------------------------------------ */
+/* Prompt grid                                                         */
+/* ------------------------------------------------------------------ */
+
+function renderLibrary() {
+  const prompts = viewPrompts(state.prompts, {
+    view: route.view,
+    categoryId: route.categoryId,
+    query: searchEl.value,
+    sortBy: state.settings.sortBy,
+  });
+  const category = state.categories.find((c) => c.id === route.categoryId);
+  const heading =
+    route.view === 'category' && category
+      ? `${category.icon} ${category.name}`
+      : (NAV.find(([v]) => v === route.view)?.[2] ?? 'All prompts');
+
+  const header = h(
+    'div',
+    { class: 'view__head' },
+    h('h1', { class: 'view__title' }, heading),
+    h('span', { class: 'muted' }, `${prompts.length} prompt${prompts.length === 1 ? '' : 's'}`),
+  );
+
+  if (prompts.length === 0) {
+    const query = searchEl.value.trim();
+    const message = query
+      ? `Nothing matches “${query}”.`
+      : route.view === 'favorites'
+        ? 'Star a prompt to pin it here.'
+        : route.view === 'recent'
+          ? 'Prompts you insert or copy show up here.'
+          : 'No prompts here yet.';
+    mount(
+      viewEl,
+      header,
+      h(
+        'div',
+        { class: 'empty' },
+        h('p', null, message),
+        query || route.view === 'favorites' || route.view === 'recent'
+          ? null
+          : h(
+              'button',
+              { class: 'btn btn--primary', type: 'button', on: { click: () => void newPrompt() } },
+              '+ New prompt',
+            ),
+      ),
+    );
+    return;
   }
-  const lib = await readAll();
-  const raw = await browser.storage.local.get(['snippets']);
-  state.prompts = lib.prompts;
-  state.categories = lib.categories;
-  state.settings = lib.settings;
-  state.snippets = Array.isArray(raw.snippets) ? raw.snippets : [];
-  document.body.classList.toggle('compact', lib.settings.compactMode === true);
+
+  mount(
+    viewEl,
+    header,
+    h(
+      'div',
+      { class: `grid${state.settings.compactMode ? ' grid--compact' : ''}` },
+      prompts.map(card),
+    ),
+  );
 }
 
-/** @param {Prompt[]} prompts */
-async function savePrompts(prompts) {
-  state.prompts = prompts;
-  await writeAll(undefined, { prompts });
+/** @param {Prompt} prompt */
+function card(prompt) {
+  const category = state.categories.find((c) => c.id === prompt.categoryId);
+  const vars = extractVariables(prompt.text).length;
+  return h(
+    'article',
+    { class: 'card', dataset: { id: prompt.id } },
+    h(
+      'header',
+      { class: 'card__head' },
+      category
+        ? h('span', { class: 'dot', style: { background: category.color }, title: category.name })
+        : null,
+      h('h2', { class: 'card__title', title: prompt.title }, prompt.title || 'Untitled'),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: `star${prompt.isFavorite ? ' star--on' : ''}`,
+          'aria-pressed': String(prompt.isFavorite),
+          'aria-label': prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites',
+          title: prompt.isFavorite ? 'Unfavorite' : 'Favorite',
+          on: { click: () => void save({ prompts: toggleFavorite(state.prompts, prompt.id) }) },
+        },
+        prompt.isFavorite ? '★' : '☆',
+      ),
+    ),
+    h('p', { class: 'card__text' }, prompt.text),
+    h(
+      'div',
+      { class: 'card__meta' },
+      vars > 0 ? h('span', { class: 'badge' }, `⚡ ${vars} var${vars === 1 ? '' : 's'}`) : null,
+      chipsFor(prompt.tags).map((tag) => h('span', { class: 'chip' }, tag)),
+      h(
+        'span',
+        { class: 'card__stats' },
+        `${prompt.useCount} use${prompt.useCount === 1 ? '' : 's'} · ${relativeTime(prompt.lastUsedAt ?? prompt.createdAt)}`,
+      ),
+    ),
+    h(
+      'footer',
+      { class: 'card__actions' },
+      h(
+        'button',
+        {
+          class: 'btn btn--primary btn--sm',
+          type: 'button',
+          on: { click: () => void usePrompt(prompt, 'insert') },
+        },
+        'Insert',
+      ),
+      h(
+        'button',
+        {
+          class: 'btn btn--sm',
+          type: 'button',
+          on: { click: () => void usePrompt(prompt, 'append') },
+        },
+        'Append',
+      ),
+      h(
+        'button',
+        {
+          class: 'btn btn--sm',
+          type: 'button',
+          on: { click: () => void usePrompt(prompt, 'copy') },
+        },
+        'Copy',
+      ),
+      h('span', { class: 'spacer' }),
+      iconButton('✎', `Edit ${prompt.title}`, () => void editPrompt(prompt)),
+      iconButton(
+        '🗑',
+        `Delete ${prompt.title}`,
+        () => void deletePrompt(prompt),
+        'icon-btn--danger',
+      ),
+    ),
+  );
 }
 
 /* ------------------------------------------------------------------ */
-/* Rendering                                                           */
+/* Prompt CRUD                                                         */
 /* ------------------------------------------------------------------ */
 
-function refresh() {
-  const commands = buildCommands({
+/** @param {Partial<import('./library.js').PromptDraft>} [initial] */
+export async function newPrompt(initial = {}) {
+  const draft = await promptEditor({
+    initial: { categoryId: route.view === 'category' ? route.categoryId : null, ...initial },
     categories: state.categories,
-    settings: state.settings ?? undefined,
-    scopeCategoryId: state.scope,
   });
-  state.items = rankPalette(
-    { prompts: state.prompts, snippets: state.snippets, commands },
-    queryEl.value,
-    { scopeCategoryId: state.scope },
-  );
-  state.selected = Math.min(state.selected, Math.max(0, state.items.length - 1));
-  renderList();
-  renderScope();
+  if (!draft) return false;
+  await save({ prompts: upsertPrompt(state.prompts, draft, { id: crypto.randomUUID() }) });
+  toast(`Added “${draft.title.trim()}”.`);
+  return true;
 }
 
-function renderScope() {
-  const cat = state.categories.find((c) => c.id === state.scope);
-  scopeEl.hidden = !cat;
-  scopeEl.textContent = cat ? `${cat.icon ?? ''} ${cat.name}`.trim() : '';
+/** @param {Prompt} prompt */
+async function editPrompt(prompt) {
+  const draft = await promptEditor({ prompt, categories: state.categories });
+  if (draft) await save({ prompts: upsertPrompt(state.prompts, draft, { id: prompt.id }) });
 }
 
-function renderList() {
-  listEl.replaceChildren();
-  if (state.items.length === 0) {
-    const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = queryEl.value.trim() ? 'No matches' : 'Your library is empty';
-    listEl.append(li);
-    queryEl.removeAttribute('aria-activedescendant');
-    return;
-  }
-  state.items.forEach((item, index) => {
-    const li = document.createElement('li');
-    li.className = 'item';
-    li.id = `opt-${index}`;
-    li.setAttribute('role', 'option');
-    li.setAttribute('aria-selected', String(index === state.selected));
-    li.dataset.index = String(index);
-
-    const icon = document.createElement('span');
-    icon.className = 'item__icon';
-    icon.textContent = ICONS[item.kind];
-    icon.setAttribute('aria-hidden', 'true');
-
-    const label = document.createElement('span');
-    label.className = 'item__label';
-    appendHighlighted(label, item.label, item.matches);
-
-    const detail = document.createElement('span');
-    detail.className = 'item__detail';
-    detail.textContent = item.detail;
-
-    li.append(icon, label, detail);
-    listEl.append(li);
+/** @param {Prompt} prompt — immediate delete with a 10s undo (no confirm friction). */
+async function deletePrompt(prompt) {
+  const { prompts, removed, index } = removePrompt(state.prompts, prompt.id);
+  if (!removed) return;
+  await save({ prompts });
+  toast(`Deleted “${removed.title}”.`, 'info', {
+    actionLabel: 'Undo',
+    ms: 10_000,
+    onAction: () => void save({ prompts: restorePrompt(state.prompts, removed, index) }),
   });
-  queryEl.setAttribute('aria-activedescendant', `opt-${state.selected}`);
-  document.getElementById(`opt-${state.selected}`)?.scrollIntoView({ block: 'nearest' });
-}
-
-/**
- * @param {HTMLElement} parent
- * @param {string} text
- * @param {{start:number,end:number}[]} ranges
- */
-function appendHighlighted(parent, text, ranges) {
-  let cursor = 0;
-  for (const { start, end } of ranges) {
-    if (start > cursor) parent.append(text.slice(cursor, start));
-    const mark = document.createElement('mark');
-    mark.textContent = text.slice(start, end);
-    parent.append(mark);
-    cursor = end;
-  }
-  if (cursor < text.length) parent.append(text.slice(cursor));
-}
-
-/**
- * @param {string} message
- * @param {boolean} [isError]
- */
-function setStatus(message, isError = false) {
-  statusEl.textContent = message;
-  statusEl.classList.toggle('is-error', isError);
 }
 
 /* ------------------------------------------------------------------ */
-/* Variable fill-in                                                    */
+/* Render + boot                                                       */
 /* ------------------------------------------------------------------ */
 
-/**
- * @param {PaletteItem} item
- * @param {PaletteAction} action
- * @param {string[]} names
- */
-function openVars(item, action, names) {
-  state.pending = { item, action, names };
-  listEl.hidden = true;
-  hintsEl.hidden = true;
-  varsForm.hidden = false;
-  varsTitle.textContent = item.label;
-  varsFields.replaceChildren();
-  names.forEach((name) => {
-    const label = document.createElement('label');
-    label.textContent = humanizeVar(name);
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.name = name;
-    input.autocomplete = 'off';
-    input.addEventListener('input', updatePreview);
-    label.append(input);
-    varsFields.append(label);
-  });
-  updatePreview();
-  setStatus(
-    'Fill every field, then Enter on the last one (Ctrl+Enter from anywhere). Esc goes back.',
-  );
-  /** @type {HTMLInputElement|null} */ (varsFields.querySelector('input'))?.focus();
+function render() {
+  document.body.classList.toggle('compact', state.settings.compactMode);
+  renderSidebar();
+  const isLibrary = route.view !== 'snippets' && route.view !== 'settings';
+  sortEl.disabled = !isLibrary || route.view === 'recent';
+  sortEl.value = state.settings.sortBy;
+  searchEl.placeholder =
+    route.view === 'snippets' ? 'Search snippets…  ( / )' : 'Search title, text, tags…  ( / )';
+  searchEl.disabled = route.view === 'settings';
+  if (route.view === 'snippets') renderSnippets(viewEl, searchEl.value, { newPrompt });
+  else if (route.view === 'settings') renderSettings(viewEl);
+  else renderLibrary();
 }
 
-function closeVars() {
-  state.pending = null;
-  varsForm.hidden = true;
-  listEl.hidden = false;
-  hintsEl.hidden = false;
-  setStatus('');
-  queryEl.focus();
-}
-
-/** @returns {Record<string, string>} */
-function varValues() {
-  /** @type {Record<string, string>} */
-  const values = {};
-  varsFields.querySelectorAll('input').forEach((input) => {
-    if (input.value.trim() !== '') values[input.name] = input.value;
-  });
-  return values;
-}
-
-function updatePreview() {
-  if (!state.pending?.item.prompt) return;
-  varsPreview.textContent = resolveVariables(state.pending.item.prompt.text, varValues());
-}
-
-async function submitVars() {
-  const pending = state.pending;
-  if (!pending?.item.prompt) return;
-  const values = varValues();
-  const missing = pending.names.filter((n) => !(n in values));
-  if (missing.length > 0) {
-    setStatus(`Missing: ${missing.map(humanizeVar).join(', ')}`, true);
-    /** @type {HTMLInputElement|null} */ (
-      varsFields.querySelector(`input[name="${CSS.escape(missing[0])}"]`)
-    )?.focus();
-    return;
-  }
-  await deliver(pending.item, pending.action, resolveVariables(pending.item.prompt.text, values));
-}
-
-/* ------------------------------------------------------------------ */
-/* Actions                                                             */
-/* ------------------------------------------------------------------ */
-
-/**
- * @param {PaletteItem|undefined} item
- * @param {PaletteAction|'default'} requested
- */
-async function act(item, requested) {
-  const action = resolveAction(item, requested);
-  if (!item || !action) {
-    if (item && requested === 'promote') setStatus('Only snippets can be saved as prompts.', true);
-    return;
-  }
-  if (item.kind === 'command' && item.command) return runCommand(item.command);
-  if (action === 'promote' && item.snippet) return promote(item.snippet);
-
-  const names = requiredVariables(item);
-  if (names.length > 0) return openVars(item, action, names);
-  const text = item.prompt?.text ?? item.snippet?.text ?? '';
-  return deliver(item, action, text);
-}
-
-/**
- * Insert/append into the page, or copy to the clipboard.
- * @param {PaletteItem} item
- * @param {PaletteAction} action
- * @param {string} text
- */
-async function deliver(item, action, text) {
-  if (action === 'copy') {
-    const ok = await copyText(text);
-    if (!ok) return setStatus('Copy failed — clipboard unavailable.', true);
-    state.snippets = appendSnippet(state.snippets, { text, sourceOrigin: 'prompty' });
-    await browser.storage.local.set({ snippets: state.snippets });
-    if (item.prompt) await savePrompts(markUsed(state.prompts, item.prompt.id));
-    setStatus('Copied to clipboard.');
-    setTimeout(() => window.close(), 500);
-    return;
-  }
-
-  const mode = action === 'append' ? 'append' : 'insert';
-  /** @type {{ success?: boolean, error?: string } | null} */
-  let response = null;
-  try {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id !== undefined) {
-      response = await browser.tabs.sendMessage(tab.id, { type: MSG_INSERT_PROMPT, text, mode });
-    }
-  } catch {
-    response = null;
-  }
-  if (!response) {
-    return setStatus(
-      "Prompty can't reach this page (browser pages block extensions). Ctrl+Enter copies instead.",
-      true,
-    );
-  }
-  if (!response.success) {
-    return setStatus(
-      `${response.error ?? 'Insert failed'} — click a text field on the page first, or Ctrl+Enter to copy.`,
-      true,
-    );
-  }
-  if (item.prompt) await savePrompts(markUsed(state.prompts, item.prompt.id));
-  window.close();
-}
-
-/** @param {Snippet} snippet */
-async function promote(snippet) {
-  const prompt = promoteSnippet(snippet, { id: crypto.randomUUID() });
-  await savePrompts([...state.prompts, prompt]);
-  setStatus(`Saved “${prompt.title}” as a prompt.`);
-  refresh();
-}
-
-/** @param {import('./palette.js').PaletteCommand} command */
-async function runCommand(command) {
-  const effect = command.effect;
-  if (effect.type === 'scope') {
-    state.scope = typeof effect.categoryId === 'string' ? effect.categoryId : null;
-    queryEl.value = '';
-    state.selected = 0;
-    setStatus('');
-    refresh();
-    return;
-  }
-  if (effect.type === 'setting' && state.settings && typeof effect.key === 'string') {
-    state.settings = { ...state.settings, [effect.key]: effect.value };
-    await writeAll(undefined, { settings: state.settings });
-    document.body.classList.toggle('compact', state.settings.compactMode === true);
-    setStatus(`${command.label} — done.`);
-    queryEl.value = '';
-    refresh();
-    return;
-  }
-  if (effect.type === 'export') {
-    const data = buildExport(
-      { prompts: state.prompts, categories: state.categories, settings: state.settings },
-      { version: browser.runtime.getManifest().version },
-    );
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `prompty-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    setStatus(`Exported ${state.prompts.length} prompts.`);
-  }
-}
-
-/**
- * @param {string} text
- * @returns {Promise<boolean>}
- */
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const area = document.createElement('textarea');
-    area.value = text;
-    document.body.append(area);
-    area.select();
-    const ok = document.execCommand('copy');
-    area.remove();
-    return ok;
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/* Keyboard                                                            */
-/* ------------------------------------------------------------------ */
-
-function resetPalette() {
-  if (state.pending) closeVars();
-  state.scope = null;
-  queryEl.value = '';
-  state.selected = 0;
-  setStatus('');
-  refresh();
-  queryEl.focus();
-}
-
-/** @param {KeyboardEvent} event */
-function onKeydown(event) {
-  const intent = keyIntent(event);
-  if (!intent) return;
-
-  if (intent.type === 'reset') {
-    event.preventDefault();
-    resetPalette();
-    return;
-  }
-
-  if (state.pending) {
-    if (intent.type === 'escape') {
-      event.preventDefault();
-      closeVars();
-    } else if (intent.type === 'act') {
-      const inputs = [...varsFields.querySelectorAll('input')];
-      const onLast = event.target === inputs[inputs.length - 1];
-      if (onLast || event.ctrlKey || event.metaKey) {
-        event.preventDefault();
-        void submitVars();
-      } else {
-        event.preventDefault();
-        const i = inputs.indexOf(/** @type {HTMLInputElement} */ (event.target));
-        inputs[i + 1]?.focus();
-      }
-    }
-    return;
-  }
-
-  if (intent.type === 'move') {
-    event.preventDefault();
-    state.selected = moveSelection(state.selected, intent.delta, state.items.length);
-    renderList();
-  } else if (intent.type === 'act') {
-    event.preventDefault();
-    void act(state.items[state.selected], intent.action);
-  } else if (intent.type === 'escape') {
-    event.preventDefault();
-    if (queryEl.value) {
-      queryEl.value = '';
-      refresh();
-    } else if (state.scope) {
-      state.scope = null;
-      refresh();
-    } else {
-      window.close();
-    }
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/* Boot                                                                */
-/* ------------------------------------------------------------------ */
-
-queryEl.addEventListener('input', () => {
-  state.selected = 0;
-  setStatus('');
-  refresh();
+mount(
+  sortEl,
+  SORT_OPTIONS.map((o) => h('option', { value: o.id }, o.label)),
+);
+sortEl.addEventListener('change', () => {
+  void save({ settings: { sortBy: /** @type {any} */ (sortEl.value) } });
 });
-document.addEventListener('keydown', onKeydown);
-varsForm.addEventListener('submit', (event) => event.preventDefault());
-listEl.addEventListener('click', (event) => {
-  const li = /** @type {HTMLElement|null} */ (
-    /** @type {HTMLElement} */ (event.target).closest('[data-index]')
-  );
-  if (!li) return;
-  state.selected = Number(li.dataset.index);
-  void act(state.items[state.selected], 'default');
+searchEl.addEventListener('input', render);
+$('new-prompt').addEventListener('click', () => void newPrompt());
+$('add-category').addEventListener('click', () => void addCategory());
+
+const paletteHost = {
+  /** @param {string} id */
+  goCategory: (id) => go('category', id),
+  exportLibrary,
+};
+$('open-palette').addEventListener('click', () => openPalette(paletteHost));
+
+document.addEventListener('keydown', (e) => {
+  if (document.querySelector('.backdrop')) return; // a modal or the palette owns the keyboard
+  const typing =
+    e.target instanceof HTMLElement &&
+    e.target.closest('input, textarea, select, [contenteditable]');
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openPalette(paletteHost);
+  } else if (e.key === '/' && !typing) {
+    e.preventDefault();
+    searchEl.focus();
+    searchEl.select();
+  } else if (e.key === 'Escape' && e.target === searchEl && searchEl.value) {
+    e.preventDefault();
+    searchEl.value = '';
+    render();
+  }
 });
+
+// The palette and modals are overlays, so the view underneath can always re-render.
+subscribe(render);
 
 load()
-  .catch(() => setStatus('Could not load your library.', true))
+  .then(() => {
+    const view = state.settings.defaultView;
+    route.view = view === 'favorites' || view === 'recent' ? view : 'all';
+  })
+  .catch(() => toast('Could not load your library.', 'error'))
   .finally(() => {
-    refresh();
-    queryEl.focus();
+    render();
+    watchStorage();
+    searchEl.focus();
   });

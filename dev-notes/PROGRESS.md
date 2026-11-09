@@ -45,8 +45,10 @@
 
 ### Audit findings (2026-11-09) — gaps behind earlier ✅ marks
 - **Popup UI was never built**: #2/#8 shipped only `popup/logic.js`; `popup.js`/`index.html` were stubs.
-  G2 palette is now the popup's first real UI. Still missing: library grid, prompt editor,
-  categories manager, snippets tab, settings (incl. the **custom recipe editor** marked ✅ above).
+  ✅ Now built (see v0.3 progress): library grid, editor, categories, snippets, settings, recipe editor.
+- **Settings keys `quickTrigger`/`quickTriggerEnabled` were not whitelisted** (any settings write reset
+  them) and **custom recipes had no path to the content script** (it reads top-level `siteRecipes`).
+  ✅ Whitelisted; popup mirrors enabled user recipes to `siteRecipes` on every settings save.
 - **background.js imports were commented out** (unclosed `/**` header): every background message,
   command and `mergeSettings` call threw `ReferenceError`. Fixed; ESLint `no-undef` now guards the file.
 - **Seed presets never ran** (`seedPresets()` had no caller). Background now seeds on every start (idempotent).
@@ -56,7 +58,8 @@
 ### v0.3 progress
 | Goal | Status |
 |------|--------|
-| G2 Ctrl+K command palette (`src/popup/palette.js` + popup UI) | ✅ prompts/snippets/commands ranked; insert/append/copy/promote keyboard-only; variable fill-in; category scope; compact/widget/export commands |
+| G2 Ctrl+K command palette (`src/popup/palette.js` + `palette-ui.js` overlay) | ✅ prompts/snippets/commands ranked; insert/append/copy/promote keyboard-only; variable fill-in; jump-to-category/compact/widget/export commands |
+| Popup screens (SPEC §1 parity) | ✅ 780×580 shell; sidebar views + categories CRUD/reorder (18 colors × 24 emoji); cards with favorite, ⚡vars, chips, stats, insert/append/copy/edit/delete (10s undo); search (`/`), sort; prompt editor; variable fill-in modal; snippets tab; settings (general, quick insert, disabled sites, recipes, import/export); live sync; light/dark |
 
 ### Next wave: v0.3 "Differentiators" (ROADMAP.md)
 Priority order per ROADMAP:

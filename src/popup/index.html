@@ -7,42 +7,44 @@
     <script type="module" src="popup.js"></script>
   </head>
   <body>
-    <main class="palette" aria-label="Prompty command palette">
-      <header class="palette__head">
-        <span class="palette__scope" id="scope" hidden></span>
-        <input
-          id="query"
-          class="palette__input"
-          type="text"
-          role="combobox"
-          aria-expanded="true"
-          aria-controls="results"
-          aria-autocomplete="list"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="Search prompts, snippets, commands…"
-        />
-        <kbd class="palette__kbd" title="Reset palette">Ctrl K</kbd>
-      </header>
+    <div class="app">
+      <aside class="sidebar" aria-label="Library navigation">
+        <div class="brand"><span class="brand__mark" aria-hidden="true">✦</span> Prompty</div>
+        <nav class="nav" id="nav"></nav>
+        <div class="sidebar__section">
+          <span>Categories</span>
+          <button
+            class="icon-btn"
+            id="add-category"
+            type="button"
+            title="New category"
+            aria-label="New category"
+          >
+            +
+          </button>
+        </div>
+        <nav class="nav nav--categories" id="categories"></nav>
+        <nav class="nav nav--bottom" id="nav-bottom"></nav>
+      </aside>
 
-      <ul id="results" class="palette__list" role="listbox" aria-label="Results"></ul>
-
-      <form id="vars" class="vars" hidden>
-        <p class="vars__title" id="vars-title"></p>
-        <div id="vars-fields" class="vars__fields"></div>
-        <p class="vars__label">Preview</p>
-        <p id="vars-preview" class="vars__preview"></p>
-      </form>
-
-      <p id="status" class="palette__status" role="status" aria-live="polite"></p>
-
-      <footer class="palette__foot" id="hints">
-        <span><kbd>↵</kbd> insert</span>
-        <span><kbd>⇧↵</kbd> append</span>
-        <span><kbd>Ctrl↵</kbd> copy</span>
-        <span><kbd>Alt↵</kbd> save snippet</span>
-        <span><kbd>Esc</kbd> back</span>
-      </footer>
-    </main>
+      <main class="main">
+        <header class="toolbar">
+          <input
+            id="search"
+            class="search"
+            type="search"
+            placeholder="Search title, text, tags…  ( / )"
+            aria-label="Search prompts"
+            autocomplete="off"
+          />
+          <select id="sort" class="select" aria-label="Sort prompts"></select>
+          <button id="open-palette" class="btn btn--ghost" type="button" title="Command palette">
+            <kbd>Ctrl K</kbd>
+          </button>
+          <button id="new-prompt" class="btn btn--primary" type="button">+ New</button>
+        </header>
+        <section id="view" class="view" aria-live="polite"></section>
+      </main>
+    </div>
   </body>
 </html>

@@ -70,6 +70,16 @@
   ✅ Form owns its keys; every value required (SPEC §1).
 - ESLint `no-undef` now also guards `src/content/assist.js` (it is `@ts-nocheck`).
 
+### S2 (2026-11-10) — in-page rebrand + bugs it surfaced
+- ✅ Pill, widget, `!` palette, variable form, save dialog and toasts use the brand tokens
+  (`THEME_CSS`, light/dark), mascot SVG bubble; parity + contrast test `tests/theme-parity.test.mjs`.
+- **Widget bubble ran away from the cursor**: `pointermove` dragged on plain hover (no button held),
+  so clicks never registered as taps. ✅ Drag only while pressed; `pointercancel` handled.
+- **Widget panel covered its own bubble** at the default right-edge position (clamped right-side
+  panel), so it could not be closed or dragged. ✅ Opens on the side with room; `border-box` width.
+- **Toasts rendered off-screen** (absolute right/bottom inside the 0×0 host). ✅ `position: fixed`.
+- **Save dialog title field overflowed** the dialog. ✅ `box-sizing: border-box`.
+
 ### v0.3 progress
 | Goal | Status |
 |------|--------|

@@ -200,7 +200,12 @@ export function renderCompose(root) {
   const caret =
     active instanceof HTMLTextAreaElement ? [active.selectionStart, active.selectionEnd] : null;
 
-  const preview = h('p', { class: 'compose__preview', 'aria-live': 'polite' });
+  // Scrollable, so it takes focus (keyboard scrolling); not live, or it would talk on every keystroke.
+  const preview = h('p', {
+    class: 'compose__preview',
+    tabindex: '0',
+    'aria-label': 'Assembled prompt',
+  });
   const stats = h('span', { class: 'muted' });
   const updatePreview = () => {
     mount(
@@ -681,52 +686,65 @@ function shotStrip(sq, current) {
   const used = new Set(composeSequenceIds(sq));
   return h(
     'div',
-    { class: 'shots', role: 'tablist', 'aria-label': 'Shots' },
-    sq.shots.flatMap((s, i) => [
-      i > 0
-        ? h(
-            'span',
-            { class: 'shots__cut', title: CUTS.find((x) => x.id === sq.shots[i - 1].cut)?.label },
-            cutGlyph(sq.shots[i - 1].cut),
-          )
-        : null,
-      h(
-        'button',
-        {
-          type: 'button',
-          class: `shots__tab${used.has(s.id) ? '' : ' shots__tab--empty'}`,
-          role: 'tab',
-          'aria-selected': String(s.id === current.id),
-          tabindex: s.id === current.id ? '0' : '-1',
-          title: used.has(s.id) ? `Shot ${i + 1}` : `Shot ${i + 1} (empty — left out)`,
-          dataset: { focusKey: `shot:${s.id}` },
-          on: {
-            click: () => {
-              activeId = s.id;
-              if (rootEl) renderCompose(rootEl);
-              focusShotTab(s.id);
-            },
-            keydown: (e) => {
-              const ke = /** @type {KeyboardEvent} */ (e);
-              if (ke.key !== 'ArrowLeft' && ke.key !== 'ArrowRight') return;
-              e.preventDefault();
-              const delta = ke.key === 'ArrowLeft' ? -1 : 1;
-              if (ke.altKey) {
-                setSequence(moveShot(seq(), s.id, delta));
-              } else {
-                const list = seq().shots;
-                const next = list[Math.max(0, Math.min(list.length - 1, i + delta))];
-                activeId = next.id;
+    { class: 'shots' },
+    h(
+      'div',
+      { class: 'shots__list', role: 'tablist', 'aria-label': 'Shots' },
+      sq.shots.flatMap((s, i) => [
+        i > 0
+          ? h(
+              'span',
+              {
+                class: 'shots__cut',
+                'aria-hidden': 'true',
+                title: CUTS.find((x) => x.id === sq.shots[i - 1].cut)?.label,
+              },
+              cutGlyph(sq.shots[i - 1].cut),
+            )
+          : null,
+        h(
+          'button',
+          {
+            type: 'button',
+            class: `shots__tab${used.has(s.id) ? '' : ' shots__tab--empty'}`,
+            role: 'tab',
+            'aria-label': `Shot ${i + 1}, ${s.duration} seconds${
+              i > 0
+                ? `, after a ${(CUTS.find((x) => x.id === sq.shots[i - 1].cut)?.label ?? 'cut').toLowerCase()}`
+                : ''
+            }${used.has(s.id) ? '' : ', empty'}`,
+            'aria-selected': String(s.id === current.id),
+            tabindex: s.id === current.id ? '0' : '-1',
+            title: used.has(s.id) ? `Shot ${i + 1}` : `Shot ${i + 1} (empty — left out)`,
+            dataset: { focusKey: `shot:${s.id}` },
+            on: {
+              click: () => {
+                activeId = s.id;
                 if (rootEl) renderCompose(rootEl);
-              }
-              focusShotTab(activeId);
+                focusShotTab(s.id);
+              },
+              keydown: (e) => {
+                const ke = /** @type {KeyboardEvent} */ (e);
+                if (ke.key !== 'ArrowLeft' && ke.key !== 'ArrowRight') return;
+                e.preventDefault();
+                const delta = ke.key === 'ArrowLeft' ? -1 : 1;
+                if (ke.altKey) {
+                  setSequence(moveShot(seq(), s.id, delta));
+                } else {
+                  const list = seq().shots;
+                  const next = list[Math.max(0, Math.min(list.length - 1, i + delta))];
+                  activeId = next.id;
+                  if (rootEl) renderCompose(rootEl);
+                }
+                focusShotTab(activeId);
+              },
             },
           },
-        },
-        h('strong', null, String(i + 1)),
-        h('span', { class: 'shots__dur' }, `${s.duration}s`),
-      ),
-    ]),
+          h('strong', null, String(i + 1)),
+          h('span', { class: 'shots__dur' }, `${s.duration}s`),
+        ),
+      ]),
+    ),
     sq.shots.length < MAX_SHOTS
       ? h(
           'button',

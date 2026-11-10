@@ -25,6 +25,31 @@ import { CATEGORY_COLORS, CATEGORY_EMOJIS, relativeTime } from './logic.js';
 
 /** @type {HTMLElement|null} */
 let toastHost = null;
+let modalSeq = 0;
+
+/**
+ * Keep Tab / Shift+Tab inside an open dialog (it is aria-modal).
+ * @param {KeyboardEvent} e
+ * @param {HTMLElement} root
+ */
+export function trapTab(e, root) {
+  const items = /** @type {HTMLElement[]} */ ([
+    ...root.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ]).filter((el) => el.offsetParent !== null || el === document.activeElement);
+  if (items.length === 0) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey && (active === first || !root.contains(active))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (active === last || !root.contains(active))) {
+    e.preventDefault();
+    first.focus();
+  }
+}
 
 /**
  * Bottom toast. Optional action button (e.g. Undo); auto-hides after `ms`.
@@ -100,15 +125,15 @@ export function openModal(cfg) {
         e.preventDefault();
         e.stopPropagation();
         submit();
+      } else if (e.key === 'Tab') {
+        trapTab(e, dialog);
       }
     };
+    const titleId = `modal-title-${++modalSeq}`;
     const dialog = h(
       'form',
       {
         class: `modal${cfg.wide ? ' modal--wide' : ''}`,
-        role: 'dialog',
-        'aria-modal': 'true',
-        'aria-label': cfg.title,
         on: {
           submit: (e) => {
             e.preventDefault();
@@ -116,7 +141,7 @@ export function openModal(cfg) {
           },
         },
       },
-      h('h2', { class: 'modal__title' }, cfg.title),
+      h('h2', { class: 'modal__title', id: titleId }, cfg.title),
       h('div', { class: 'modal__body' }, cfg.body),
       h(
         'div',
@@ -144,6 +169,10 @@ export function openModal(cfg) {
       'div',
       {
         class: 'backdrop',
+        // The dialog role sits on the overlay: ARIA doesn't allow it on <form>.
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-labelledby': titleId,
         on: {
           mousedown: (e) => {
             if (e.target === backdrop) close(null);

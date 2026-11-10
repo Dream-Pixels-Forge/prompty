@@ -181,6 +181,12 @@ export function openPalette(host) {
   const onKey = (e) => {
     // Let modals opened from the palette (variable fill-in) own the keyboard.
     if (document.querySelector('.backdrop:not(.backdrop--top)')) return;
+    // aria-modal: focus stays in the palette (its only control is the search field).
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      input.focus();
+      return;
+    }
     const intent = keyIntent(e);
     if (!intent) return;
     e.preventDefault();

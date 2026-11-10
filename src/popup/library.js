@@ -4,6 +4,7 @@
  * Search/sort reuse ./logic.js; nothing here re-implements them.
  */
 import { getOrigin } from '../lib/sites.js';
+import { MAX_VERSIONS } from '../lib/storage.js';
 import { filterPrompts, sortPrompts } from './logic.js';
 
 /**
@@ -117,7 +118,13 @@ export function upsertPrompt(prompts, draft, { id, now = Date.now() }) {
   const existing = prompts.find((p) => p.id === id);
   if (existing) {
     return prompts.map((p) =>
-      p.id === id ? { ...p, ...fields, isFavorite: draft.isFavorite ?? p.isFavorite } : p,
+      p.id === id
+        ? {
+            ...withVersion(p, fields, now),
+            ...fields,
+            isFavorite: draft.isFavorite ?? p.isFavorite,
+          }
+        : p,
     );
   }
   return [
@@ -133,6 +140,42 @@ export function upsertPrompt(prompts, draft, { id, now = Date.now() }) {
       lastUsedAt: null,
     },
   ];
+}
+
+/**
+ * G5: when title or text changes, keep the previous title/text as the newest
+ * version (capped, oldest dropped). Other edits (tags, category, favorite)
+ * are not versions.
+ * @param {Prompt} prompt
+ * @param {{ title: string, text: string }} next
+ * @param {number} now
+ * @returns {Prompt}
+ */
+export function withVersion(prompt, next, now) {
+  if (prompt.title === next.title && prompt.text === next.text) return prompt;
+  const versions = [
+    { text: prompt.text, title: prompt.title, editedAt: now },
+    ...(prompt.versions ?? []),
+  ].slice(0, MAX_VERSIONS);
+  return { ...prompt, versions };
+}
+
+/**
+ * G5: restore a version. The current title/text is saved as a version first,
+ * so a restore never loses anything (restoring is itself undoable).
+ * @param {Prompt[]} prompts
+ * @param {string} id
+ * @param {number} index position in that prompt's versions (0 = newest)
+ * @param {number} [now]
+ * @returns {Prompt[]}
+ */
+export function restoreVersion(prompts, id, index, now = Date.now()) {
+  return prompts.map((p) => {
+    const version = p.id === id ? p.versions?.[index] : undefined;
+    if (!version) return p;
+    const next = { title: version.title || p.title, text: version.text };
+    return { ...withVersion(p, next, now), ...next };
+  });
 }
 
 /**

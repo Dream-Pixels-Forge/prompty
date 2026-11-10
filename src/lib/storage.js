@@ -20,7 +20,18 @@ import browser from './browser.js';
  * @property {string|null} aspectRatio
  * @property {string|null} quality
  * @property {number|null} lastUsedAt
+ * @property {PromptVersion[]} [versions] previous title/text, newest first (G5; omitted when none)
  */
+
+/**
+ * @typedef {object} PromptVersion
+ * @property {string} text
+ * @property {string} title
+ * @property {number} editedAt when this text was replaced
+ */
+
+/** History kept per prompt (G5). Oldest versions fall off first. */
+export const MAX_VERSIONS = 20;
 
 /**
  * @typedef {object} Category
@@ -108,7 +119,29 @@ export function normalizePrompt(raw) {
     aspectRatio: stringOr(raw.aspectRatio) || null,
     quality: stringOr(raw.quality) || null,
     lastUsedAt: numberOr(raw.lastUsedAt, null),
+    ...versionsOf(raw.versions),
   };
+}
+
+/**
+ * Whitelist prompt versions: keep entries with string text and a finite
+ * editedAt, coerce title to string, cap at MAX_VERSIONS (newest first).
+ * Returns `{}` (field omitted) when there is nothing valid.
+ * @param {unknown} value
+ * @returns {{ versions?: PromptVersion[] }}
+ */
+function versionsOf(value) {
+  if (!Array.isArray(value)) return {};
+  /** @type {PromptVersion[]} */
+  const versions = [];
+  for (const item of value) {
+    if (!isRecord(item) || typeof item.text !== 'string') continue;
+    const editedAt = numberOr(item.editedAt, null);
+    if (editedAt === null) continue;
+    versions.push({ text: item.text, title: stringOr(item.title), editedAt });
+    if (versions.length === MAX_VERSIONS) break;
+  }
+  return versions.length > 0 ? { versions } : {};
 }
 
 /**

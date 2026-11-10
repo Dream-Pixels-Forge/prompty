@@ -1,5 +1,13 @@
 ## Goal: G5 — Prompt version history, compare, restore
 
+> **Status: done.** Notes from the PR:
+>
+> - `normalizePrompt` whitelists `versions` (omitted when empty) — without it, every background
+>   `readAll → writeAll` (Save Selection, seeding) would have silently wiped history.
+> - Diff readability pass: whitespace between changes is folded into the change and runs are grouped
+>   (all deleted, then all added), so edits read as phrases; both sides still re-join exactly.
+> - Open history from the card's 🕘 button, the editor's **History (N)** button, or the palette.
+
 ### Objective
 
 Every change to a prompt's text keeps the previous text as a version (cap 20, newest first).
@@ -14,24 +22,24 @@ overwrite text in place today. Detailed in ROADMAP G5; this subgoal pins it to t
 
 ### Deliverables
 
-- [ ] Schema: `Prompt.versions?: { text: string, title: string, editedAt: number }[]`.
+- [x] Schema: `Prompt.versions?: { text: string, title: string, editedAt: number }[]`.
       `normalizePrompt` (lib/storage.js) whitelists it: array of valid entries, max 20, strings only.
-- [ ] `upsertPrompt`: when `text` or `title` changes, prepend the _previous_ `{ text, title, editedAt }`
+- [x] `upsertPrompt`: when `text` or `title` changes, prepend the _previous_ `{ text, title, editedAt }`
       (cap 20, FIFO). No version for a no-op save or favorite/category-only changes.
-- [ ] `src/lib/diff.js` (pure): word-level LCS diff → `[{ op: 'same'|'add'|'del', text }]`;
+- [x] `src/lib/diff.js` (pure): word-level LCS diff → `[{ op: 'same'|'add'|'del', text }]`;
       whitespace-preserving so the result re-joins exactly.
-- [ ] History modal (from the card's ⋯/🕘 button and the editor header): version list
+- [x] History modal (from the card's ⋯/🕘 button and the editor header): version list
       (relative time, first words), two-column compare with `<ins>`/`<del>` styling built with
       `textContent` spans, **Restore** (writes current text as a version first, then applies).
-- [ ] Palette command "Show history: {title}" for the selected prompt.
-- [ ] Export includes `versions`; import normalizes and caps them; Replace/Merge semantics unchanged.
+- [x] Palette command "Show history: {title}" for the selected prompt.
+- [x] Export includes `versions`; import normalizes and caps them; Replace/Merge semantics unchanged.
 
 ### Definition of Done
 
-- [ ] Tests: diff (identical, insertion, deletion, reorder, punctuation/whitespace round-trip);
+- [x] Tests: diff (identical, insertion, deletion, reorder, punctuation/whitespace round-trip);
       version capture rules; cap at 20; restore round-trip leaves N+1 versions and exact text.
-- [ ] A 20-version prompt with 2 KB text stays well under `storage.local` limits (assert size budget).
-- [ ] Gates green; e2e: edit twice → history shows 2 → compare highlights the change → restore.
+- [x] A 20-version prompt with 2 KB text stays well under `storage.local` limits (assert size budget).
+- [x] Gates green; e2e: edit twice → history shows 2 → compare highlights the change → restore.
 
 ### Verification Steps
 

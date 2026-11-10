@@ -10,6 +10,7 @@ import {
   parseTags,
   removePrompt,
   removeRecipe,
+  restoreVersion,
   restorePrompt,
   toggleFavorite,
   toggleRecipe,
@@ -18,7 +19,9 @@ import {
   upsertRecipe,
   validatePromptDraft,
   viewPrompts,
+  withVersion,
 } from '../src/popup/library.js';
+import { MAX_VERSIONS } from '../src/lib/storage.js';
 
 /**
  * @typedef {import('../src/lib/storage.js').Prompt} Prompt
@@ -200,5 +203,77 @@ describe('settings helpers', () => {
     const replaced = upsertRecipe(s2, { ...recipe, notes: 'v2' });
     expect(replaced.siteRecipes).toEqual([{ ...recipe, notes: 'v2' }]);
     expect(removeRecipe(replaced, 'x.dev/*')).toEqual({ siteRecipes: [], enabledRecipes: [] });
+  });
+});
+
+describe('version history (G5)', () => {
+  const base = prompt({ id: 'v', title: 'Dolly', text: 'push in slowly' });
+  const draft = (/** @type {Partial<import('../src/popup/library.js').PromptDraft>} */ d) => ({
+    title: 'Dolly',
+    text: 'push in slowly',
+    categoryId: null,
+    tags: [],
+    ...d,
+  });
+
+  it('a text or title edit keeps the previous title/text as the newest version', () => {
+    const [p] = upsertPrompt([base], draft({ text: 'push in fast' }), { id: 'v', now: 10 });
+    expect(p.text).toBe('push in fast');
+    expect(p.versions).toEqual([{ text: 'push in slowly', title: 'Dolly', editedAt: 10 }]);
+    const [q] = upsertPrompt([p], draft({ title: 'Dolly v2', text: 'push in fast' }), {
+      id: 'v',
+      now: 20,
+    });
+    expect(q.versions?.map((x) => x.editedAt)).toEqual([20, 10]);
+    expect(q.versions?.[0]).toMatchObject({ title: 'Dolly', text: 'push in fast' });
+  });
+
+  it('tags, category or favorite changes alone are not versions', () => {
+    const [p] = upsertPrompt([base], draft({ tags: ['x'], categoryId: 'c1', isFavorite: true }), {
+      id: 'v',
+      now: 10,
+    });
+    expect(p.versions).toBeUndefined();
+    expect(withVersion(base, { title: 'Dolly', text: 'push in slowly' }, 5)).toBe(base);
+  });
+
+  it('caps history at MAX_VERSIONS, dropping the oldest', () => {
+    let list = [base];
+    for (let i = 1; i <= MAX_VERSIONS + 3; i++)
+      list = upsertPrompt(list, draft({ text: `take ${i}` }), { id: 'v', now: i });
+    const [p] = list;
+    expect(p.versions).toHaveLength(MAX_VERSIONS);
+    expect(p.versions?.[0].text).toBe(`take ${MAX_VERSIONS + 2}`);
+    expect(p.versions?.at(-1)?.editedAt).toBe(4);
+  });
+
+  it('restore applies the version and saves the current text first (nothing is lost)', () => {
+    const [p] = upsertPrompt([base], draft({ title: 'Dolly 2', text: 'whip pan' }), {
+      id: 'v',
+      now: 10,
+    });
+    const [r] = restoreVersion([p], 'v', 0, 30);
+    expect(r).toMatchObject({ title: 'Dolly', text: 'push in slowly' });
+    expect(r.versions?.map((x) => x.text)).toEqual(['whip pan', 'push in slowly']);
+    // and restoring back is exact
+    const [back] = restoreVersion([r], 'v', 0, 40);
+    expect(back).toMatchObject({ title: 'Dolly 2', text: 'whip pan' });
+    expect(back.versions).toHaveLength(3);
+  });
+
+  it('restore ignores unknown prompts and indexes', () => {
+    const list = [base];
+    expect(restoreVersion(list, 'v', 0)).toEqual(list);
+    expect(restoreVersion(list, 'nope', 0)).toEqual(list);
+  });
+
+  it('a full 20-version history of 2 KB prompts stays small in storage', () => {
+    const text = 'x'.repeat(2048);
+    const p = {
+      ...base,
+      text,
+      versions: Array.from({ length: MAX_VERSIONS }, (_, i) => ({ text, title: 'T', editedAt: i })),
+    };
+    expect(JSON.stringify(p).length).toBeLessThan(50_000); // a tiny fraction of storage.local's quota
   });
 });

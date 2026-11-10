@@ -6,7 +6,7 @@
 import { buildExport } from './logic.js';
 import { usePrompt, deliverText } from './actions.js';
 import { h, highlighted, mount } from './dom.js';
-import { promptEditor, toast } from './modals.js';
+import { OPEN_HISTORY, promptEditor, toast } from './modals.js';
 import { buildCommands, keyIntent, moveSelection, rankPalette, resolveAction } from './palette.js';
 import { upsertPrompt } from './library.js';
 import { save, state } from './store.js';
@@ -15,7 +15,7 @@ import browser from '../lib/browser.js';
 /**
  * @typedef {import('./palette.js').PaletteItem} PaletteItem
  * @typedef {import('./palette.js').PaletteAction} PaletteAction
- * @typedef {{ goCategory: (id: string) => void, exportLibrary: () => void }} PaletteHost
+ * @typedef {{ goCategory: (id: string) => void, exportLibrary: () => void, showHistory: (id: string) => void }} PaletteHost
  */
 
 const ICONS = { prompt: '✦', snippet: '⧉', command: '›' };
@@ -75,7 +75,11 @@ export function openPalette(host) {
   );
 
   const refresh = () => {
-    const commands = buildCommands({ categories: state.categories, settings: state.settings });
+    const commands = buildCommands({
+      categories: state.categories,
+      settings: state.settings,
+      prompts: state.prompts,
+    });
     items = rankPalette(
       { prompts: state.prompts, snippets: state.snippets, commands },
       input.value,
@@ -142,6 +146,8 @@ export function openPalette(host) {
           await save({ settings: { [effect.key]: effect.value } });
           toast(`${item.command.label}: done.`);
         } else if (effect.type === 'export') host.exportLibrary();
+        else if (effect.type === 'history' && typeof effect.promptId === 'string')
+          host.showHistory(effect.promptId);
         return;
       }
       if (action === 'promote' && item.snippet) {
@@ -150,7 +156,7 @@ export function openPalette(host) {
           initial: { text: item.snippet.text },
           categories: state.categories,
         });
-        if (draft) {
+        if (draft && draft !== OPEN_HISTORY) {
           await save({ prompts: upsertPrompt(state.prompts, draft, { id: crypto.randomUUID() }) });
           toast(`Saved “${draft.title.trim()}”.`);
         }

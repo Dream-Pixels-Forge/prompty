@@ -44,7 +44,7 @@ const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * Build the command list for the current library state.
- * @param {{ categories?: Category[], settings?: Partial<Settings>, scopeCategoryId?: string|null }} [state]
+ * @param {{ categories?: Category[], settings?: Partial<Settings>, scopeCategoryId?: string|null, prompts?: Prompt[] }} [state]
  * @returns {PaletteCommand[]}
  */
 export function buildCommands(state = {}) {
@@ -68,6 +68,18 @@ export function buildCommands(state = {}) {
       label: `Go to category: ${category.icon ? `${category.icon} ` : ''}${category.name}`,
       keywords: ['category', 'jump', 'filter'],
       effect: { type: 'scope', categoryId: category.id },
+    });
+  }
+  // G5: one "History" command per prompt that has versions.
+  for (const p of Array.isArray(state.prompts) ? state.prompts : []) {
+    const n = p.versions?.length ?? 0;
+    if (n === 0) continue;
+    commands.push({
+      id: `cmd:history:${p.id}`,
+      label: `History: ${p.title}`,
+      hint: `${n} version${n === 1 ? '' : 's'}`,
+      keywords: ['history', 'versions', 'restore', 'revert', 'compare'],
+      effect: { type: 'history', promptId: p.id },
     });
   }
   commands.push(

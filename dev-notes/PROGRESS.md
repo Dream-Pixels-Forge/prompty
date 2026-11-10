@@ -52,8 +52,33 @@
 - **background.js imports were commented out** (unclosed `/**` header): every background message,
   command and `mergeSettings` call threw `ReferenceError`. Fixed; ESLint `no-undef` now guards the file.
 - **Seed presets never ran** (`seedPresets()` had no caller). Background now seeds on every start (idempotent).
-- **Context-menu "Save Selection" has no `onClicked` listener**, and save-selection only records a
-  snippet, never a prompt. Open.
+- **Context-menu "Save Selection" had no `onClicked` listener**, and save-selection only recorded a
+  snippet. ✅ Fixed in S1.
+
+### Audit findings (S1, 2026-11-10) — in-page bugs that were live on every site
+- **Prompty's invisible UI swallowed every click on every page.** The shadow host applied
+  `all: initial` last (wiping `position: fixed`, 0×0 size, `pointer-events: none`), and `hidden`
+  panels stayed in layout because inline `display` beats the UA `[hidden]` rule — so the hidden
+  save-modal backdrop covered the viewport. ✅ `all` first + `[hidden]{display:none!important}` in
+  the shadow root; guarded by `tests/content-host.test.mjs`.
+- **No page toast ever showed** (`showToast` incremented an undeclared `toastSlotNumber`). ✅ Fixed.
+- **`!` palette rendered ~10,000px off-screen** (caret measured on a detached mirror). ✅ Marker span
+  measured while attached; palette unhidden before positioning.
+- **`!` palette arrow keys threw** (undefined `count`) and, once fixed, **moved two rows per press**
+  (duplicate keydown listener). ✅ Fixed.
+- **Enter in the `!` variable form inserted blanks** (list handler ran first; no required check).
+  ✅ Form owns its keys; every value required (SPEC §1).
+- ESLint `no-undef` now also guards `src/content/assist.js` (it is `@ts-nocheck`).
+
+### S2 (2026-11-10) — in-page rebrand + bugs it surfaced
+- ✅ Pill, widget, `!` palette, variable form, save dialog and toasts use the brand tokens
+  (`THEME_CSS`, light/dark), mascot SVG bubble; parity + contrast test `tests/theme-parity.test.mjs`.
+- **Widget bubble ran away from the cursor**: `pointermove` dragged on plain hover (no button held),
+  so clicks never registered as taps. ✅ Drag only while pressed; `pointercancel` handled.
+- **Widget panel covered its own bubble** at the default right-edge position (clamped right-side
+  panel), so it could not be closed or dragged. ✅ Opens on the side with room; `border-box` width.
+- **Toasts rendered off-screen** (absolute right/bottom inside the 0×0 host). ✅ `position: fixed`.
+- **Save dialog title field overflowed** the dialog. ✅ `box-sizing: border-box`.
 
 ### v0.3 progress
 | Goal | Status |
@@ -63,7 +88,10 @@
 | Seed v3 cinematic pack | ✅ +10 categories, +44 prompts; upgrades add only what a newer seed version introduced (deleted starters stay deleted), join prompts to existing categories by name, never duplicate a category |
 | Popup screens (SPEC §1 parity) | ✅ 780×580 shell; sidebar views + categories CRUD/reorder (18 colors × 24 emoji); cards with favorite, ⚡vars, chips, stats, insert/append/copy/edit/delete (10s undo); search (`/`), sort; prompt editor; variable fill-in modal; snippets tab; settings (general, quick insert, disabled sites, recipes, import/export); live sync; light/dark |
 
-### Next wave: v0.3 "Differentiators" (ROADMAP.md)
+### Next wave — see [`subgoals/`](subgoals/README.md)
+Order: S1 Save Selection → S2 in-page rebrand → S3 toolbar glyph → G5 history → G6 variables 2.0 → G4 bulk ops → G9 Composer.
+
+### v0.3 "Differentiators" backlog (ROADMAP.md)
 Priority order per ROADMAP:
 1. **G2** Ctrl+K command palette in popup
 2. **G5** Prompt version history + diff + revert

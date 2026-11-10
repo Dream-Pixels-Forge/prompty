@@ -339,6 +339,7 @@ function card(prompt) {
     h(
       'header',
       { class: 'card__head' },
+      prompt.createdAt > state.newSince ? h('span', { class: 'chip-new' }, 'New') : null,
       h('h2', { class: 'card__title', title: prompt.title }, prompt.title || 'Untitled'),
       h(
         'button',

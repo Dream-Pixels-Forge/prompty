@@ -605,37 +605,88 @@
   /* UI: shared palette                                                  */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * Brand tokens (Dream Pixels Forge): black/white structure, one orange accent.
+   * Mirrors src/popup/popup.css — kept in sync by tests/theme-parity.test.mjs.
+   * Lives in the shadow root as CSS custom properties, so inline STYLES can use
+   * var(--pf-*) and light/dark follows the user's preference with no JS.
+   * (`all: initial` on the host does not reset custom properties.)
+   */
+  const THEME_CSS = `
+:host {
+  --pf-accent: #ff6a00;
+  --pf-accent-hover: #ff7f24;
+  --pf-accent-ink: #0e0e10;
+  --pf-accent-text: #b84c00;
+  --pf-accent-soft: #fff1eb;
+  --pf-surface: #ffffff;
+  --pf-sunken: #f4f4f4;
+  --pf-fg: #0a0a0a;
+  --pf-muted: #666666;
+  --pf-line: #e8e8e8;
+  --pf-line-strong: #cfcfcf;
+  --pf-invert-bg: #0a0a0a;
+  --pf-invert-fg: #ffffff;
+  --pf-danger: #d92d20;
+  --pf-mascot-bg: #0e0e10;
+  --pf-scrim: rgba(10, 10, 15, 0.45);
+  --pf-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --pf-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.22);
+}
+@media (prefers-color-scheme: dark) {
+  :host {
+    --pf-accent-text: #ff8a33;
+    --pf-accent-soft: #2b1208;
+    --pf-surface: #17171a;
+    --pf-sunken: #1f1f23;
+    --pf-fg: #f5f5f5;
+    --pf-muted: #9a9a9a;
+    --pf-line: #2a2a30;
+    --pf-line-strong: #3a3a42;
+    --pf-invert-bg: #f5f5f5;
+    --pf-invert-fg: #0a0a0a;
+    --pf-danger: #ff6b5e;
+    --pf-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    --pf-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.7);
+  }
+}
+input:focus { border-color: var(--pf-accent) !important; }
+button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset: 1px; }
+`;
+
+  const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+
   const STYLES = {
     pill: {
       position: 'absolute',
       display: 'flex',
       gap: '2px',
       padding: '3px',
-      background: 'rgba(17,17,24,0.96)',
-      border: '1px solid rgba(255,255,255,0.16)',
+      background: 'var(--pf-surface)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '10px',
-      boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
+      boxShadow: 'var(--pf-shadow)',
       pointerEvents: 'auto',
     },
     pillButton: {
       appearance: 'none',
       border: '0',
       background: 'transparent',
-      color: '#e6e6f0',
+      color: 'var(--pf-fg)',
       fontSize: '13px',
       lineHeight: '1',
       padding: '5px 7px',
       borderRadius: '7px',
       cursor: 'pointer',
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontFamily: FONT,
     },
-    pillButtonHover: { background: 'rgba(139,92,246,0.35)' },
+    pillButtonHover: { background: 'var(--pf-accent-soft)' },
     menu: {
       position: 'absolute',
-      background: 'rgba(17,17,24,0.98)',
-      border: '1px solid rgba(255,255,255,0.16)',
+      background: 'var(--pf-surface)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '8px',
-      boxShadow: '0 6px 18px rgba(0,0,0,0.5)',
+      boxShadow: 'var(--pf-shadow)',
       padding: '4px',
       display: 'flex',
       flexDirection: 'column',
@@ -647,11 +698,12 @@
       position: 'absolute',
       width: `${WIDGET_SIZE}px`,
       height: `${WIDGET_SIZE}px`,
-      borderRadius: '50%',
-      background: 'rgba(139,92,246,0.95)',
-      color: '#fff',
-      border: '2px solid rgba(255,255,255,0.25)',
-      boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
+      // Rounded square like the app icon: dark tile, white mascot, orange accents.
+      borderRadius: '14px',
+      background: 'var(--pf-mascot-bg)',
+      color: '#ffffff',
+      border: '2px solid var(--pf-accent)',
+      boxShadow: 'var(--pf-shadow)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -661,32 +713,34 @@
       pointerEvents: 'auto',
       userSelect: 'none',
       touchAction: 'none',
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontFamily: FONT,
     },
     widgetPanel: {
       position: 'absolute',
       width: '320px',
+      boxSizing: 'border-box',
       maxHeight: '340px',
       display: 'flex',
       flexDirection: 'column',
-      background: 'rgba(17,17,24,0.97)',
-      border: '1px solid rgba(255,255,255,0.18)',
+      background: 'var(--pf-surface)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '10px',
-      boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+      boxShadow: 'var(--pf-shadow-lg)',
       padding: '8px',
       gap: '6px',
       pointerEvents: 'auto',
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontFamily: FONT,
     },
     widgetSearch: {
       width: '100%',
-      background: 'rgba(255,255,255,0.08)',
-      border: '1px solid rgba(255,255,255,0.18)',
+      background: 'var(--pf-sunken)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '7px',
-      color: '#f0f0f8',
+      color: 'var(--pf-fg)',
       fontSize: '13px',
       padding: '6px 8px',
       outline: 'none',
+      boxSizing: 'border-box',
     },
     widgetList: {
       display: 'flex',
@@ -700,11 +754,11 @@
       flexDirection: 'column',
       gap: '3px',
       padding: '6px 7px',
-      background: 'rgba(255,255,255,0.05)',
+      background: 'var(--pf-sunken)',
       borderRadius: '8px',
     },
     rowTitle: {
-      color: '#f2f2f8',
+      color: 'var(--pf-fg)',
       fontSize: '13px',
       fontWeight: '600',
       overflow: 'hidden',
@@ -712,7 +766,7 @@
       whiteSpace: 'nowrap',
     },
     rowText: {
-      color: 'rgba(240,240,248,0.65)',
+      color: 'var(--pf-muted)',
       fontSize: '11px',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
@@ -721,10 +775,11 @@
     rowActions: { display: 'flex', gap: '4px' },
     rowButton: {
       appearance: 'none',
-      border: '1px solid rgba(139,92,246,0.5)',
-      background: 'rgba(139,92,246,0.2)',
-      color: '#e8e0ff',
+      border: '1px solid var(--pf-line-strong)',
+      background: 'var(--pf-surface)',
+      color: 'var(--pf-fg)',
       fontSize: '11px',
+      fontWeight: '600',
       padding: '3px 8px',
       borderRadius: '6px',
       cursor: 'pointer',
@@ -734,17 +789,17 @@
       appearance: 'none',
       border: '0',
       background: 'transparent',
-      color: '#e6e6f0',
+      color: 'var(--pf-fg)',
       fontSize: '12px',
       textAlign: 'left',
       padding: '6px 8px',
       borderRadius: '6px',
       cursor: 'pointer',
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontFamily: FONT,
       whiteSpace: 'nowrap',
     },
     emptyList: {
-      color: 'rgba(240,240,248,0.55)',
+      color: 'var(--pf-muted)',
       fontSize: '12px',
       padding: '8px 4px',
     },
@@ -753,7 +808,7 @@
       inset: '0',
       width: '100vw',
       height: '100vh',
-      background: 'rgba(0,0,0,0.45)',
+      background: 'var(--pf-scrim)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -761,35 +816,37 @@
     },
     modal: {
       width: '320px',
-      background: 'rgba(23,23,32,0.98)',
-      border: '1px solid rgba(255,255,255,0.2)',
+      background: 'var(--pf-surface)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '12px',
       padding: '14px',
       display: 'flex',
       flexDirection: 'column',
       gap: '10px',
-      boxShadow: '0 12px 36px rgba(0,0,0,0.6)',
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      boxShadow: 'var(--pf-shadow-lg)',
+      fontFamily: FONT,
     },
-    modalLabel: { color: '#f0f0f8', fontSize: '13px', fontWeight: '600' },
-    modalText: { color: 'rgba(240,240,248,0.6)', fontSize: '11px', maxHeight: '44px', overflow: 'hidden' },
+    modalLabel: { color: 'var(--pf-fg)', fontSize: '13px', fontWeight: '700' },
+    modalText: { color: 'var(--pf-muted)', fontSize: '11px', maxHeight: '44px', overflow: 'hidden' },
     modalInput: {
       width: '100%',
-      background: 'rgba(255,255,255,0.08)',
-      border: '1px solid rgba(255,255,255,0.2)',
+      background: 'var(--pf-sunken)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '7px',
-      color: '#f0f0f8',
+      color: 'var(--pf-fg)',
       fontSize: '13px',
       padding: '7px 9px',
       outline: 'none',
+      boxSizing: 'border-box',
     },
     modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '6px' },
     modalPrimary: {
       appearance: 'none',
       border: '0',
-      background: '#8b5cf6',
-      color: '#fff',
+      background: 'var(--pf-accent)',
+      color: 'var(--pf-accent-ink)',
       fontSize: '13px',
+      fontWeight: '700',
       padding: '7px 14px',
       borderRadius: '8px',
       cursor: 'pointer',
@@ -797,9 +854,9 @@
     },
     modalSecondary: {
       appearance: 'none',
-      border: '1px solid rgba(255,255,255,0.2)',
+      border: '1px solid var(--pf-line-strong)',
       background: 'transparent',
-      color: '#e6e6f0',
+      color: 'var(--pf-fg)',
       fontSize: '13px',
       padding: '7px 14px',
       borderRadius: '8px',
@@ -807,19 +864,23 @@
       fontFamily: 'inherit',
     },
     toast: {
-      position: 'absolute',
+      // Viewport-anchored: the host is a 0×0 box, so absolute right/bottom
+      // would place the toast above-left of the screen.
+      position: 'fixed',
       right: '16px',
       bottom: '16px',
       maxWidth: '340px',
-      background: 'rgba(17,17,24,0.97)',
-      border: '1px solid rgba(255,255,255,0.2)',
-      borderRadius: '10px',
+      // Inverted like the popup's toasts, with the brand edge.
+      background: 'var(--pf-invert-bg)',
+      border: '0',
+      borderLeft: '3px solid var(--pf-accent)',
+      borderRadius: '8px',
       padding: '10px 14px',
-      color: '#f0f0f8',
+      color: 'var(--pf-invert-fg)',
       fontSize: '13px',
-      boxShadow: '0 6px 18px rgba(0,0,0,0.5)',
+      boxShadow: 'var(--pf-shadow-lg)',
       pointerEvents: 'none',
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontFamily: FONT,
     },
     friendlyNote: {
       position: 'absolute',
@@ -833,10 +894,10 @@
     // Quick-insert palette (G1)
     palette: {
       position: 'absolute',
-      background: 'rgba(17,17,24,0.98)',
-      border: '1px solid rgba(255,255,255,0.18)',
+      background: 'var(--pf-surface)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '10px',
-      boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+      boxShadow: 'var(--pf-shadow-lg)',
       padding: '6px',
       display: 'flex',
       flexDirection: 'column',
@@ -845,15 +906,15 @@
       minWidth: '280px',
       maxWidth: '420px',
       maxHeight: '360px',
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+      fontFamily: FONT,
       zIndex: '2147483647',
     },
     paletteSearch: {
       width: '100%',
-      background: 'rgba(255,255,255,0.08)',
-      border: '1px solid rgba(255,255,255,0.18)',
+      background: 'var(--pf-sunken)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '7px',
-      color: '#f0f0f8',
+      color: 'var(--pf-fg)',
       fontSize: '13px',
       padding: '6px 8px',
       outline: 'none',
@@ -871,18 +932,21 @@
       flexDirection: 'column',
       gap: '3px',
       padding: '7px 9px',
-      background: 'rgba(255,255,255,0.04)',
+      background: 'transparent',
       borderRadius: '7px',
       cursor: 'pointer',
       border: '1px solid transparent',
-      transition: 'background 0.08s, border-color 0.08s',
+      boxShadow: 'none',
+      transition: 'background 0.08s',
     },
+    // Same selection language as the popup palette: sunken row + orange bar.
     paletteItemSelected: {
-      background: 'rgba(139,92,246,0.25)',
-      borderColor: 'rgba(139,92,246,0.5)',
+      background: 'var(--pf-sunken)',
+      borderColor: 'transparent',
+      boxShadow: 'inset 3px 0 0 var(--pf-accent)',
     },
     paletteItemTitle: {
-      color: '#f2f2f8',
+      color: 'var(--pf-fg)',
       fontSize: '13px',
       fontWeight: '600',
       overflow: 'hidden',
@@ -890,48 +954,95 @@
       whiteSpace: 'nowrap',
     },
     paletteItemText: {
-      color: 'rgba(240,240,248,0.6)',
+      color: 'var(--pf-muted)',
       fontSize: '11px',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap',
     },
     paletteItemHighlight: {
-      background: 'rgba(139,92,246,0.35)',
-      borderRadius: '2px',
-      padding: '0 1px',
+      background: 'transparent',
+      color: 'var(--pf-accent-text)',
+      fontWeight: '700',
+      padding: '0',
     },
     paletteVarForm: {
       display: 'flex',
       flexDirection: 'column',
       gap: '6px',
       padding: '6px 2px',
-      borderTop: '1px solid rgba(255,255,255,0.1)',
+      borderTop: '1px solid var(--pf-line)',
       marginTop: '2px',
     },
     paletteVarLabel: {
-      color: 'rgba(240,240,248,0.7)',
+      color: 'var(--pf-muted)',
       fontSize: '11px',
-      fontWeight: '500',
+      fontWeight: '600',
     },
     paletteVarInput: {
       width: '100%',
-      background: 'rgba(255,255,255,0.08)',
-      border: '1px solid rgba(255,255,255,0.18)',
+      background: 'var(--pf-sunken)',
+      border: '1px solid var(--pf-line)',
       borderRadius: '6px',
-      color: '#f0f0f8',
+      color: 'var(--pf-fg)',
       fontSize: '12px',
       padding: '5px 7px',
       outline: 'none',
       boxSizing: 'border-box',
     },
     paletteHint: {
-      color: 'rgba(240,240,248,0.45)',
+      color: 'var(--pf-muted)',
       fontSize: '11px',
       textAlign: 'center',
       padding: '2px 0',
     },
   };
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /**
+   * The Prompty mascot as inline SVG (white monitor, dark screen, orange
+   * cheeks + cursor). Built with createElementNS — no innerHTML, no <img>,
+   * so page CSP (img-src) can't block it and no web_accessible_resources are
+   * exposed for sites to fingerprint.
+   * @param {number} size px
+   * @returns {SVGSVGElement}
+   */
+  function mascotSvg(size) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 48 48');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.display = 'block';
+    svg.style.pointerEvents = 'none';
+    /** @param {string} tag @param {Record<string, string|number>} attrs */
+    const add = (tag, attrs) => {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      svg.appendChild(node);
+      return node;
+    };
+    // body + screen
+    add('rect', { x: 5, y: 10, width: 34, height: 29, rx: 10, fill: '#ffffff' });
+    add('rect', { x: 10, y: 15, width: 24, height: 17, rx: 5, fill: '#0e0e10' });
+    // eyes with highlights
+    add('circle', { cx: 17, cy: 23, r: 3.3, fill: '#2b2b31' });
+    add('circle', { cx: 27, cy: 23, r: 3.3, fill: '#2b2b31' });
+    add('circle', { cx: 18, cy: 21.8, r: 1.1, fill: '#ffffff' });
+    add('circle', { cx: 28, cy: 21.8, r: 1.1, fill: '#ffffff' });
+    // cheeks + smile
+    add('ellipse', { cx: 14.6, cy: 27.4, rx: 1.9, ry: 1.2, fill: '#ff6a00' });
+    add('ellipse', { cx: 29.4, cy: 27.4, rx: 1.9, ry: 1.2, fill: '#ff6a00' });
+    add('path', { d: 'M19.6 27.2 q2.4 2 4.8 0', fill: 'none', stroke: '#8a8a94', 'stroke-width': 1.2, 'stroke-linecap': 'round' });
+    // bezel buttons
+    add('rect', { x: 24, y: 34.4, width: 6, height: 2.4, rx: 1.2, fill: '#0e0e10' });
+    add('circle', { cx: 33.4, cy: 35.6, r: 1.4, fill: '#ff6a00' });
+    // orange cursor + click sparks (top-right)
+    add('path', { d: 'M35 5 L44.5 9.2 L40.6 10.6 L43.2 13.4 L41.6 15 L39 12.2 L37.6 16 Z', fill: '#ff6a00', 'stroke-linejoin': 'round' });
+    add('path', { d: 'M33.5 2.8 l-0.6 -1.8 M38.6 2.6 l1 -1.6 M42.4 5 l1.8 -0.4', stroke: '#ff6a00', 'stroke-width': 1.3, 'stroke-linecap': 'round' });
+    return svg;
+  }
 
   /* ------------------------------------------------------------------ */
   /* Boot                                                                */
@@ -943,7 +1054,11 @@
   function buildUi() {
     host = document.createElement('div');
     host.id = HOST_ID;
+    // `all: initial` MUST come first: it resets every property, so anything
+    // set before it (fixed position, zero size, pointer-events) is lost and the
+    // host would sit in the page flow and catch clicks meant for the site.
     applyStyles(host, {
+      all: 'initial',
       position: 'fixed',
       left: '0',
       top: '0',
@@ -951,9 +1066,14 @@
       height: '0',
       zIndex: '2147483647',
       pointerEvents: 'none',
-      all: 'initial',
     });
     const shadow = host.attachShadow({ mode: 'open' });
+    // Our panels set `display` inline, which beats the UA `[hidden]` rule — so a
+    // "hidden" full-screen backdrop would still cover the page. An !important
+    // author rule wins over non-important inline styles and restores `hidden`.
+    const baseStyle = document.createElement('style');
+    baseStyle.textContent = `[hidden] { display: none !important; }\n${THEME_CSS}`;
+    shadow.appendChild(baseStyle);
     document.documentElement.appendChild(host);
 
     // Pill
@@ -982,7 +1102,8 @@
 
     // Widget bubble + panel
     widgetBubble = elInShadow('div');
-    widgetBubble.textContent = 'P';
+    widgetBubble.appendChild(mascotSvg(WIDGET_SIZE - 10));
+    widgetBubble.setAttribute('aria-label', 'Prompty');
     widgetBubble.setAttribute('role', 'button');
     widgetBubble.setAttribute('title', 'Prompty — drag to move, click to open');
     applyStyles(widgetBubble, STYLES.widgetBubble);
@@ -1057,7 +1178,8 @@
     paletteSearch.placeholder = 'Search prompts…';
     applyStyles(paletteSearch, STYLES.paletteSearch);
     paletteSearch.addEventListener('input', () => filterPalette());
-    paletteSearch.addEventListener('keydown', (ev) => handlePaletteKeydown(ev));
+    // Keys reach handlePaletteKeydown through the document capture listener
+    // (onKeyDown); a second listener here moved the selection two rows per press.
     palette.appendChild(paletteSearch);
 
     paletteList = elInShadow('div');
@@ -1578,15 +1700,21 @@
         top: -9999px;
         left: -9999px;
       `;
-      mirror.textContent = prefix + '\u200B'; // zero-width space at caret
+      // Measure a marker at the caret relative to the mirror, *while attached*
+      // (a detached element reports a zero rect), then map onto the field.
+      mirror.textContent = prefix;
+      const marker = document.createElement('span');
+      marker.textContent = '\u200B'; // zero-width space at caret
+      mirror.appendChild(marker);
       document.body.appendChild(mirror);
-      const rect = mirror.getBoundingClientRect();
+      const mirrorRect = mirror.getBoundingClientRect();
+      const markerRect = marker.getBoundingClientRect();
       const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
       document.body.removeChild(mirror);
       const elRect = el.getBoundingClientRect();
       return {
-        x: rect.left - mirror.getBoundingClientRect().left + elRect.left,
-        y: rect.top - mirror.getBoundingClientRect().top + elRect.top,
+        x: elRect.left + (markerRect.left - mirrorRect.left) - (el.scrollLeft || 0),
+        y: elRect.top + (markerRect.top - mirrorRect.top) - (el.scrollTop || 0),
         height: lineHeight,
       };
     }
@@ -1622,8 +1750,8 @@
     // Load prompts from storage
     loadPromptsForPalette().then(() => {
       filterPalette();
+      palette.hidden = false; // unhide first so positionPalette measures the real size
       positionPalette();
-      palette.hidden = false;
       paletteSearch.focus({ preventScroll: true });
       paletteSearch.value = '';
     });
@@ -1891,6 +2019,10 @@
    */
   function handlePaletteKeydown(ev) {
     if (!paletteVisible) return;
+    // The variable form handles its own Enter/Escape; don't treat them as list keys.
+    if (paletteVariablePrompt) return;
+    // Rendered rows (not just matches) — the list may hold an empty-state row.
+    const count = paletteList ? paletteList.children.length : 0;
 
     switch (ev.key) {
       case 'ArrowDown':
@@ -2075,6 +2207,12 @@
     if (!paletteVariablePrompt || !paletteVariableInputs || !paletteTarget) return;
     const values = {};
     for (const [name, input] of Object.entries(paletteVariableInputs)) {
+      // SPEC §1: every value is required — never insert a prompt with holes.
+      if (input.value.trim() === '') {
+        input.focus();
+        showToast({ message: `Fill in ${humanizeVarInline(name)}`, isError: true });
+        return;
+      }
       values[name] = input.value;
     }
     const resolved = resolveVariablesInline(String(paletteVariablePrompt.text ?? ''), values);
@@ -2289,8 +2427,10 @@
     /** @type {number} */ let originX = 0;
     /** @type {number} */ let originY = 0;
     /** @type {boolean} */ let dragging = false;
+    /** @type {boolean} */ let pressed = false;
     node.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0) return;
+      pressed = true;
       dragging = false;
       startX = ev.clientX;
       startY = ev.clientY;
@@ -2303,6 +2443,9 @@
       }
     });
     node.addEventListener('pointermove', (ev) => {
+      // Hover fires pointermove too; only a held button drags (otherwise the
+      // bubble jumped away from the cursor and clicks never registered as taps).
+      if (!pressed) return;
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
       if (!dragging && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
@@ -2315,8 +2458,15 @@
       } catch {
         // already released
       }
+      if (!pressed) return;
+      pressed = false;
       if (!dragging) onTap();
       else persistWidgetPosition();
+      dragging = false;
+    });
+    node.addEventListener('pointercancel', () => {
+      if (dragging) persistWidgetPosition();
+      pressed = false;
       dragging = false;
     });
   }
@@ -2344,7 +2494,13 @@
     const by = parseInt(widgetBubble.style.top, 10) || 0;
     const panelWidth = widgetPanel.offsetWidth || 320;
     const panelHeight = widgetPanel.offsetHeight || 340;
-    const x = clampNumber(bx + WIDGET_SIZE + 8, 8, Math.max(8, window.innerWidth - panelWidth - 8));
+    // Open on the side with room. The default bubble sits at the right edge;
+    // clamping a right-side panel into the viewport used to slide it over the
+    // bubble, so the next click (to close or drag) hit the panel instead.
+    const rightX = bx + WIDGET_SIZE + 8;
+    const leftX = bx - panelWidth - 8;
+    const fitsRight = rightX + panelWidth <= window.innerWidth - 8;
+    const x = clampNumber(fitsRight || leftX < 8 ? rightX : leftX, 8, Math.max(8, window.innerWidth - panelWidth - 8));
     let y = by;
     if (y + panelHeight > window.innerHeight - 8) y = Math.max(8, window.innerHeight - panelHeight - 8);
     widgetPanel.style.left = `${x}px`;
@@ -2504,7 +2660,7 @@
     const message = typeof payload.message === 'string' ? payload.message : '';
     const icon = payload.isError ? '✗' : typeof payload.icon === 'string' && payload.icon !== '' ? payload.icon : '✓';
     toastEl.textContent = `${icon} ${message}`;
-    toastSlotNumber += 1;
+    toastEl.style.borderLeftColor = payload.isError ? 'var(--pf-danger)' : 'var(--pf-accent)';
     toastEl.hidden = false;
     if (toastTimer) window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => {
@@ -2719,7 +2875,6 @@
     messageListener = null;
     if (host && host.parentNode) host.parentNode.removeChild(host);
     host = null;
-    cssStateEl = null;
     lastPageEditable = null;
     pillAnchor = null;
     pillVisible = false;

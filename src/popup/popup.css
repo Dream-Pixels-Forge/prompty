@@ -1001,3 +1001,16 @@ span.field__error {
   width: 100%;
   min-width: 0;
 }
+
+/* Prompts saved since the popup was last opened (e.g. Save Selection). */
+.chip-new {
+  flex: none;
+  border-radius: 999px;
+  padding: 1px 7px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

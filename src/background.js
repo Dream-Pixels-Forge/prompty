@@ -5,7 +5,14 @@
  */
 import browser from './lib/browser.js';
 import { seedPresets } from './lib/presets.js';
-import { mergeSettings, DEFAULT_SETTINGS } from './lib/storage.js';
+import { planSave } from './lib/capture.js';
+import {
+  appendSnippet,
+  mergeSettings,
+  DEFAULT_SETTINGS,
+  readAll,
+  writeAll,
+} from './lib/storage.js';
 import {
   MSG_OPEN_POPUP,
   MSG_SAVE_SELECTION,
@@ -58,6 +65,98 @@ async function showToastOnTab(tabId, message, isError = false) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Save selection as prompt (S1, SPEC Δ5b)                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tell the user what happened: page toast when our content script is there,
+ * otherwise a system notification (PDFs, browser pages, restricted sites).
+ */
+async function notify(tab, message, isError, reachable) {
+  if (reachable && tab?.id !== undefined) {
+    await showToastOnTab(tab.id, message, isError);
+    return;
+  }
+  try {
+    await browser.notifications.create({
+      type: 'basic',
+      iconUrl: browser.runtime.getURL('icons/icon-128.png'),
+      title: 'Prompty',
+      message,
+    });
+  } catch {
+    // notifications unavailable — nothing else to do
+  }
+}
+
+/**
+ * Save the tab's current selection as a prompt (title = page title).
+ * Text source: the content script (keeps line breaks) → the context menu's
+ * `selectionText` (works where content scripts can't run, e.g. PDFs).
+ * @param {{ id?: number, title?: string, url?: string }|undefined} tab
+ * @param {string} [selectionText] from contextMenus.onClicked
+ * @returns {Promise<{ success: boolean, status: string, id?: string, title?: string, error?: string }>}
+ */
+async function saveSelection(tab, selectionText) {
+  let text = typeof selectionText === 'string' ? selectionText : '';
+  let pageTitle = tab?.title ?? '';
+  let reachable = false;
+  if (tab?.id !== undefined) {
+    const response = await sendToTab(tab.id, { type: MSG_SAVE_SELECTION });
+    if (response) reachable = true;
+    if (response?.success && typeof response.text === 'string' && response.text.trim() !== '') {
+      text = response.text;
+      if (typeof response.title === 'string' && response.title.trim() !== '')
+        pageTitle = response.title;
+    }
+  }
+
+  try {
+    const lib = await readAll();
+    const plan = planSave({
+      prompts: lib.prompts,
+      text,
+      pageTitle,
+      url: tab?.url ?? '',
+      id: crypto.randomUUID(),
+    });
+    if (plan.status === 'empty') {
+      await notify(tab, 'Select some text first, then save it to Prompty.', true, reachable);
+      return { success: false, status: 'empty', error: 'No selection' };
+    }
+    if (plan.status === 'duplicate') {
+      await notify(tab, 'Already saved to Prompty.', false, reachable);
+      return { success: true, status: 'duplicate' };
+    }
+    await writeAll(undefined, { prompts: [...lib.prompts, plan.prompt] });
+    // Keep the clipboard-snippet record the old path produced (Δ5c).
+    const raw = await browser.storage.local.get(['snippets']);
+    const origin = (() => {
+      try {
+        return new URL(tab?.url ?? '').origin;
+      } catch {
+        return '';
+      }
+    })();
+    await browser.storage.local.set({
+      snippets: appendSnippet(Array.isArray(raw.snippets) ? raw.snippets : [], {
+        text: plan.prompt.text,
+        sourceOrigin: origin,
+      }),
+    });
+    await notify(tab, `Saved “${plan.prompt.title}” to Prompty`, false, reachable);
+    return { success: true, status: 'saved', id: plan.prompt.id, title: plan.prompt.title };
+  } catch (error) {
+    await notify(tab, 'Could not save to Prompty.', true, reachable);
+    return {
+      success: false,
+      status: 'error',
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Message routing                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -101,43 +200,10 @@ function onMessage(message, sender, sendResponse) {
     }
 
     case MSG_SAVE_SELECTION: {
-      // Context menu / command: save current selection as prompt
+      // Extension pages may ask to save the active tab's selection (same path as the menu/shortcut).
       void (async () => {
         const tab = await getActiveTab();
-        if (!tab?.id) {
-          respond({ success: false, error: 'no active tab' });
-          return;
-        }
-        const response = await sendToTab(tab.id, { type: MSG_SAVE_SELECTION });
-        if (response?.success && response.text) {
-          // Also append to clipboard snippets history (Δ5c) — best effort
-          try {
-            const store = browser.storage.local;
-            const data = await store.get(['snippets']);
-            const history = Array.isArray(data.snippets) ? data.snippets : [];
-            const text = String(response.text).trim();
-            if (text) {
-              const mostRecent = history[history.length - 1];
-              if (!mostRecent || mostRecent.text !== text) {
-                const next = [
-                  ...history,
-                  {
-                    id: crypto.randomUUID?.() ?? Date.now().toString(36),
-                    text,
-                    sourceOrigin: response.origin || new URL(tab.url ?? '').origin,
-                  },
-                ];
-                if (next.length > 50) next.splice(0, next.length - 50);
-                await store.set({ snippets: next });
-              }
-            }
-          } catch {
-            // non-fatal
-          }
-          respond({ success: true, text: response.text });
-        } else {
-          respond({ success: false, error: response?.error || 'selection capture failed' });
-        }
+        respond(await saveSelection(tab));
       })();
       return true;
     }
@@ -188,7 +254,7 @@ async function onCommand(command) {
       }
       break;
     case 'save-selection':
-      await sendToTab(tab.id, { type: MSG_SAVE_SELECTION });
+      await saveSelection(tab);
       break;
     case 'toggle-widget':
       await sendToTab(tab.id, { type: MSG_TOGGLE_WIDGET });
@@ -219,6 +285,9 @@ void seedPresets().catch(() => {});
 
 browser.runtime.onMessage.addListener(onMessage);
 browser.commands.onCommand.addListener(onCommand);
+browser.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === CONTEXT_MENU_ID) void saveSelection(tab, info.selectionText);
+});
 
 // Log ready
 console.log('[Prompty] Background service worker / event page ready');

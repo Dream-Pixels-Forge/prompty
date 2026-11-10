@@ -10,6 +10,7 @@
   --accent-ink: #0e0e10;
   --accent-text: #b84c00; /* 5.2:1 on white; also used for focus rings and stars (≥3:1 UI) */
   --accent-soft: #fff1eb;
+  --chart-bar: #ff6a00; /* dataviz validator: light surface, labels always visible */
 
   --bg: #ffffff;
   --sidebar: #fafafa;
@@ -35,6 +36,7 @@
   :root {
     --accent-text: #ff8a33;
     --accent-soft: #2b1208;
+    --chart-bar: #e65f00; /* #FF6A00 is too light on the dark surface (L band) */
     --bg: #0e0e10;
     --sidebar: #121214;
     --surface: #17171a;
@@ -1434,6 +1436,168 @@ body.dropping::after {
   font-size: 15px;
   pointer-events: none;
   z-index: 50;
+}
+
+/* G7: insights */
+.ins-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ins-tile {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.ins-tile__value {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.ins-tile__label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ins-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.ins-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 10px 12px;
+  min-width: 0;
+}
+.ins-panel__title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ins-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.ins-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 42%) 1fr;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 3px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.ins-bar:hover,
+.ins-bar:focus-visible {
+  background: var(--sunken);
+  outline: none;
+}
+.ins-bar__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ins-bar__track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ins-bar__fill {
+  height: 12px;
+  background: var(--chart-bar);
+  border-radius: 0 4px 4px 0;
+  flex: none;
+  max-width: calc(100% - 36px);
+}
+.ins-bar__value {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  font-weight: 600;
+}
+.ins-cols {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2px;
+  height: 110px;
+}
+.ins-col {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  gap: 3px;
+}
+.ins-col__value {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ins-col__track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 24px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.ins-col__bar {
+  width: 100%;
+  background: var(--chart-bar);
+  border-radius: 4px 4px 0 0;
+}
+.ins-col__label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.ins-attn {
+  display: grid;
+  gap: 10px;
+}
+.ins-attn__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.ins-attn__hint,
+.ins-attn__sample {
+  display: block;
+  font-size: 11.5px;
+}
+.ins-attn__sample {
+  margin-top: 2px;
+  color: var(--fg);
+}
+.ins-vars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+.ins-vars code {
+  color: var(--accent-text);
+  font-weight: 600;
 }
 
 /* G4: multi-select + bulk bar */

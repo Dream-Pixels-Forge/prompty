@@ -7,6 +7,9 @@ before 1.0, minor versions may change stored data shapes, and every such change 
 
 ### Added
 
+- **Insights** (G7): a new view with stat tiles, most-used prompts, uses by category, prompts
+  added per month, never-used and dormant (90+ days) prompts, and recent fill-ins. **Select these**
+  hands a list to the bulk bar. Only data Prompty already stores is used.
 - **Share packs** (G13): select prompts and choose **Pack…** to save a `.prompty` file. It holds
   the prompts, their categories and Composer blocks, with a name, author and description; your use
   counts, favorites and history stay with you. Drop a pack (or any importable file) on the popup

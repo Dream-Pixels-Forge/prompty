@@ -51,6 +51,7 @@ import {
 } from './modals.js';
 import { exportLibrary, openPalette } from './palette-ui.js';
 import { onComposeKey, openComposition, renderCompose } from './compose-view.js';
+import { renderInsights } from './insights-view.js';
 import { renderSettings } from './settings-view.js';
 import { renderSnippets } from './snippets-view.js';
 import { load, save, state, subscribe, watchStorage } from './store.js';
@@ -60,7 +61,7 @@ import { buildPack, packFileName } from '../lib/pack.js';
 /**
  * @typedef {import('../lib/storage.js').Prompt} Prompt
  * @typedef {import('../lib/storage.js').Category} Category
- * @typedef {'all'|'favorites'|'recent'|'category'|'snippets'|'compose'|'settings'} View
+ * @typedef {'all'|'favorites'|'recent'|'category'|'snippets'|'compose'|'insights'|'settings'} View
  */
 
 /** @param {string} id */
@@ -85,6 +86,7 @@ const NAV = /** @type {const} */ ([
   ['recent', '↺', 'Recently used'],
   ['snippets', '⧉', 'Snippets'],
   ['compose', '✦', 'Compose'],
+  ['insights', '▥', 'Insights'],
 ]);
 
 /**
@@ -677,6 +679,21 @@ async function sharePack() {
   toast(`Pack “${pack.name}” saved: ${promptsLabel(pack.prompts.length)}.`);
 }
 
+/** @type {import('./insights-view.js').InsightsHost} */
+const insightsHost = {
+  editPrompt: (id) => {
+    const prompt = state.prompts.find((p) => p.id === id);
+    if (prompt) void editPrompt(prompt);
+  },
+  goCategory: (id) => (id ? go('category', id) : go('all')),
+  // Hand a list to the bulk bar: the library with exactly these selected.
+  selectPrompts: (ids) => {
+    go('all');
+    rangeBase = [];
+    setSelection({ ids: [...ids], anchor: ids[0] ?? null });
+  },
+};
+
 /** @type {import('./bulk-ui.js').BulkHandlers} */
 const bulkHandlers = {
   move: () => void bulkMoveDialog(),
@@ -716,7 +733,7 @@ function renderChrome() {
   );
 }
 
-const isLibraryView = () => !['snippets', 'settings', 'compose'].includes(route.view);
+const isLibraryView = () => !['snippets', 'settings', 'compose', 'insights'].includes(route.view);
 
 /**
  * Columns in the grid right now (cards sharing the first card's top edge).
@@ -817,10 +834,11 @@ function render() {
   sortEl.value = state.settings.sortBy;
   searchEl.placeholder =
     route.view === 'snippets' ? 'Search snippets…  ( / )' : 'Search title, text, tags…  ( / )';
-  searchEl.disabled = route.view === 'settings' || route.view === 'compose';
+  searchEl.disabled = ['settings', 'compose', 'insights'].includes(route.view);
   if (route.view === 'snippets') renderSnippets(viewEl, searchEl.value, { newPrompt });
   else if (route.view === 'settings') renderSettings(viewEl);
   else if (route.view === 'compose') renderCompose(viewEl);
+  else if (route.view === 'insights') renderInsights(viewEl, insightsHost);
   else renderLibrary();
   renderChrome();
 

@@ -1,5 +1,16 @@
 ## Goal: G9 — Prompt Composer: build a shot from blocks
 
+> **Status: done.** Notes from the PR:
+>
+> - Pure core lives in `src/lib/composition.js` (not `src/popup/`) so `lib/storage.js` can whitelist
+>   `Prompt.composition` without importing popup code.
+> - Slots: Subject & Action · Location · Camera · Lens · Composition · Lighting · Color Grade · Mood ·
+>   Transition · Extra (any prompt). Each draws from library categories by name.
+> - Picker is a native `<select>` (type-ahead) rather than a fuzzy search box: the per-slot lists are
+>   short (≤ 8 starters); revisit if user libraries grow large.
+> - The composition is held in memory while the popup is open (source of truth) and saved to
+>   `composerDraft`, so storage live-sync never reverts typing and closing the popup keeps the draft.
+
 ### Objective
 
 A **Compose** view where a shot is assembled the way a director briefs a crew: a vertical stack of
@@ -22,28 +33,28 @@ that reward structured, ordered shot descriptions.
 
 ### Deliverables
 
-- [ ] Pure core `src/popup/composer.js`:
+- [x] Pure core `src/popup/composer.js`:
   - `SLOTS` — ordered slot ids with labels and the category name each draws from (matched by name,
     case-insensitive; missing category → free-text only).
   - `compose(blocks, { joiner })` → `{ text, variables }`: skips muted/empty blocks, joins with
     `", "` (or `". "` per setting), merges variables so `{subject}` used in three blocks is asked once.
   - `serialize/deserialize` a composition: `{ blocks: [{ slot, promptId?, text?, muted }] }`.
-- [ ] Compose view (sidebar nav item "✦ Compose", palette command "Compose shot"):
+- [x] Compose view (sidebar nav item "✦ Compose", palette command "Compose shot"):
   - each block: slot label, picker (search within its category via `lib/search.js`), inline text edit,
     mute, remove, drag handle; "+ Add block" for extra slots (e.g. a second subject, VFX);
   - live preview with variables highlighted; fill-in uses the shared variable modal (G6 controls when present);
   - actions: Insert · Append · Copy · **Save as prompt** (title prompt, category picker, stores
     `composition` on the prompt so "Open in Composer" rebuilds it).
-- [ ] Starter presets: 3 one-click shot templates built only from seed prompts
+- [x] Starter presets: 3 one-click shot templates built only from seed prompts
       (e.g. "Neon noir push-in", "Golden-hour crane reveal", "Impossible macro-to-wide").
-- [ ] `Prompt.composition?` whitelisted in `normalizePrompt`; export/import carry it.
+- [x] `Prompt.composition?` whitelisted in `normalizePrompt`; export/import carry it.
 
 ### Definition of Done
 
-- [ ] Tests: slot ordering, muted/empty skipping, joiner, variable merge (shared and distinct names),
+- [x] Tests: slot ordering, muted/empty skipping, joiner, variable merge (shared and distinct names),
       deleted-source fallback (a block whose prompt was deleted keeps its last text), serialize round-trip.
-- [ ] Keyboard-only path: open Compose, add/choose blocks, reorder (Alt+↑/↓), Ctrl+Enter copy.
-- [ ] Gates green; e2e: compose a 5-block shot → preview matches expected string → save →
+- [x] Keyboard-only path: open Compose, add/choose blocks, reorder (Alt+↑/↓), Ctrl+Enter copy.
+- [x] Gates green; e2e: compose a 5-block shot → preview matches expected string → save →
       reopen in Composer → identical blocks.
 
 ### Verification Steps

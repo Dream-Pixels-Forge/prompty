@@ -6,6 +6,7 @@
  * - prototype-pollution safe: own-property checks only, no spread of untrusted keys
  */
 import browser from './browser.js';
+import { normalizeComposition } from './composition.js';
 
 /**
  * @typedef {object} Prompt
@@ -21,6 +22,7 @@ import browser from './browser.js';
  * @property {string|null} quality
  * @property {number|null} lastUsedAt
  * @property {PromptVersion[]} [versions] previous title/text, newest first (G5; omitted when none)
+ * @property {import('./composition.js').Composition} [composition] blocks it was composed from (G9; omitted when none)
  */
 
 /**
@@ -120,7 +122,17 @@ export function normalizePrompt(raw) {
     quality: stringOr(raw.quality) || null,
     lastUsedAt: numberOr(raw.lastUsedAt, null),
     ...versionsOf(raw.versions),
+    ...compositionOf(raw.composition),
   };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {{ composition?: import('./composition.js').Composition }}
+ */
+function compositionOf(value) {
+  const composition = normalizeComposition(value);
+  return composition ? { composition } : {};
 }
 
 /**
@@ -281,15 +293,21 @@ export function mergeSettings(base, patch) {
       out[key] = Array.isArray(proposed)
         ? proposed.filter((r) => {
             if (!r || typeof r !== 'object' || Array.isArray(r)) return false;
-            const rec = /** @type {{ originPattern?: unknown, promptInput?: unknown, submit?: unknown, selects?: unknown, qualityValues?: unknown }} */ (r);
+            const rec =
+              /** @type {{ originPattern?: unknown, promptInput?: unknown, submit?: unknown, selects?: unknown, qualityValues?: unknown }} */ (
+                r
+              );
             return (
               typeof rec.originPattern === 'string' &&
               rec.originPattern.trim() !== '' &&
               Array.isArray(rec.promptInput) &&
               Array.isArray(rec.submit) &&
-              rec.selects && typeof rec.selects === 'object' &&
-              /** @type {{ aspect?: unknown, quality?: unknown }} */ (rec.selects).aspect !== undefined &&
-              /** @type {{ aspect?: unknown, quality?: unknown }} */ (rec.selects).quality !== undefined &&
+              rec.selects &&
+              typeof rec.selects === 'object' &&
+              /** @type {{ aspect?: unknown, quality?: unknown }} */ (rec.selects).aspect !==
+                undefined &&
+              /** @type {{ aspect?: unknown, quality?: unknown }} */ (rec.selects).quality !==
+                undefined &&
               Array.isArray(rec.qualityValues)
             );
           })
@@ -387,10 +405,7 @@ export async function readAll(area) {
     const normalized = normalizeCategory(item);
     if (normalized) categories.push(normalized);
   }
-  const settings = mergeSettings(
-    DEFAULT_SETTINGS,
-    isRecord(raw.settings) ? raw.settings : null,
-  );
+  const settings = mergeSettings(DEFAULT_SETTINGS, isRecord(raw.settings) ? raw.settings : null);
   return { prompts, categories, settings };
 }
 

@@ -15,7 +15,7 @@ import browser from '../lib/browser.js';
 /**
  * @typedef {import('./palette.js').PaletteItem} PaletteItem
  * @typedef {import('./palette.js').PaletteAction} PaletteAction
- * @typedef {{ goCategory: (id: string) => void, exportLibrary: () => void, showHistory: (id: string) => void }} PaletteHost
+ * @typedef {{ goCategory: (id: string) => void, exportLibrary: () => void, showHistory: (id: string) => void, goCompose: () => void }} PaletteHost
  */
 
 const ICONS = { prompt: '✦', snippet: '⧉', command: '›' };
@@ -146,6 +146,7 @@ export function openPalette(host) {
           await save({ settings: { [effect.key]: effect.value } });
           toast(`${item.command.label}: done.`);
         } else if (effect.type === 'export') host.exportLibrary();
+        else if (effect.type === 'compose') host.goCompose();
         else if (effect.type === 'history' && typeof effect.promptId === 'string')
           host.showHistory(effect.promptId);
         return;

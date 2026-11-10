@@ -103,6 +103,12 @@ export function buildCommands(state = {}) {
       },
     },
     {
+      id: 'cmd:compose',
+      label: 'Compose a shot',
+      keywords: ['composer', 'build', 'blocks', 'scene', 'shot'],
+      effect: { type: 'compose' },
+    },
+    {
       id: 'cmd:export',
       label: 'Export library as JSON',
       keywords: ['backup', 'download', 'save'],

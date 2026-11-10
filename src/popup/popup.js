@@ -29,6 +29,7 @@ import {
   toast,
 } from './modals.js';
 import { exportLibrary, openPalette } from './palette-ui.js';
+import { onComposeKey, openComposition, renderCompose } from './compose-view.js';
 import { renderSettings } from './settings-view.js';
 import { renderSnippets } from './snippets-view.js';
 import { load, save, state, subscribe, watchStorage } from './store.js';
@@ -36,7 +37,7 @@ import { load, save, state, subscribe, watchStorage } from './store.js';
 /**
  * @typedef {import('../lib/storage.js').Prompt} Prompt
  * @typedef {import('../lib/storage.js').Category} Category
- * @typedef {'all'|'favorites'|'recent'|'category'|'snippets'|'settings'} View
+ * @typedef {'all'|'favorites'|'recent'|'category'|'snippets'|'compose'|'settings'} View
  */
 
 /** @param {string} id */
@@ -58,6 +59,7 @@ const NAV = /** @type {const} */ ([
   ['favorites', '★', 'Favorites'],
   ['recent', '↺', 'Recently used'],
   ['snippets', '⧉', 'Snippets'],
+  ['compose', '✦', 'Compose'],
 ]);
 
 /**
@@ -412,6 +414,12 @@ function card(prompt) {
             () => void showHistory(prompt.id),
           )
         : null,
+      prompt.composition
+        ? iconButton('🎛', `Open ${prompt.title} in Composer`, () => {
+            openComposition(/** @type {any} */ (prompt.composition), prompt.title);
+            go('compose');
+          })
+        : null,
       iconButton('✎', `Edit ${prompt.title}`, () => void editPrompt(prompt)),
       iconButton(
         '🗑',
@@ -477,14 +485,15 @@ async function deletePrompt(prompt) {
 function render() {
   document.body.classList.toggle('compact', state.settings.compactMode);
   renderSidebar();
-  const isLibrary = route.view !== 'snippets' && route.view !== 'settings';
+  const isLibrary = !['snippets', 'settings', 'compose'].includes(route.view);
   sortEl.disabled = !isLibrary || route.view === 'recent';
   sortEl.value = state.settings.sortBy;
   searchEl.placeholder =
     route.view === 'snippets' ? 'Search snippets…  ( / )' : 'Search title, text, tags…  ( / )';
-  searchEl.disabled = route.view === 'settings';
+  searchEl.disabled = route.view === 'settings' || route.view === 'compose';
   if (route.view === 'snippets') renderSnippets(viewEl, searchEl.value, { newPrompt });
   else if (route.view === 'settings') renderSettings(viewEl);
+  else if (route.view === 'compose') renderCompose(viewEl);
   else renderLibrary();
 }
 
@@ -504,6 +513,7 @@ const paletteHost = {
   goCategory: (id) => go('category', id),
   /** @param {string} id */
   showHistory: (id) => void showHistory(id),
+  goCompose: () => go('compose'),
   exportLibrary,
 };
 $('open-palette').addEventListener('click', () => openPalette(paletteHost));
@@ -520,6 +530,8 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     searchEl.focus();
     searchEl.select();
+  } else if (route.view === 'compose') {
+    onComposeKey(e);
   } else if (e.key === 'Escape' && e.target === searchEl && searchEl.value) {
     e.preventDefault();
     searchEl.value = '';

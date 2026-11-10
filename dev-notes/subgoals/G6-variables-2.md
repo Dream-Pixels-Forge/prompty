@@ -1,5 +1,14 @@
 ## Goal: G6 — Variables 2.0: choices, ranges, defaults, memory
 
+> **Status: done.** Notes from the PR:
+>
+> - One grammar, two copies: the block between `<variable-grammar>` markers in `src/lib/variables.js`
+>   is copied verbatim into `src/content/assist.js`; `tests/variable-parity.test.mjs` asserts the text
+>   is identical and runs both on shared fixtures (content script loaded through its test hook).
+> - The block sits above the content script's test-hook return, so its `const`s are initialized.
+> - Popup: choices with ≤ 6 options are one-tap chips (Enter picks + moves on), more → a select.
+> - Seed v4 upgraded five starters to choice variables, only where the user never edited the text.
+
 ### Objective
 
 Prompt variables gain a richer grammar while staying backward compatible:
@@ -22,25 +31,25 @@ Detailed in ROADMAP G6.
 
 ### Deliverables
 
-- [ ] `src/lib/variables.js`: `parseVariables(text)` → `[{ name, kind: 'text'|'choice'|'range', options?, min?, max?, default? }]`,
+- [x] `src/lib/variables.js`: `parseVariables(text)` → `[{ name, kind: 'text'|'choice'|'range', options?, min?, max?, default? }]`,
       first occurrence defines the spec; `extractVariables` keeps returning names (no caller breaks);
       `resolveVariables` replaces every token form of a name.
-- [ ] Content script: same grammar in its standalone copy + a parity test that runs both parsers on
+- [x] Content script: same grammar in its standalone copy + a parity test that runs both parsers on
       a shared fixture list and asserts identical output.
-- [ ] Popup fill-in modal (`fillVariables` in `modals.js`) and the `!` mini-form render the right control;
+- [x] Popup fill-in modal (`fillVariables` in `modals.js`) and the `!` mini-form render the right control;
       range validates bounds; 🎲 picks uniformly.
-- [ ] `variableMemory` storage key (`{ [name]: { value, usedAt } }`, cap 100 LRU), whitelisted;
+- [x] `variableMemory` storage key (`{ [name]: { value, usedAt } }`, cap 100 LRU), whitelisted;
       prefill order: memory → default → empty. "Clear remembered values" in Settings.
-- [ ] Editor hint shows the parsed kinds ("⚡ lens · 4 choices").
-- [ ] Optional seed v4: upgrade a few v3 prompts to choice syntax (e.g. focal length, time of day) using
+- [x] Editor hint shows the parsed kinds ("⚡ lens · 4 choices").
+- [x] Optional seed v4: upgrade a few v3 prompts to choice syntax (e.g. focal length, time of day) using
       the existing version-aware seeding — **only for users who have not edited those prompts**.
 
 ### Definition of Done
 
-- [ ] Regression: every existing seed prompt parses to the same names as before.
-- [ ] Malformed tokens (`{a:}`, `{a:5-1}`, `{a|b}`) stay literal text and never throw.
-- [ ] Choice restricts values; range rejects out-of-range; memory prefills across popup reopen.
-- [ ] Gates green; parity test green.
+- [x] Regression: every existing seed prompt parses to the same names as before.
+- [x] Malformed tokens (`{a:}`, `{a:5-1}`, `{a|b}`) stay literal text and never throw.
+- [x] Choice restricts values; range rejects out-of-range; memory prefills across popup reopen.
+- [x] Gates green; parity test green.
 
 ### Verification Steps
 

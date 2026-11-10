@@ -3,10 +3,11 @@ import {
   PRESETS_VERSION,
   SEED_CATEGORIES,
   SEED_PROMPT_DEFS,
+  SEED_TEXT_UPGRADES,
   createPresetsInstance,
   seedPresets,
 } from '../src/lib/presets.js';
-import { extractVariables } from '../src/lib/variables.js';
+import { extractVariables, parseVariables } from '../src/lib/variables.js';
 import { CATEGORY_COLORS, CATEGORY_EMOJIS } from '../src/popup/logic.js';
 
 /**
@@ -49,7 +50,7 @@ const v3Prompts = SEED_PROMPT_DEFS.filter((p) => p.since === 3);
 
 describe('seed data', () => {
   it('keeps the v2 originals first and adds the v3 cinematic pack', () => {
-    expect(PRESETS_VERSION).toBe(3);
+    expect(PRESETS_VERSION).toBe(4);
     expect(SEED_CATEGORIES.map((c) => c.name)).toEqual([...V2_CATEGORIES, ...V3_CATEGORIES]);
     expect(SEED_PROMPT_DEFS.slice(0, 8).map((p) => p.title)).toEqual(V2_TITLES);
     expect(v3Prompts.length).toBeGreaterThanOrEqual(40);
@@ -160,7 +161,7 @@ describe('seedPresets', () => {
     await seedPresets(store);
     const { prompts, categories, version } = await read();
 
-    expect(version).toBe(3);
+    expect(version).toBe(PRESETS_VERSION);
     expect(categories.map((c) => c.name)).toEqual([...v2Cats.map((c) => c.name), ...V3_CATEGORIES]);
     expect(categories.some((c) => c.name === 'Abstract')).toBe(false);
     expect(prompts.some((p) => p.title === 'Watercolor Style')).toBe(false);
@@ -250,3 +251,49 @@ function mockStorageArea() {
     },
   };
 }
+
+describe('v4 choice-variable upgrades (G6)', () => {
+  /** @type {ReturnType<typeof mockStorageArea>} */
+  let store;
+  beforeEach(() => {
+    store = mockStorageArea();
+  });
+
+  it('starters ship with choice variables that parse as choices', () => {
+    for (const up of SEED_TEXT_UPGRADES) {
+      const def = SEED_PROMPT_DEFS.find((d) => d.title === up.title);
+      expect(def?.text).toBe(up.to);
+      expect(parseVariables(up.to).some((v) => v.kind === 'choice')).toBe(true);
+      // Names are kept (only their kind changes); Anamorphic gains a focal-length choice.
+      const added = up.title === 'Anamorphic Widescreen' ? ['focal'] : [];
+      expect(extractVariables(up.to).sort()).toEqual(
+        [...extractVariables(up.from), ...added].sort(),
+      );
+    }
+  });
+
+  it('v3 → v4 upgrades unedited starters and leaves edited ones alone', async () => {
+    // Fresh v3 install, then the user edits Neon Noir.
+    await seedPresets(store);
+    const { prompts: seeded } = /** @type {{ prompts: Prompt[] }} */ (
+      /** @type {unknown} */ (await store.get(['prompts']))
+    );
+    const v3 = seeded.map((p) => {
+      const up = SEED_TEXT_UPGRADES.find((u) => u.title === p.title);
+      if (!up) return p;
+      return { ...p, text: p.title === 'Neon Noir' ? 'my own neon take' : up.from };
+    });
+    await store.set({ prompts: v3, presetsVersion: 3 });
+
+    await seedPresets(store);
+    const { prompts, presetsVersion } = /** @type {any} */ (
+      await store.get(['prompts', 'presetsVersion'])
+    );
+    expect(presetsVersion).toBe(4);
+    for (const up of SEED_TEXT_UPGRADES) {
+      const p = /** @type {Prompt[]} */ (prompts).find((x) => x.title === up.title);
+      expect(p?.text).toBe(up.title === 'Neon Noir' ? 'my own neon take' : up.to);
+    }
+    expect(prompts).toHaveLength(SEED_PROMPT_DEFS.length);
+  });
+});

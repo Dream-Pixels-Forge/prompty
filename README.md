@@ -14,7 +14,7 @@ Everything lives in `browser.storage.local`.
 - **Cinematic starter library** — 52 prompts in 16 categories: Characters, Landscapes, Objects, Styles, Abstract, Camera Angles, Camera Movement, Lighting, Lens & Optics, Locations, Color Grading, Composition, Mood & Atmosphere, VFX & Transitions, Posters and Logos. Every prompt has `{variables}` to fill in.
 - **Command palette (`Ctrl/Cmd+K`)** — one keyboard-only list of prompts, snippets and commands.
 - **Settings** — default view, compact cards, floating widget, quick-insert trigger, sites to skip, custom site recipes, JSON import/export.
-- **Template variables** — `{subject}`-style tokens open a fill-in form with live preview.
+- **Template variables** — `{subject}` text, `{lens:24mm|50mm|85mm}` choices, `{seed:1-999}` ranges (with 🎲), `{mood=calm}` defaults. A fill-in form with live preview remembers what you used last, in the popup and the in-page `!` palette.
 - **Smart assist pill + floating widget** — save the current input or insert a prompt on any page.
 - **Clipboard snippets** — capped history of copied text you can promote to prompts.
 - **Quick insert (`!` palette)** — type `!` in any input to open a fuzzy prompt palette at the caret.

@@ -200,8 +200,11 @@ describe('mergePresets (title/name signature dedupe for repair-merge)', () => {
 
 describe('replaceAll (REPLACE import mode)', () => {
   it('returns exactly the normalized incoming array, dropping invalid entries', () => {
-    const out = replaceAll([{ id: 'x', title: 'ok', text: 't' }, null, 'garbage']);
-    expect(out).toEqual([normalizePrompt({ id: 'x', title: 'ok', text: 't' })]);
+    // Fixed createdAt: without it both sides default to Date.now() separately
+    // and the test flaked whenever the two calls straddled a millisecond.
+    const raw = { id: 'x', title: 'ok', text: 't', createdAt: 1 };
+    const out = replaceAll([raw, null, 'garbage']);
+    expect(out).toEqual([normalizePrompt(raw)]);
   });
 
   it('supports a custom normalizer (categories)', () => {

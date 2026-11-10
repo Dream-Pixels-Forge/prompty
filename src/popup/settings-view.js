@@ -60,6 +60,7 @@ export function renderSettings(root) {
         toggleRow('Enable quick insert', 'quickTriggerEnabled'),
         triggerRow(s),
       ),
+      memorySection(),
       sitesSection(s),
       recipesSection(s),
       backupSection(),
@@ -178,6 +179,44 @@ function triggerRow(s) {
       h('span', { class: 'muted setting__hint' }, `Default ${DEFAULT_SETTINGS.quickTrigger}`),
     ),
     input,
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Fill-in memory (G6)                                                 */
+/* ------------------------------------------------------------------ */
+
+function memorySection() {
+  const count = Object.keys(state.variableMemory).length;
+  return section(
+    'Fill-in memory',
+    'Variable fields start with what you used last time. Stored only in this browser.',
+    h(
+      'div',
+      { class: 'setting' },
+      h(
+        'span',
+        { class: 'setting__text' },
+        count === 0
+          ? 'Nothing remembered yet.'
+          : `${count} value${count === 1 ? '' : 's'} remembered`,
+      ),
+      h(
+        'button',
+        {
+          class: 'btn btn--sm',
+          type: 'button',
+          disabled: count === 0,
+          on: {
+            click: async () => {
+              await save({ variableMemory: {} });
+              toast('Remembered values cleared.');
+            },
+          },
+        },
+        'Forget remembered values',
+      ),
+    ),
   );
 }
 

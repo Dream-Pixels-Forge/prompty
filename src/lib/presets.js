@@ -29,9 +29,10 @@ import { mergePresets, normalizeCategory, normalizePrompt } from './storage.js';
 /**
  * Seed history: v1 initial · v2 the 8 generic presets + 6 categories ·
  * v3 cinematic pack (camera movement, lighting, lens, locations, grading,
- * composition, mood, VFX & transitions, posters, logos). Bump when adding.
+ * composition, mood, VFX & transitions, posters, logos) · v4 choice variables
+ * (G6) in a few starters. Bump when adding.
  */
-export const PRESETS_VERSION = 3;
+export const PRESETS_VERSION = 4;
 
 /** @type {CategoryDef[]} */
 export const SEED_CATEGORIES = [
@@ -64,7 +65,7 @@ const group = (category, since, aspectRatio, items) =>
   items.map(([title, text]) => ({ title, text, category, aspectRatio, quality: 'high', since }));
 
 /** @type {PromptDef[]} */
-export const SEED_PROMPT_DEFS = [
+const BASE_PROMPT_DEFS = [
   /* ---------------------------- v2 originals ---------------------------- */
   {
     title: 'Full-Body Character Portrait',
@@ -331,6 +332,64 @@ export const SEED_PROMPT_DEFS = [
 ];
 
 /**
+ * v4 (G6): turn free-text variables that are really a short list into choice
+ * variables. Applied to fresh installs through SEED_PROMPT_DEFS, and on
+ * upgrade only to prompts the user never edited (text still the original).
+ * @type {{ title: string, find: string, replace: string, since: number }[]}
+ */
+const TEXT_UPGRADES = [
+  {
+    title: 'Wide Scenic Landscape',
+    find: '{timeOfDay}',
+    replace: '{timeOfDay:dawn|golden hour|blue hour|midday|night}',
+    since: 4,
+  },
+  {
+    title: 'Neon Noir',
+    find: '{neonColor}',
+    replace: '{neonColor:magenta|red|amber|electric blue}',
+    since: 4,
+  },
+  {
+    title: 'Anamorphic Widescreen',
+    find: 'shot on a 40mm anamorphic lens',
+    replace: 'shot on a {focal:32mm|40mm|50mm|75mm} anamorphic lens',
+    since: 4,
+  },
+  {
+    title: 'Salt Flat Mirror',
+    find: '{timeOfDay}',
+    replace: '{timeOfDay:dawn|golden hour|blue hour|night}',
+    since: 4,
+  },
+  {
+    title: 'Custom Wordmark',
+    find: '{style}',
+    replace: '{style:geometric|humanist|high-contrast serif|brutalist|script}',
+    since: 4,
+  },
+];
+
+/** Original → upgraded text for each starter that changed. */
+export const SEED_TEXT_UPGRADES = TEXT_UPGRADES.map((u) => {
+  const def = BASE_PROMPT_DEFS.find((d) => d.title === u.title);
+  if (!def || !def.text.includes(u.find))
+    throw new Error(`Prompty seed upgrade does not apply: ${u.title}`);
+  return {
+    title: u.title,
+    from: def.text,
+    to: def.text.replace(u.find, u.replace),
+    since: u.since,
+  };
+});
+
+/** @type {PromptDef[]} the current starter prompts (upgrades applied) */
+export const SEED_PROMPT_DEFS = BASE_PROMPT_DEFS.map((def) => {
+  const up = SEED_TEXT_UPGRADES.find((u) => u.title === def.title);
+  return up ? { ...def, text: up.to } : def;
+});
+
+/**
  * Build normalized categories + prompts from defs. New categories are ordered
  * after `startOrder`; each prompt joins its category by name (case-insensitive)
  * among `categories` (existing + new), or stays uncategorized.
@@ -430,8 +489,18 @@ export async function seedPresets(area) {
     { existingCategories },
   );
 
+  // Text upgrades only touch starters the user never edited.
+  const upgraded = initialized
+    ? existingPrompts.map((p) => {
+        const up = SEED_TEXT_UPGRADES.find(
+          (u) => u.since > since && u.title === p.title && u.from === p.text,
+        );
+        return up ? { ...p, text: up.to } : p;
+      })
+    : existingPrompts;
+
   await store.set({
-    prompts: mergePresets(existingPrompts, additions.prompts),
+    prompts: mergePresets(upgraded, additions.prompts),
     categories: mergePresets(existingCategories, additions.categories),
     presetsInitialized: true,
     presetsVersion: PRESETS_VERSION,

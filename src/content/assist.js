@@ -217,6 +217,153 @@
     return list.filter((item) => item !== null && typeof item === 'object' && !Array.isArray(item));
   }
 
+  /* <variable-grammar> */
+  // Shared verbatim with src/content/assist.js — edit both or the parity test fails.
+  /**
+   * @typedef {{ name: string, kind: 'text', default?: string }
+   *   | { name: string, kind: 'choice', options: string[] }
+   *   | { name: string, kind: 'range', min: number, max: number }} VariableSpec
+   * @typedef {Record<string, { value: string, usedAt: number }>} VariableMemory
+   */
+  const VAR_TOKEN = /\{([a-zA-Z_][a-zA-Z0-9_]*)(?::([^{}]*)|=([^{}]*))?\}/g;
+  const VAR_MEMORY_CAP = 100;
+
+  /**
+   * @param {unknown} obj
+   * @param {string} key
+   * @returns {boolean}
+   */
+  function varHasOwn(obj, key) {
+    return obj !== null && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  /**
+   * Spec for one token, or null when malformed (then it stays literal).
+   * @param {string} name
+   * @param {string|undefined} choiceOrRange text after ":" (undefined when absent)
+   * @param {string|undefined} fallback text after "=" (undefined when absent)
+   * @returns {VariableSpec|null}
+   */
+  function varSpecOf(name, choiceOrRange, fallback) {
+    if (choiceOrRange === undefined && fallback === undefined) return { name, kind: 'text' };
+    if (fallback !== undefined) {
+      const value = fallback.trim();
+      return value === '' ? null : { name, kind: 'text', default: value };
+    }
+    const body = String(choiceOrRange);
+    const range = /^\s*(-?\d+)\s*-\s*(-?\d+)\s*$/.exec(body);
+    if (range) {
+      const min = Number(range[1]);
+      const max = Number(range[2]);
+      return min < max ? { name, kind: 'range', min, max } : null;
+    }
+    if (!body.includes('|')) return null;
+    const options = body.split('|').map((o) => o.trim());
+    if (options.length < 2 || options.some((o) => o === '')) return null;
+    if (new Set(options).size !== options.length) return null;
+    return { name, kind: 'choice', options };
+  }
+
+  /**
+   * Unique variables in first-appearance order; the first valid occurrence of a
+   * name defines its spec.
+   * @param {unknown} text
+   * @returns {VariableSpec[]}
+   */
+  function varParse(text) {
+    /** @type {VariableSpec[]} */
+    const out = [];
+    if (typeof text !== 'string') return out;
+    const seen = new Set();
+    for (const m of text.matchAll(VAR_TOKEN)) {
+      const spec = varSpecOf(m[1], m[2], m[3]);
+      if (!spec || seen.has(spec.name)) continue;
+      seen.add(spec.name);
+      out.push(spec);
+    }
+    return out;
+  }
+
+  /**
+   * Replace every well-formed token whose name has a value; others stay as written.
+   * @param {string} text
+   * @param {Record<string, unknown>} values
+   * @returns {string}
+   */
+  function varResolve(text, values) {
+    return text.replace(VAR_TOKEN, (whole, name, choiceOrRange, fallback) => {
+      if (!varSpecOf(name, choiceOrRange, fallback)) return whole;
+      return varHasOwn(values, name) ? String(values[name]) : whole;
+    });
+  }
+
+  /**
+   * '' when the value is acceptable for the spec, else a short reason.
+   * @param {VariableSpec} spec
+   * @param {unknown} value
+   * @returns {string}
+   */
+  function varCheck(spec, value) {
+    const v = String(value ?? '').trim();
+    if (v === '') return 'Fill in this field';
+    if (spec.kind === 'choice' && !spec.options.includes(v)) return 'Pick one of the options';
+    if (spec.kind === 'range') {
+      const n = /^-?\d+$/.test(v) ? Number(v) : NaN;
+      if (!(n >= spec.min && n <= spec.max)) return `Enter a whole number from ${spec.min} to ${spec.max}`;
+    }
+    return '';
+  }
+
+  /**
+   * Uniform whole number within a range spec (inclusive).
+   * @param {{ min: number, max: number }} spec
+   * @param {() => number} [rand]
+   * @returns {number}
+   */
+  function varRandom(spec, rand = Math.random) {
+    return spec.min + Math.floor(rand() * (spec.max - spec.min + 1));
+  }
+
+  /**
+   * Store the latest values (non-blank) with recency; keep the newest VAR_MEMORY_CAP.
+   * @param {unknown} memory
+   * @param {Record<string, unknown>} values
+   * @param {number} now
+   * @returns {VariableMemory}
+   */
+  function varRemember(memory, values, now) {
+    /** @type {VariableMemory} */
+    const next = {};
+    if (memory !== null && typeof memory === 'object' && !Array.isArray(memory)) {
+      for (const [name, entry] of Object.entries(memory)) {
+        if (entry && typeof entry.value === 'string' && typeof entry.usedAt === 'number') {
+          next[name] = { value: entry.value, usedAt: entry.usedAt };
+        }
+      }
+    }
+    for (const [name, raw] of Object.entries(values ?? {})) {
+      const value = String(raw ?? '').trim();
+      if (value !== '') next[name] = { value, usedAt: now };
+    }
+    const keep = Object.entries(next)
+      .sort((a, b) => b[1].usedAt - a[1].usedAt)
+      .slice(0, VAR_MEMORY_CAP);
+    return Object.fromEntries(keep);
+  }
+
+  /**
+   * Prefill for a field: a remembered value that still fits → the default → ''.
+   * @param {unknown} memory
+   * @param {VariableSpec} spec
+   * @returns {string}
+   */
+  function varRecall(memory, spec) {
+    const entry = varHasOwn(memory, spec.name) ? /** @type {any} */ (memory)[spec.name] : null;
+    if (entry && typeof entry.value === 'string' && varCheck(spec, entry.value) === '') return entry.value;
+    return spec.kind === 'text' && spec.default ? spec.default : '';
+  }
+  /* </variable-grammar> */
+
   /**
    * Clamp a number helper (positions math).
    * @param {number} value
@@ -510,6 +657,13 @@
       extractVariablesInline,
       humanizeVarInline,
       resolveVariablesInline,
+      // G6 grammar (shared verbatim with src/lib/variables.js)
+      varParse,
+      varResolve,
+      varCheck,
+      varRandom,
+      varRemember,
+      varRecall,
     });
     return;
   }
@@ -549,6 +703,8 @@
   /** @type {any} */ let paletteTarget = null;
   /** @type {any} */ let paletteVariablePrompt = null;
   /** @type {any} */ let paletteVariableInputs = null;
+  /** @type {any} */ let paletteVariableSpecs = null;
+  /** @type {any} */ let paletteVariableMemory = {};
   let paletteVisible = false;
 
   /** @type {any} */ let pillAnchor = null;
@@ -1801,6 +1957,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     paletteTarget = null;
     paletteVariablePrompt = null;
     paletteVariableInputs = null;
+    paletteVariableSpecs = null;
     if (palette) palette.hidden = true;
     if (paletteSearch) paletteSearch.value = '';
     if (paletteList) {
@@ -2089,9 +2246,9 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const selectedPrompt = topItems[paletteSelectedIndex].item;
 
     // Check for variables
-    const variables = extractVariablesInline(String(selectedPrompt.text ?? ''));
-    if (variables.length > 0) {
-      showVariableForm(selectedPrompt, variables);
+    const specs = varParse(String(selectedPrompt.text ?? ''));
+    if (specs.length > 0) {
+      void showVariableForm(selectedPrompt, specs);
       return;
     }
 
@@ -2117,28 +2274,28 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    * @returns {string[]}
    */
   function extractVariablesInline(text) {
-    const VARIABLE_PATTERN = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
-    const out = [];
-    if (typeof text !== 'string') return out;
-    const seen = new Set();
-    for (const match of text.matchAll(VARIABLE_PATTERN)) {
-      const name = match[1];
-      if (!seen.has(name)) {
-        seen.add(name);
-        out.push(name);
-      }
-    }
-    return out;
+    return varParse(text).map((spec) => spec.name);
   }
 
   /**
-   * Show variable fill-in form for the selected prompt.
+   * Show the variable fill-in form for the selected prompt (G6): choices as a
+   * select, ranges as a number with a 🎲, defaults and remembered values
+   * prefilled.
    * @param {any} prompt
-   * @param {string[]} variables
+   * @param {any[]} specs parsed variables (varParse)
    */
-  function showVariableForm(prompt, variables) {
+  async function showVariableForm(prompt, specs) {
     paletteVariablePrompt = prompt;
+    paletteVariableSpecs = specs;
     paletteVariableInputs = {};
+    paletteVariableMemory = {};
+    try {
+      const data = await api.storage.local.get(['variableMemory']);
+      paletteVariableMemory = data && data.variableMemory ? data.variableMemory : {};
+    } catch {
+      // memory is a convenience; the form works without it
+    }
+    if (paletteVariablePrompt !== prompt) return; // palette closed meanwhile
 
     // Clear list and show form
     while (paletteList.firstChild) paletteList.removeChild(paletteList.firstChild);
@@ -2146,28 +2303,78 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const form = elInShadow('div');
     applyStyles(form, STYLES.paletteVarForm);
 
-    for (const varName of variables) {
+    /** @param {KeyboardEvent} ev */
+    const onKey = (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        confirmVariableInsert();
+      }
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        filterPalette(); // back to list
+      }
+    };
+
+    for (const spec of specs) {
       const label = elInShadow('div');
-      label.textContent = humanizeVarInline(varName);
+      label.textContent =
+        spec.kind === 'range'
+          ? `${humanizeVarInline(spec.name)} (${spec.min}–${spec.max})`
+          : humanizeVarInline(spec.name);
       applyStyles(label, STYLES.paletteVarLabel);
       form.appendChild(label);
 
-      const input = elInShadow('input');
-      input.type = 'text';
-      input.placeholder = humanizeVarInline(varName);
-      applyStyles(input, STYLES.paletteVarInput);
-      input.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') {
-          ev.preventDefault();
-          confirmVariableInsert();
+      const prefill = varRecall(paletteVariableMemory, spec);
+      /** @type {any} */ let control;
+      if (spec.kind === 'choice') {
+        control = elInShadow('select');
+        for (const option of spec.options) {
+          const opt = elInShadow('option');
+          opt.value = option;
+          opt.textContent = option;
+          control.appendChild(opt);
         }
-        if (ev.key === 'Escape') {
-          ev.preventDefault();
-          filterPalette(); // back to list
-        }
-      });
-      form.appendChild(input);
-      paletteVariableInputs[varName] = input;
+        control.value = prefill || spec.options[0];
+        applyStyles(control, STYLES.paletteVarInput);
+        control.addEventListener('keydown', onKey);
+        form.appendChild(control);
+      } else if (spec.kind === 'range') {
+        const row = elInShadow('div');
+        applyStyles(row, { display: 'flex', gap: '6px' });
+        control = elInShadow('input');
+        control.type = 'number';
+        control.min = String(spec.min);
+        control.max = String(spec.max);
+        control.step = '1';
+        control.value = prefill;
+        control.placeholder = `${spec.min}–${spec.max}`;
+        applyStyles(control, STYLES.paletteVarInput);
+        control.addEventListener('keydown', onKey);
+        const dice = elInShadow('button');
+        dice.type = 'button';
+        dice.textContent = '🎲';
+        dice.title = 'Random';
+        dice.setAttribute('aria-label', `Random ${humanizeVarInline(spec.name)}`);
+        applyStyles(dice, STYLES.modalSecondary);
+        dice.style.padding = '3px 9px';
+        const input = control;
+        dice.addEventListener('click', () => {
+          input.value = String(varRandom(spec));
+          input.focus();
+        });
+        row.appendChild(control);
+        row.appendChild(dice);
+        form.appendChild(row);
+      } else {
+        control = elInShadow('input');
+        control.type = 'text';
+        control.value = prefill;
+        control.placeholder = humanizeVarInline(spec.name);
+        applyStyles(control, STYLES.paletteVarInput);
+        control.addEventListener('keydown', onKey);
+        form.appendChild(control);
+      }
+      paletteVariableInputs[spec.name] = control;
     }
 
     const confirmBtn = elInShadow('button');
@@ -2180,9 +2387,10 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
 
     paletteList.appendChild(form);
 
-    // Focus first input
-    const firstInput = form.querySelector('input');
-    if (firstInput) firstInput.focus();
+    // Focus the first field that still needs a value (else the first field).
+    const fields = Object.values(paletteVariableInputs);
+    const target = fields.find((f) => String(f.value).trim() === '') || fields[0];
+    if (target) target.focus();
   }
 
   /**
@@ -2206,15 +2414,19 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
   function confirmVariableInsert() {
     if (!paletteVariablePrompt || !paletteVariableInputs || !paletteTarget) return;
     const values = {};
-    for (const [name, input] of Object.entries(paletteVariableInputs)) {
-      // SPEC §1: every value is required — never insert a prompt with holes.
-      if (input.value.trim() === '') {
+    for (const spec of paletteVariableSpecs || []) {
+      const input = paletteVariableInputs[spec.name];
+      if (!input) continue;
+      // SPEC §1 + G6: every value is required and must fit its kind.
+      const problem = varCheck(spec, input.value);
+      if (problem) {
         input.focus();
-        showToast({ message: `Fill in ${humanizeVarInline(name)}`, isError: true });
+        showToast({ message: `${humanizeVarInline(spec.name)}: ${problem}`, isError: true });
         return;
       }
-      values[name] = input.value;
+      values[spec.name] = String(input.value).trim();
     }
+    rememberVariableValues(values);
     const resolved = resolveVariablesInline(String(paletteVariablePrompt.text ?? ''), values);
     const result = insertInto(paletteTarget, resolved, 'insert');
     if (result.success) {
@@ -2230,6 +2442,19 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
   }
 
   /**
+   * G6: remember the values just used (best effort, LRU in storage).
+   * @param {Record<string, string>} values
+   */
+  function rememberVariableValues(values) {
+    const store = api.storage && api.storage.local;
+    if (!store) return;
+    void store
+      .get(['variableMemory'])
+      .then((data) => store.set({ variableMemory: varRemember(data && data.variableMemory, values, Date.now()) }))
+      .catch(() => {});
+  }
+
+  /**
    * Inline variable resolution (copied from src/lib/variables.js for non-drift).
    * @param {string} text
    * @param {Record<string, unknown>} values
@@ -2238,13 +2463,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
   function resolveVariablesInline(text, values) {
     if (typeof text !== 'string') return text;
     if (values === null || typeof values !== 'object') return text;
-    let out = text;
-    for (const name of extractVariablesInline(text)) {
-      if (Object.prototype.hasOwnProperty.call(values, name)) {
-        out = out.replaceAll(`{${name}}`, () => String(values[name]));
-      }
-    }
-    return out;
+    return varResolve(text, values);
   }
 
   /**

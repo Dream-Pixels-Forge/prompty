@@ -34,7 +34,7 @@
       </aside>
 
       <main class="main">
-        <header class="toolbar">
+        <header class="toolbar" id="toolbar">
           <input
             id="search"
             class="search"
@@ -49,6 +49,13 @@
           </button>
           <button id="new-prompt" class="btn btn--primary" type="button">+ New</button>
         </header>
+        <div
+          class="toolbar bulkbar"
+          id="bulkbar"
+          role="toolbar"
+          aria-label="Bulk actions"
+          hidden
+        ></div>
         <section id="view" class="view" aria-live="polite"></section>
       </main>
     </div>

@@ -1263,3 +1263,91 @@ span.field__error {
   padding: 0 3px;
   font-weight: 600;
 }
+
+/* G4: multi-select + bulk bar */
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.card__check {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.card:hover .card__check,
+.card:focus-within .card__check,
+.selecting .card__check {
+  opacity: 1;
+}
+.card--selected,
+.card--selected:hover,
+.card--selected:focus-within {
+  border-color: var(--accent);
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    var(--shadow-hover);
+}
+.bulkbar {
+  background: var(--fg);
+  color: var(--bg);
+  border-bottom-color: var(--fg);
+  gap: 6px;
+}
+.bulkbar[hidden],
+.toolbar[hidden] {
+  display: none;
+}
+.bulkbar__count {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.bulkbar__count strong {
+  color: var(--accent);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.bulkbar .btn {
+  background: transparent;
+  color: var(--bg);
+  border-color: color-mix(in srgb, var(--bg) 30%, transparent);
+}
+.bulkbar .btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.bulkbar .btn--ghost {
+  border-color: transparent;
+}
+.bulkbar .btn--danger:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.bulkbar .icon-btn {
+  color: var(--bg);
+}
+.bulkbar .spacer {
+  flex: 1;
+}
+.choice--remove[aria-checked='true'] {
+  background: var(--sunken);
+  border-color: var(--line-strong);
+  color: var(--muted);
+  font-weight: 400;
+  text-decoration: line-through;
+}
+.drag-ghost {
+  position: fixed;
+  top: -100px;
+  left: -100px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: 12px;
+}

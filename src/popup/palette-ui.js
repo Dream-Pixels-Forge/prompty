@@ -221,19 +221,36 @@ export function openPalette(host) {
 }
 
 /**
- * Download the library as JSON (SPEC §1 export envelope).
+ * Download the library as JSON (SPEC §1 export envelope). With a G4 subset
+ * (`{ prompts, categories }`) only those are written and settings are left
+ * out, so importing the file never changes the importer's preferences.
+ * Settings' "Export JSON" passes its click event here, hence the guard.
+ * @param {unknown} [subset]
  */
-export function exportLibrary() {
-  const data = buildExport(
-    { prompts: state.prompts, categories: state.categories, settings: state.settings },
+export function exportLibrary(subset) {
+  const part =
+    subset && typeof subset === 'object' && Array.isArray(/** @type {any} */ (subset).prompts)
+      ? /** @type {{ prompts: import('../lib/storage.js').Prompt[], categories: import('../lib/storage.js').Category[] }} */ (
+          subset
+        )
+      : null;
+  const full = buildExport(
+    part
+      ? { ...part, settings: undefined }
+      : { prompts: state.prompts, categories: state.categories, settings: state.settings },
     { version: browser.runtime.getManifest().version },
   );
+  /** @type {Record<string, unknown>} */
+  const data = { ...full };
+  if (part) delete data.settings;
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const day = new Date().toISOString().slice(0, 10);
   const a = h('a', {
     href: URL.createObjectURL(blob),
-    download: `prompty-export-${new Date().toISOString().slice(0, 10)}.json`,
+    download: part ? `prompty-selection-${day}.json` : `prompty-export-${day}.json`,
   });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast(`Exported ${state.prompts.length} prompts.`);
+  const n = full.prompts.length;
+  toast(`Exported ${n} prompt${n === 1 ? '' : 's'}.`);
 }

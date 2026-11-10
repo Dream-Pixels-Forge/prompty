@@ -21,7 +21,7 @@ run in parallel. G9 works without G6 but is far better with enum variables.
 
 ## Status
 
-- [x] S1 · [x] S2 · [x] S3 · [x] G5 · [x] G6 · [ ] G4 · [x] G9
+- [x] S1 · [x] S2 · [x] S3 · [x] G5 · [x] G6 · [x] G4 · [x] G9
 
 ## Rules for every subgoal
 

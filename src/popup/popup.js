@@ -4,11 +4,31 @@
  * settings, and the Ctrl/Cmd+K command palette (G2).
  */
 import { extractVariables } from '../lib/variables.js';
-import { usePrompt } from './actions.js';
+import { copyText, usePrompt } from './actions.js';
+import {
+  PROMPTS_DRAG_TYPE,
+  moveDialog,
+  promptsLabel,
+  renderBulkBar,
+  setDragGhost,
+  tagDialog,
+} from './bulk-ui.js';
 import { h, mount } from './dom.js';
 import {
+  bulkFavorite,
+  bulkMove,
+  bulkTag,
+  clearSelection,
   countByCategory,
   deleteCategory,
+  joinedText,
+  pruneSelection,
+  rangeSelection,
+  removeMany,
+  restoreMany,
+  selectAllVisible,
+  selectionLibrary,
+  toggleSelection,
   moveCategory,
   orderedCategories,
   removePrompt,
@@ -48,6 +68,8 @@ const categoriesEl = $('categories');
 const viewEl = $('view');
 const searchEl = /** @type {HTMLInputElement} */ ($('search'));
 const sortEl = /** @type {HTMLSelectElement} */ ($('sort'));
+const toolbarEl = $('toolbar');
+const bulkbarEl = $('bulkbar');
 
 const route = {
   /** @type {View} */ view: 'all',
@@ -135,8 +157,11 @@ function renderSidebar() {
               /** @type {DragEvent} */ (e).dataTransfer?.setData('text/plain', cat.id);
             },
             dragover: (e) => {
-              if (!dragId || dragId === cat.id) return;
+              const prompts = isPromptDrag(/** @type {DragEvent} */ (e));
+              if (!prompts && (!dragId || dragId === cat.id)) return;
               e.preventDefault();
+              const de = /** @type {DragEvent} */ (e);
+              if (de.dataTransfer) de.dataTransfer.dropEffect = 'move';
               /** @type {HTMLElement} */ (e.currentTarget).classList.add('nav__row--drop');
             },
             dragleave: (e) =>
@@ -144,7 +169,10 @@ function renderSidebar() {
             drop: (e) => {
               e.preventDefault();
               /** @type {HTMLElement} */ (e.currentTarget).classList.remove('nav__row--drop');
-              if (dragId) dropCategory(dragId, cat.id);
+              const de = /** @type {DragEvent} */ (e);
+              if (isPromptDrag(de)) {
+                void moveTo(draggedIds(de), cat.id);
+              } else if (dragId) dropCategory(dragId, cat.id);
               dragId = null;
             },
             dragend: () => (dragId = null),
@@ -176,6 +204,22 @@ function renderSidebar() {
 
 /** Category being dragged in the sidebar. @type {string|null} */
 let dragId = null;
+
+/** @param {DragEvent} e */
+const isPromptDrag = (e) => Boolean(e.dataTransfer?.types.includes(PROMPTS_DRAG_TYPE));
+
+/**
+ * @param {DragEvent} e
+ * @returns {string[]}
+ */
+function draggedIds(e) {
+  try {
+    const ids = JSON.parse(e.dataTransfer?.getData(PROMPTS_DRAG_TYPE) || '[]');
+    return Array.isArray(ids) ? ids.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Drop `fromId` onto `toId`'s slot.
@@ -273,6 +317,8 @@ function renderLibrary() {
     query: searchEl.value,
     sortBy: state.settings.sortBy,
   });
+  visibleIds = prompts.map((p) => p.id);
+  selection = pruneSelection(selection, visibleIds);
   const category = state.categories.find((c) => c.id === route.categoryId);
   const heading =
     route.view === 'category' && category
@@ -329,9 +375,35 @@ function renderLibrary() {
 function card(prompt) {
   const category = state.categories.find((c) => c.id === prompt.categoryId);
   const vars = extractVariables(prompt.text).length;
+  const selected = selection.ids.includes(prompt.id);
   return h(
     'article',
-    { class: 'card', dataset: { id: prompt.id } },
+    {
+      class: `card${selected ? ' card--selected' : ''}`,
+      tabindex: '0',
+      draggable: 'true',
+      'aria-label': prompt.title || 'Untitled',
+      dataset: { id: prompt.id },
+      on: {
+        // Ctrl/Cmd-click toggles, Shift-click extends — on the card body, not its buttons.
+        click: (e) => {
+          const me = /** @type {MouseEvent} */ (e);
+          if (!(me.ctrlKey || me.metaKey || me.shiftKey)) return;
+          if (me.target instanceof Element && me.target.closest('button, input, a')) return;
+          me.preventDefault();
+          if (me.shiftKey) extendTo(prompt.id);
+          else toggleOne(prompt.id);
+        },
+        dragstart: (e) => {
+          const de = /** @type {DragEvent} */ (e);
+          if (!de.dataTransfer) return;
+          const ids = selected ? orderedSelection() : [prompt.id];
+          de.dataTransfer.effectAllowed = 'move';
+          de.dataTransfer.setData(PROMPTS_DRAG_TYPE, JSON.stringify(ids));
+          setDragGhost(de, ids.length);
+        },
+      },
+    },
     // Category eyebrow — redundant inside that category's own view.
     category && route.view !== 'category'
       ? h(
@@ -349,6 +421,21 @@ function card(prompt) {
     h(
       'header',
       { class: 'card__head' },
+      h('input', {
+        type: 'checkbox',
+        class: 'card__check',
+        checked: selected,
+        'aria-label': `Select ${prompt.title || 'Untitled'}`,
+        title: 'Select (Space) · Shift-click for a range',
+        on: {
+          click: (e) => {
+            e.stopPropagation();
+            const me = /** @type {MouseEvent} */ (e);
+            if (me.shiftKey) extendTo(prompt.id);
+            else toggleOne(prompt.id);
+          },
+        },
+      }),
       prompt.createdAt > state.newSince ? h('span', { class: 'chip-new' }, 'New') : null,
       h('h2', { class: 'card__title', title: prompt.title }, prompt.title || 'Untitled'),
       h(
@@ -479,13 +566,233 @@ async function deletePrompt(prompt) {
 }
 
 /* ------------------------------------------------------------------ */
+/* G4: selection + bulk operations                                     */
+/* ------------------------------------------------------------------ */
+
+/** @type {import('./library.js').Selection} */
+let selection = clearSelection();
+/** Ids selected before the current Shift range began. @type {string[]} */
+let rangeBase = [];
+/** Grid order of the library view on screen. @type {string[]} */
+let visibleIds = [];
+
+/** Selected ids in grid order (what Copy/Export/drag use). */
+function orderedSelection() {
+  const set = new Set(selection.ids);
+  return visibleIds.filter((id) => set.has(id));
+}
+
+/** @param {import('./library.js').Selection} next */
+function setSelection(next) {
+  selection = next;
+  render();
+}
+
+/** @param {string} id */
+function toggleOne(id) {
+  const next = toggleSelection(selection, id);
+  rangeBase = next.ids.filter((x) => x !== id);
+  setSelection(next);
+}
+
+/** @param {string} id */
+function extendTo(id) {
+  if (selection.anchor === null) return toggleOne(id);
+  setSelection(rangeSelection(selection, id, visibleIds, rangeBase));
+}
+
+function clearAll() {
+  rangeBase = [];
+  setSelection(clearSelection());
+}
+
+/**
+ * @param {string[]} ids
+ * @param {string|null} categoryId
+ */
+async function moveTo(ids, categoryId) {
+  if (ids.length === 0) return;
+  await save({ prompts: bulkMove(state.prompts, ids, categoryId) });
+  const cat = state.categories.find((c) => c.id === categoryId);
+  toast(
+    `Moved ${promptsLabel(ids.length)} to ${cat ? `${cat.icon} ${cat.name}` : 'Uncategorized'}.`,
+  );
+}
+
+async function bulkMoveDialog() {
+  const ids = orderedSelection();
+  const target = await moveDialog(
+    state.categories,
+    ids.length,
+    route.view === 'category' ? route.categoryId : null,
+  );
+  if (target !== null) await moveTo(ids, target || null);
+}
+
+async function bulkTagDialog() {
+  const ids = orderedSelection();
+  const change = await tagDialog(state.prompts, ids);
+  if (!change) return;
+  await save({ prompts: bulkTag(state.prompts, ids, change.add, change.remove) });
+  const parts = [
+    change.add.length ? `added ${change.add.join(', ')}` : '',
+    change.remove.length ? `removed ${change.remove.join(', ')}` : '',
+  ].filter(Boolean);
+  toast(`Tags ${parts.join(' · ')} on ${promptsLabel(ids.length)}.`);
+}
+
+async function bulkDelete() {
+  const ids = orderedSelection();
+  if (ids.length === 0) return;
+  const { prompts, removed } = removeMany(state.prompts, ids);
+  rangeBase = [];
+  selection = clearSelection();
+  await save({ prompts });
+  toast(`Deleted ${promptsLabel(removed.length)}.`, 'info', {
+    actionLabel: 'Undo',
+    ms: 10_000,
+    onAction: () => {
+      selection = { ids: removed.map((r) => r.prompt.id), anchor: null };
+      void save({ prompts: restoreMany(state.prompts, removed) });
+    },
+  });
+}
+
+/** @type {import('./bulk-ui.js').BulkHandlers} */
+const bulkHandlers = {
+  move: () => void bulkMoveDialog(),
+  tag: () => void bulkTagDialog(),
+  favorite: () => void save({ prompts: bulkFavorite(state.prompts, orderedSelection()) }),
+  copy: () => void copyText(joinedText(state.prompts, orderedSelection())),
+  exportSelected: () =>
+    exportLibrary(
+      selectionLibrary(
+        { prompts: state.prompts, categories: state.categories },
+        orderedSelection(),
+      ),
+    ),
+  remove: () => void bulkDelete(),
+  selectAll: () => setSelection(selectAllVisible(visibleIds)),
+  clear: clearAll,
+};
+
+/** Toolbar ↔ bulk bar, after the grid has rendered. */
+function renderChrome() {
+  const ids = orderedSelection();
+  const selecting = isLibraryView() && ids.length > 0;
+  document.body.classList.toggle('selecting', selecting);
+  toolbarEl.hidden = selecting;
+  bulkbarEl.hidden = !selecting;
+  if (!selecting) return;
+  const chosen = state.prompts.filter((p) => ids.includes(p.id));
+  renderBulkBar(
+    bulkbarEl,
+    {
+      count: ids.length,
+      visible: visibleIds.length,
+      allFavorite: chosen.every((p) => p.isFavorite),
+    },
+    bulkHandlers,
+  );
+}
+
+const isLibraryView = () => !['snippets', 'settings', 'compose'].includes(route.view);
+
+/**
+ * Columns in the grid right now (cards sharing the first card's top edge).
+ * @param {HTMLElement[]} cards
+ */
+function gridColumns(cards) {
+  const top = cards[0]?.offsetTop;
+  const n = cards.filter((c) => c.offsetTop === top).length;
+  return Math.max(1, n);
+}
+
+/**
+ * Grid keyboard (G4 DoD): Space toggles, arrows move, Shift+arrows extend,
+ * Ctrl/Cmd+A selects visible, Delete deletes (undoable), Esc clears.
+ * @param {KeyboardEvent} e
+ * @param {boolean} typing focus is in a text field
+ * @returns {boolean} handled
+ */
+function onGridKey(e, typing) {
+  const mod = e.ctrlKey || e.metaKey;
+  if (typing) return false;
+  if (mod && e.key.toLowerCase() === 'a') {
+    setSelection(selectAllVisible(visibleIds));
+    return true;
+  }
+  if (e.key === 'Escape' && selection.ids.length > 0) {
+    clearAll();
+    return true;
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selection.ids.length > 0) {
+    void bulkDelete();
+    return true;
+  }
+  const cardEl = e.target instanceof HTMLElement ? e.target.closest('.card') : null;
+  if (!(cardEl instanceof HTMLElement) || e.target !== cardEl) return false;
+  const id = cardEl.dataset.id ?? '';
+  if (e.key === ' ' && !mod) {
+    if (e.shiftKey) extendTo(id);
+    else toggleOne(id);
+    return true;
+  }
+  if (e.key === 'Enter' && !mod) {
+    const prompt = state.prompts.find((p) => p.id === id);
+    if (prompt) void usePrompt(prompt, e.shiftKey ? 'append' : 'insert');
+    return true;
+  }
+  const cards = /** @type {HTMLElement[]} */ ([...viewEl.querySelectorAll('.card')]);
+  const cols = gridColumns(cards);
+  const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key];
+  if (step === undefined || mod) return false;
+  const at = cards.indexOf(cardEl);
+  const next = cards[Math.max(0, Math.min(cards.length - 1, at + step))];
+  if (!next || next === cardEl) return true;
+  const nextId = next.dataset.id ?? '';
+  if (e.shiftKey) {
+    // Start a range at the focused card unless one is already anchored in the selection.
+    if (selection.anchor === null || !selection.ids.includes(selection.anchor)) {
+      rangeBase = selection.ids.filter((x) => x !== id);
+      selection = { ids: [...rangeBase, id], anchor: id };
+    }
+    setSelection(rangeSelection(selection, nextId, visibleIds, rangeBase));
+  }
+  focusCard(nextId);
+  return true;
+}
+
+/** @param {string} id */
+function focusCard(id) {
+  const el = /** @type {HTMLElement|null} */ (
+    viewEl.querySelector(`.card[data-id="${CSS.escape(id)}"]`)
+  );
+  el?.focus();
+  el?.scrollIntoView({ block: 'nearest' });
+}
+
+/* ------------------------------------------------------------------ */
 /* Render + boot                                                       */
 /* ------------------------------------------------------------------ */
 
 function render() {
+  // Re-rendering replaces the grid; keep keyboard focus on the same card.
+  const active = document.activeElement;
+  const focusedCard =
+    active instanceof HTMLElement && viewEl.contains(active) ? active.closest('.card') : null;
+  const focus =
+    focusedCard instanceof HTMLElement
+      ? { id: focusedCard.dataset.id ?? '', check: active?.classList.contains('card__check') }
+      : null;
+
   document.body.classList.toggle('compact', state.settings.compactMode);
   renderSidebar();
-  const isLibrary = !['snippets', 'settings', 'compose'].includes(route.view);
+  const isLibrary = isLibraryView();
+  if (!isLibrary) {
+    selection = clearSelection();
+    visibleIds = [];
+  }
   sortEl.disabled = !isLibrary || route.view === 'recent';
   sortEl.value = state.settings.sortBy;
   searchEl.placeholder =
@@ -495,6 +802,13 @@ function render() {
   else if (route.view === 'settings') renderSettings(viewEl);
   else if (route.view === 'compose') renderCompose(viewEl);
   else renderLibrary();
+  renderChrome();
+
+  if (focus) {
+    const card = viewEl.querySelector(`.card[data-id="${CSS.escape(focus.id)}"]`);
+    const target = focus.check ? card?.querySelector('.card__check') : card;
+    if (target instanceof HTMLElement) target.focus({ preventScroll: true });
+  }
 }
 
 mount(
@@ -532,6 +846,8 @@ document.addEventListener('keydown', (e) => {
     searchEl.select();
   } else if (route.view === 'compose') {
     onComposeKey(e);
+  } else if (isLibraryView() && onGridKey(e, Boolean(typing))) {
+    e.preventDefault();
   } else if (e.key === 'Escape' && e.target === searchEl && searchEl.value) {
     e.preventDefault();
     searchEl.value = '';

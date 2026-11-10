@@ -340,3 +340,239 @@ export function toggleRecipe(settings, originPattern) {
       : [...enabled, originPattern],
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* G4: multi-select                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Selection of prompt ids in the grid. `ids` keeps the order things were
+ * selected in; `anchor` is where a Shift range starts.
+ * @typedef {{ ids: string[], anchor: string|null }} Selection
+ */
+
+/** @returns {Selection} */
+export function clearSelection() {
+  return { ids: [], anchor: null };
+}
+
+/**
+ * Select only `id` (a plain click on a card).
+ * @param {string} id
+ * @returns {Selection}
+ */
+export function selectOnly(id) {
+  return { ids: [id], anchor: id };
+}
+
+/**
+ * Add or remove one id; it becomes the range anchor either way.
+ * @param {Selection} sel
+ * @param {string} id
+ * @returns {Selection}
+ */
+export function toggleSelection(sel, id) {
+  const ids = sel.ids.includes(id) ? sel.ids.filter((x) => x !== id) : [...sel.ids, id];
+  return { ids, anchor: id };
+}
+
+/**
+ * Shift-click / Shift+arrow: add every visible id between the anchor and `id`
+ * (inclusive) to the selection. With no usable anchor it selects just `id`.
+ * The anchor stays put, so repeated Shift moves grow or shrink one range.
+ * @param {Selection} sel
+ * @param {string} id
+ * @param {string[]} visibleIds grid order
+ * @param {string[]} [base] ids selected before this range started (kept)
+ * @returns {Selection}
+ */
+export function rangeSelection(sel, id, visibleIds, base = []) {
+  const to = visibleIds.indexOf(id);
+  if (to === -1) return sel;
+  const from = sel.anchor === null ? -1 : visibleIds.indexOf(sel.anchor);
+  if (from === -1) return { ids: [id], anchor: id };
+  const [lo, hi] = from <= to ? [from, to] : [to, from];
+  const range = visibleIds.slice(lo, hi + 1);
+  const ids = [...base.filter((x) => !range.includes(x)), ...range];
+  return { ids, anchor: sel.anchor };
+}
+
+/**
+ * Ctrl/Cmd+A: every visible prompt.
+ * @param {string[]} visibleIds
+ * @returns {Selection}
+ */
+export function selectAllVisible(visibleIds) {
+  return { ids: [...visibleIds], anchor: visibleIds[0] ?? null };
+}
+
+/**
+ * Drop ids that are no longer visible (filter/view change, deletes, moves out).
+ * Returns the same object when nothing changed.
+ * @param {Selection} sel
+ * @param {string[]} visibleIds
+ * @returns {Selection}
+ */
+export function pruneSelection(sel, visibleIds) {
+  const visible = new Set(visibleIds);
+  const ids = sel.ids.filter((id) => visible.has(id));
+  const anchor = sel.anchor !== null && visible.has(sel.anchor) ? sel.anchor : null;
+  if (ids.length === sel.ids.length && anchor === sel.anchor) return sel;
+  return { ids, anchor };
+}
+
+/* ------------------------------------------------------------------ */
+/* G4: bulk transforms (no versions: title/text never change here)    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @param {Prompt[]} prompts
+ * @param {string[]} ids
+ * @param {string|null} categoryId null = uncategorized
+ * @returns {Prompt[]}
+ */
+export function bulkMove(prompts, ids, categoryId) {
+  const set = new Set(ids);
+  const target = categoryId || null;
+  return prompts.map((p) =>
+    set.has(p.id) && p.categoryId !== target ? { ...p, categoryId: target } : p,
+  );
+}
+
+/**
+ * Add and/or remove tags (case-insensitive, "#" ignored). Added tags keep the
+ * spelling given; a prompt never ends up with more than MAX_TAGS.
+ * @param {Prompt[]} prompts
+ * @param {string[]} ids
+ * @param {string[]} add
+ * @param {string[]} [remove]
+ * @returns {Prompt[]}
+ */
+export function bulkTag(prompts, ids, add, remove = []) {
+  const set = new Set(ids);
+  const adding = parseTags(add.join(','));
+  const removing = new Set(parseTags(remove.join(',')).map((t) => t.toLowerCase()));
+  return prompts.map((p) => {
+    if (!set.has(p.id)) return p;
+    const kept = p.tags.filter((t) => !removing.has(t.toLowerCase()));
+    const have = new Set(kept.map((t) => t.toLowerCase()));
+    const tags = [...kept];
+    for (const tag of adding) {
+      if (tags.length >= MAX_TAGS) break;
+      if (have.has(tag.toLowerCase())) continue;
+      have.add(tag.toLowerCase());
+      tags.push(tag);
+    }
+    const same = tags.length === p.tags.length && tags.every((t, i) => t === p.tags[i]);
+    return same ? p : { ...p, tags };
+  });
+}
+
+/**
+ * Favorite or unfavorite many. Without `value`: if every selected prompt is
+ * already a favorite they are all unfavorited, otherwise all are favorited.
+ * @param {Prompt[]} prompts
+ * @param {string[]} ids
+ * @param {boolean} [value]
+ * @returns {Prompt[]}
+ */
+export function bulkFavorite(prompts, ids, value) {
+  const set = new Set(ids);
+  const chosen = prompts.filter((p) => set.has(p.id));
+  const next = value ?? !(chosen.length > 0 && chosen.every((p) => p.isFavorite));
+  return prompts.map((p) =>
+    set.has(p.id) && p.isFavorite !== next ? { ...p, isFavorite: next } : p,
+  );
+}
+
+/**
+ * Delete many; each removed prompt remembers its index in the original list.
+ * @param {Prompt[]} prompts
+ * @param {string[]} ids
+ * @returns {{ prompts: Prompt[], removed: { prompt: Prompt, index: number }[] }}
+ */
+export function removeMany(prompts, ids) {
+  const set = new Set(ids);
+  /** @type {{ prompt: Prompt, index: number }[]} */
+  const removed = [];
+  prompts.forEach((prompt, index) => {
+    if (set.has(prompt.id)) removed.push({ prompt, index });
+  });
+  return { prompts: prompts.filter((p) => !set.has(p.id)), removed };
+}
+
+/**
+ * Undo {@link removeMany}: re-insert in ascending original index so the list
+ * comes back in exactly its old order. Ids already present are skipped.
+ * @param {Prompt[]} prompts
+ * @param {{ prompt: Prompt, index: number }[]} removed
+ * @returns {Prompt[]}
+ */
+export function restoreMany(prompts, removed) {
+  const present = new Set(prompts.map((p) => p.id));
+  const next = [...prompts];
+  for (const { prompt, index } of [...removed].sort((a, b) => a.index - b.index)) {
+    if (present.has(prompt.id)) continue;
+    present.add(prompt.id);
+    next.splice(Math.max(0, Math.min(index, next.length)), 0, prompt);
+  }
+  return next;
+}
+
+/**
+ * Prompts for `ids`, in the order given (grid order for the bulk bar).
+ * @param {Prompt[]} prompts
+ * @param {string[]} ids
+ * @returns {Prompt[]}
+ */
+export function pickPrompts(prompts, ids) {
+  const byId = new Map(prompts.map((p) => [p.id, p]));
+  return ids.map((id) => byId.get(id)).filter((p) => p !== undefined);
+}
+
+/**
+ * Bulk Copy: texts joined by a blank line. Variables stay as {tokens}.
+ * @param {Prompt[]} prompts
+ * @param {string[]} ids
+ * @returns {string}
+ */
+export function joinedText(prompts, ids) {
+  return pickPrompts(prompts, ids)
+    .map((p) => p.text.trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/**
+ * Bulk Export payload: the chosen prompts plus only the categories they use.
+ * No settings, so importing it never touches the importer's preferences.
+ * @param {{ prompts: Prompt[], categories: Category[] }} lib
+ * @param {string[]} ids
+ * @returns {{ prompts: Prompt[], categories: Category[] }}
+ */
+export function selectionLibrary({ prompts, categories }, ids) {
+  const chosen = pickPrompts(prompts, ids);
+  const used = new Set(chosen.map((p) => p.categoryId));
+  return { prompts: chosen, categories: categories.filter((c) => used.has(c.id)) };
+}
+
+/**
+ * Tags used by the chosen prompts with how many of them carry each
+ * (case-insensitive; first spelling wins), most common first.
+ * @param {Prompt[]} prompts
+ * @param {string[]} ids
+ * @returns {{ tag: string, count: number }[]}
+ */
+export function tagsInSelection(prompts, ids) {
+  /** @type {Map<string, { tag: string, count: number }>} */
+  const tally = new Map();
+  for (const p of pickPrompts(prompts, ids)) {
+    for (const tag of p.tags) {
+      const key = tag.toLowerCase();
+      const entry = tally.get(key) ?? { tag, count: 0 };
+      entry.count += 1;
+      tally.set(key, entry);
+    }
+  }
+  return [...tally.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}

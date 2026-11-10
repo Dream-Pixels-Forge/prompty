@@ -5,6 +5,7 @@
  * reuses `src/lib/search.js` (subsequenceScore / extractMatches) — no second
  * matcher (ROADMAP G2 anti-drift rule). Zero DOM, zero extension API.
  */
+import { t, tn } from '../lib/i18n.js';
 import { extractMatches, subsequenceScore } from '../lib/search.js';
 import { extractVariables } from '../lib/variables.js';
 
@@ -54,7 +55,7 @@ export function buildCommands(state = {}) {
   if (state.scopeCategoryId) {
     commands.push({
       id: 'cmd:scope-clear',
-      label: 'Show all categories',
+      label: t('cmdShowAllCategories'),
       keywords: ['clear', 'scope', 'filter', 'reset'],
       effect: { type: 'scope', categoryId: null },
     });
@@ -65,7 +66,7 @@ export function buildCommands(state = {}) {
     if (category.id === state.scopeCategoryId) continue;
     commands.push({
       id: `cmd:scope:${category.id}`,
-      label: `Go to category: ${category.icon ? `${category.icon} ` : ''}${category.name}`,
+      label: t('cmdGoToCategory', `${category.icon ? `${category.icon} ` : ''}${category.name}`),
       keywords: ['category', 'jump', 'filter'],
       effect: { type: 'scope', categoryId: category.id },
     });
@@ -76,8 +77,8 @@ export function buildCommands(state = {}) {
     if (n === 0) continue;
     commands.push({
       id: `cmd:history:${p.id}`,
-      label: `History: ${p.title}`,
-      hint: `${n} version${n === 1 ? '' : 's'}`,
+      label: t('cmdHistory', p.title),
+      hint: tn('nVersions', n),
       keywords: ['history', 'versions', 'restore', 'revert', 'compare'],
       effect: { type: 'history', promptId: p.id },
     });
@@ -85,16 +86,13 @@ export function buildCommands(state = {}) {
   commands.push(
     {
       id: 'cmd:compact',
-      label: settings.compactMode ? 'Turn off compact mode' : 'Turn on compact mode',
+      label: settings.compactMode ? t('cmdCompactOff') : t('cmdCompactOn'),
       keywords: ['toggle', 'density', 'view', 'theme'],
       effect: { type: 'setting', key: 'compactMode', value: !settings.compactMode },
     },
     {
       id: 'cmd:widget',
-      label:
-        settings.showFloatingWidget === false
-          ? 'Show floating widget on pages'
-          : 'Hide floating widget on pages',
+      label: settings.showFloatingWidget === false ? t('cmdWidgetShow') : t('cmdWidgetHide'),
       keywords: ['toggle', 'bubble', 'widget'],
       effect: {
         type: 'setting',
@@ -104,13 +102,13 @@ export function buildCommands(state = {}) {
     },
     {
       id: 'cmd:compose',
-      label: 'Compose a shot',
+      label: t('cmdCompose'),
       keywords: ['composer', 'build', 'blocks', 'scene', 'shot'],
       effect: { type: 'compose' },
     },
     {
       id: 'cmd:export',
-      label: 'Export library as JSON',
+      label: t('cmdExport'),
       keywords: ['backup', 'download', 'save'],
       effect: { type: 'export' },
     },
@@ -221,7 +219,7 @@ export function rankPalette(sources, query, options = {}) {
       kind: 'snippet',
       id: s.id,
       label,
-      detail: s.sourceOrigin ? `Snippet · ${s.sourceOrigin}` : 'Snippet',
+      detail: s.sourceOrigin ? t('snippetFrom', s.sourceOrigin) : t('snippet'),
       score: score + KIND_WEIGHT.snippet + (0.01 * (index + 1)) / Math.max(1, snippetCount),
       matches: extractMatches(label, q),
       actions: ['insert', 'append', 'copy', 'promote'],
@@ -236,7 +234,7 @@ export function rankPalette(sources, query, options = {}) {
       kind: 'command',
       id: c.id,
       label: c.label,
-      detail: c.hint ?? 'Command',
+      detail: c.hint ?? t('command'),
       score: score + KIND_WEIGHT.command,
       matches: extractMatches(c.label, q),
       actions: ['run'],
@@ -341,7 +339,7 @@ export function promoteSnippet(snippet, { id, now = Date.now() }) {
   const firstLine = String(snippet.text ?? '').split('\n')[0] ?? '';
   return {
     id,
-    title: preview(firstLine, 60) || 'Untitled snippet',
+    title: preview(firstLine, 60) || t('untitledSnippet'),
     text: String(snippet.text ?? ''),
     createdAt: now,
     useCount: 0,

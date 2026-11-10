@@ -2,6 +2,7 @@
  * G10 — Vault UI: the lock screen, and the Settings → Vault section
  * (turn on with a passphrase, lock now, auto-lock time, turn off).
  */
+import { t } from '../lib/i18n.js';
 import { secureArea } from '../lib/secure.js';
 import { MIN_PASSPHRASE } from '../lib/vault.js';
 import { h, mount } from './dom.js';
@@ -24,12 +25,12 @@ export function syncLockScreen() {
       type: 'password',
       class: 'input',
       autocomplete: 'current-password',
-      'aria-label': 'Vault passphrase',
-      placeholder: 'Passphrase',
+      'aria-label': t('vaultPassphrase'),
+      placeholder: t('passphrase'),
     })
   );
   const error = h('p', { class: 'field__error', role: 'alert' });
-  const button = h('button', { class: 'btn btn--primary', type: 'submit' }, 'Unlock');
+  const button = h('button', { class: 'btn btn--primary', type: 'submit' }, t('unlock'));
   const form = h(
     'form',
     {
@@ -39,24 +40,20 @@ export function syncLockScreen() {
           e.preventDefault();
           error.textContent = '';
           /** @type {HTMLButtonElement} */ (button).disabled = true;
-          button.textContent = 'Unlocking…';
+          button.textContent = t('unlocking');
           const ok = await unlock(input.value).catch(() => false);
           /** @type {HTMLButtonElement} */ (button).disabled = false;
-          button.textContent = 'Unlock';
+          button.textContent = t('unlock');
           if (!ok) {
-            error.textContent = 'That passphrase does not open this vault.';
+            error.textContent = t('wrongPassphrase');
             input.select();
           }
         },
       },
     },
     h('img', { class: 'vault-lock__logo', src: '../icons/icon-128.png', alt: '' }),
-    h('h1', { class: 'vault-lock__title', id: 'vault-lock-title' }, 'Prompty is locked'),
-    h(
-      'p',
-      { class: 'muted' },
-      'Your prompts, snippets and drafts are encrypted on this device. Enter your passphrase to open them.',
-    ),
+    h('h1', { class: 'vault-lock__title', id: 'vault-lock-title' }, t('lockedTitle')),
+    h('p', { class: 'muted' }, t('lockedBody')),
     h('div', { class: 'inline-form' }, input, button),
     error,
   );
@@ -76,10 +73,10 @@ export function syncLockScreen() {
 }
 
 const IDLE_OPTIONS = /** @type {const} */ ([
-  [5, '5 minutes'],
-  [15, '15 minutes'],
-  [60, '1 hour'],
-  [0, 'Only when the browser closes'],
+  [5, t('idle5')],
+  [15, t('idle15')],
+  [60, t('idle60')],
+  [0, t('idleBrowserClose')],
 ]);
 
 /**
@@ -90,7 +87,7 @@ function idleSelect(current, onChange) {
   const select = /** @type {HTMLSelectElement} */ (
     h(
       'select',
-      { class: 'select', 'aria-label': 'Lock automatically after' },
+      { class: 'select', 'aria-label': t('lockAfter') },
       IDLE_OPTIONS.map(([m, label]) =>
         h('option', { value: String(m), selected: m === current }, label),
       ),
@@ -112,14 +109,7 @@ export function vaultSection(section, rerender) {
     const status = await area.status();
     const meta = await area.meta();
     if (status === 'unsupported') {
-      mount(
-        body,
-        h(
-          'p',
-          { class: 'muted' },
-          'This browser cannot keep a vault key in memory only, so Vault Mode is unavailable here.',
-        ),
-      );
+      mount(body, h('p', { class: 'muted' }, t('vaultUnsupported')));
       return;
     }
     if (status === 'off') {
@@ -131,7 +121,7 @@ export function vaultSection(section, rerender) {
           h(
             'button',
             { class: 'btn', type: 'button', on: { click: () => void turnOn() } },
-            'Turn on Vault…',
+            t('turnOnVaultEllipsis'),
           ),
         ),
       );
@@ -145,20 +135,16 @@ export function vaultSection(section, rerender) {
         h(
           'span',
           { class: 'setting__text' },
-          '🔒 Vault is on',
-          h(
-            'span',
-            { class: 'muted setting__hint' },
-            'Prompts, snippets, fill-ins and drafts are encrypted on disk.',
-          ),
+          t('vaultIsOn'),
+          h('span', { class: 'muted setting__hint' }, t('vaultIsOnHint')),
         ),
       ),
       h(
         'label',
         { class: 'setting' },
-        h('span', { class: 'setting__text' }, 'Lock automatically after'),
+        h('span', { class: 'setting__text' }, t('lockAfter')),
         idleSelect(meta?.idleMinutes ?? 15, (m) => {
-          void area.setIdleMinutes(m).then(() => toast('Auto-lock updated.'));
+          void area.setIdleMinutes(m).then(() => toast(t('autoLockUpdated')));
         }),
       ),
       h(
@@ -167,12 +153,12 @@ export function vaultSection(section, rerender) {
         h(
           'button',
           { class: 'btn', type: 'button', on: { click: () => void lockVault() } },
-          'Lock now',
+          t('lockNow'),
         ),
         h(
           'button',
           { class: 'btn btn--ghost', type: 'button', on: { click: () => void turnOff() } },
-          'Turn off Vault…',
+          t('turnOffVaultEllipsis'),
         ),
       ),
     );
@@ -188,49 +174,41 @@ export function vaultSection(section, rerender) {
     let idle = 15;
     const error = h('span', { class: 'field__error', role: 'alert' });
     const result = await openModal({
-      title: 'Turn on Vault',
+      title: t('turnOnVault'),
       body: h(
         'div',
         null,
-        h(
-          'p',
-          { class: 'muted' },
-          'Your prompts, snippets, fill-ins and Composer drafts will be encrypted on this device (AES-GCM, key derived from your passphrase). Categories and settings stay readable so Prompty can show the lock screen.',
-        ),
-        h(
-          'p',
-          { class: 'vault-warn' },
-          '⚠ There is no recovery. If you forget the passphrase, the encrypted prompts cannot be opened by anyone, including you. Export a backup first if you are unsure.',
-        ),
+        h('p', { class: 'muted' }, t('turnOnVaultBody')),
+        h('p', { class: 'vault-warn' }, t('noRecoveryWarning')),
         h(
           'label',
           { class: 'field' },
-          h('span', { class: 'field__label' }, `Passphrase (${MIN_PASSPHRASE}+ characters)`),
+          h('span', { class: 'field__label' }, t('passphraseLabel', MIN_PASSPHRASE)),
           pass,
         ),
         h(
           'label',
           { class: 'field' },
-          h('span', { class: 'field__label' }, 'Type it again'),
+          h('span', { class: 'field__label' }, t('typeItAgain')),
           again,
           error,
         ),
         h(
           'label',
           { class: 'field' },
-          h('span', { class: 'field__label' }, 'Lock automatically after'),
+          h('span', { class: 'field__label' }, t('lockAfter')),
           idleSelect(idle, (m) => (idle = m)),
         ),
       ),
-      submitLabel: 'Encrypt my library',
+      submitLabel: t('encryptLibrary'),
       onSubmit: () => {
         if (pass.value.length < MIN_PASSPHRASE) {
-          error.textContent = `Use at least ${MIN_PASSPHRASE} characters.`;
+          error.textContent = t('passphraseTooShort', MIN_PASSPHRASE);
           pass.focus();
           return null;
         }
         if (pass.value !== again.value) {
-          error.textContent = 'The two passphrases differ.';
+          error.textContent = t('passphrasesDiffer');
           again.focus();
           return null;
         }
@@ -241,36 +219,31 @@ export function vaultSection(section, rerender) {
     try {
       await secureArea().enable(result.passphrase, { idleMinutes: result.idle });
       await refreshVault();
-      toast('Vault on: your library is encrypted on this device.');
+      toast(t('vaultTurnedOn'));
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not turn on the vault.', 'error');
+      toast(e instanceof Error ? e.message : t('vaultTurnOnFailed'), 'error');
     }
     void draw();
     rerender();
   };
 
   const turnOff = async () => {
-    const ok = await confirmDialog(
-      'Turn off Vault?',
-      'Your prompts, snippets, fill-ins and drafts will be decrypted and stored as plain data on this device again.',
-      { confirmLabel: 'Turn off', danger: true },
-    );
+    const ok = await confirmDialog(t('turnOffVaultTitle'), t('turnOffVaultBody'), {
+      confirmLabel: t('turnOff'),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await secureArea().disable();
       await refreshVault();
-      toast('Vault off. Your library is stored unencrypted again.');
+      toast(t('vaultTurnedOff'));
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not turn off the vault.', 'error');
+      toast(e instanceof Error ? e.message : t('vaultTurnOffFailed'), 'error');
     }
     void draw();
     rerender();
   };
 
   void draw();
-  return section(
-    'Vault',
-    'Optional encryption at rest for prompts on this device. The key is kept in memory only, never on disk.',
-    body,
-  );
+  return section(t('vaultSectionTitle'), t('vaultSectionDesc'), body);
 }

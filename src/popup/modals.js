@@ -3,6 +3,7 @@
  * window.prompt/confirm (SPEC §1 quirk fix). Each dialog resolves a promise;
  * Esc or the backdrop cancels (null), Ctrl/Cmd+Enter submits.
  */
+import { t, tn } from '../lib/i18n.js';
 import { diffWords, sides } from '../lib/diff.js';
 import {
   checkVariableValue,
@@ -149,7 +150,7 @@ export function openModal(cfg) {
         h(
           'button',
           { class: 'btn btn--ghost', type: 'button', on: { click: () => close(null) } },
-          'Cancel',
+          t('cancel'),
         ),
         (cfg.extra ?? []).map((x) =>
           h(
@@ -161,7 +162,7 @@ export function openModal(cfg) {
         h(
           'button',
           { class: `btn ${cfg.danger ? 'btn--danger' : 'btn--primary'}`, type: 'submit' },
-          cfg.submitLabel ?? 'Save',
+          cfg.submitLabel ?? t('save'),
         ),
       ),
     );
@@ -350,7 +351,7 @@ export function fillVariables(prompt, mode, memory = {}) {
       const select = h(
         'select',
         { name: spec.name, on: { change: update, keydown: nextOnEnter(i) } },
-        h('option', { value: '' }, 'Choose…'),
+        h('option', { value: '' }, t('choose')),
         spec.options.map((o) => h('option', { value: o, selected: o === prefill }, o)),
       );
       fields[spec.name] = { get: () => select.value, focus: () => select.focus(), error };
@@ -379,8 +380,8 @@ export function fillVariables(prompt, mode, memory = {}) {
         {
           type: 'button',
           class: 'btn dice',
-          title: 'Random',
-          'aria-label': `Random ${humanizeVar(spec.name)}`,
+          title: t('random'),
+          'aria-label': t('randomNamed', humanizeVar(spec.name)),
           on: {
             click: () => {
               input.value = String(randomInRange(spec));
@@ -415,14 +416,14 @@ export function fillVariables(prompt, mode, memory = {}) {
   });
   update();
 
-  const verb = mode === 'copy' ? 'Copy' : mode === 'append' ? 'Append' : 'Insert';
+  const verb = mode === 'copy' ? t('copy') : mode === 'append' ? t('append') : t('insert');
   const pending = openModal({
     title: prompt.title,
     body: h(
       'div',
       { class: 'stack' },
       rows,
-      h('span', { class: 'field__label' }, 'Preview'),
+      h('span', { class: 'field__label' }, t('preview')),
       preview,
     ),
     submitLabel: verb,
@@ -466,27 +467,27 @@ export function promptEditor({ prompt, initial = {}, categories }) {
     type: 'text',
     maxlength: String(MAX_TITLE),
     value: start.title ?? '',
-    placeholder: 'e.g. Neon city portrait',
+    placeholder: t('titlePlaceholder'),
   });
   const text = h('textarea', {
     rows: '7',
     value: start.text ?? '',
-    placeholder: 'Prompt text. Use {variable} for fill-in fields.',
+    placeholder: t('textPlaceholder'),
   });
   const varsHint = h('span', { class: 'field__hint' });
   const updateVars = () => {
     const vars = parseVariables(text.value);
     varsHint.textContent =
       vars.length > 0
-        ? `⚡ ${vars.length} variable${vars.length === 1 ? '' : 's'}: ${vars.map(describeVariable).join(', ')}`
-        : 'Tip: {subject} text · {lens:24mm|50mm} choices · {seed:1-999} range · {mood=calm} default';
+        ? `⚡ ${tn('nVariablesList', vars.length, vars.map(describeVariable).join(', '))}`
+        : t('variablesTip');
   };
   text.addEventListener('input', updateVars);
   updateVars();
   const category = h(
     'select',
     null,
-    h('option', { value: '' }, 'No category'),
+    h('option', { value: '' }, t('noCategory')),
     orderedCategories(categories).map((c) =>
       h('option', { value: c.id, selected: c.id === start.categoryId }, `${c.icon} ${c.name}`),
     ),
@@ -494,34 +495,39 @@ export function promptEditor({ prompt, initial = {}, categories }) {
   const tags = h('input', {
     type: 'text',
     value: (start.tags ?? []).join(', '),
-    placeholder: 'comma, separated',
+    placeholder: t('tagsInputPlaceholder'),
   });
   const favorite = h('input', { type: 'checkbox', checked: Boolean(start.isFavorite) });
   const titleError = h('span', { class: 'field__error' });
   const textError = h('span', { class: 'field__error' });
 
   return openModal({
-    title: prompt ? 'Edit prompt' : 'New prompt',
+    title: prompt ? t('editPrompt') : t('newPrompt'),
     wide: true,
     body: h(
       'div',
       { class: 'stack' },
-      field('Title', title, titleError),
+      field(t('title'), title, titleError),
       h(
         'label',
         { class: 'field' },
-        h('span', { class: 'field__label' }, 'Prompt'),
+        h('span', { class: 'field__label' }, t('prompt')),
         text,
         varsHint,
         textError,
       ),
-      h('div', { class: 'row' }, field('Category', category), field('Tags', tags)),
-      h('label', { class: 'check' }, favorite, ' Favorite'),
+      h('div', { class: 'row' }, field(t('category'), category), field(t('tags'), tags)),
+      h('label', { class: 'check' }, favorite, ` ${t('favorite')}`),
     ),
-    submitLabel: prompt ? 'Save' : 'Add prompt',
+    submitLabel: prompt ? t('save') : t('addPrompt'),
     // G5: jump to the version history (discards unsaved edits, like Cancel).
     extra: prompt?.versions?.length
-      ? [{ label: `History (${prompt.versions.length})`, value: /** @type {any} */ (OPEN_HISTORY) }]
+      ? [
+          {
+            label: t('historyCount', prompt.versions.length),
+            value: /** @type {any} */ (OPEN_HISTORY),
+          },
+        ]
       : [],
     onSubmit: () => {
       const draft = {
@@ -557,14 +563,14 @@ export function categoryEditor(category, place) {
     type: 'text',
     maxlength: '40',
     value: category?.name ?? '',
-    placeholder: 'Category name',
+    placeholder: t('categoryName'),
   });
   const error = h('span', { class: 'field__error' });
-  const colors = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Color' });
+  const colors = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': t('color') });
   const icons = h('div', {
     class: 'swatches swatches--emoji',
     role: 'radiogroup',
-    'aria-label': 'Icon',
+    'aria-label': t('icon'),
   });
   const render = () => {
     mount(
@@ -608,27 +614,27 @@ export function categoryEditor(category, place) {
           h(
             'option',
             { value: String(i), selected: i === place.position },
-            `${i + 1} of ${place.total}`,
+            t('positionOf', i + 1, place.total),
           ),
         ),
       )
     : null;
   return openModal({
-    title: category ? 'Edit category' : 'New category',
+    title: category ? t('editCategory') : t('newCategory'),
     wide: true,
     body: h(
       'div',
       { class: 'stack' },
       position
-        ? h('div', { class: 'row' }, field('Name', name, error), field('Position', position))
-        : field('Name', name, error),
-      field('Color', colors),
-      field('Icon', icons),
+        ? h('div', { class: 'row' }, field(t('name'), name, error), field(t('position'), position))
+        : field(t('name'), name, error),
+      field(t('color'), colors),
+      field(t('icon'), icons),
     ),
-    submitLabel: category ? 'Save' : 'Add category',
+    submitLabel: category ? t('save') : t('addCategory'),
     onSubmit: () => {
       if (name.value.trim() === '') {
-        error.textContent = 'Name the category.';
+        error.textContent = t('categoryNameRequired');
         name.focus();
         return null;
       }
@@ -671,7 +677,7 @@ function diffColumn(ops) {
 export function historyModal(prompt) {
   const versions = prompt.versions ?? [];
   let selected = 0;
-  const list = h('ol', { class: 'history__list', role: 'listbox', 'aria-label': 'Versions' });
+  const list = h('ol', { class: 'history__list', role: 'listbox', 'aria-label': t('versions') });
   const compare = h('div', { class: 'history__compare' });
   const render = () => {
     mount(
@@ -679,7 +685,7 @@ export function historyModal(prompt) {
       h(
         'li',
         { class: 'history__item history__item--current', 'aria-disabled': 'true' },
-        h('strong', null, 'Current'),
+        h('strong', null, t('current')),
         h('span', { class: 'muted' }, prompt.title),
       ),
       versions.map((v, i) =>
@@ -721,7 +727,7 @@ export function historyModal(prompt) {
         ? h(
             'p',
             { class: 'history__title muted' },
-            'Title: ',
+            `${t('title')}: `,
             h('del', { class: 'diff__del' }, v.title),
             ' → ',
             h('ins', { class: 'diff__add' }, prompt.title),
@@ -740,16 +746,16 @@ export function historyModal(prompt) {
           ),
           diffColumn(before),
         ),
-        h('section', null, h('span', { class: 'field__label' }, 'Current'), diffColumn(after)),
+        h('section', null, h('span', { class: 'field__label' }, t('current')), diffColumn(after)),
       ),
     );
   };
   render();
   return openModal({
-    title: `History · ${prompt.title}`,
+    title: t('historyTitle', prompt.title),
     wide: true,
     body: h('div', { class: 'history' }, list, compare),
-    submitLabel: 'Restore this version',
+    submitLabel: t('restoreThisVersion'),
     onSubmit: () => selected,
   });
 }

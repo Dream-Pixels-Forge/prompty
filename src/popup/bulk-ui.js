@@ -3,6 +3,7 @@
  * dialogs (Move, Tag). Selection state and the pure transforms live in
  * ./library.js; popup.js owns the selection and wires these in.
  */
+import { t, tn } from '../lib/i18n.js';
 import { h, mount } from './dom.js';
 import { orderedCategories, parseTags, tagsInSelection } from './library.js';
 import { openModal } from './modals.js';
@@ -30,7 +31,7 @@ export const PROMPTS_DRAG_TYPE = 'application/x-prompty-prompts';
  * @param {number} n
  * @returns {string}
  */
-export const promptsLabel = (n) => `${n} prompt${n === 1 ? '' : 's'}`;
+export const promptsLabel = (n) => tn('nPrompts', n);
 
 /**
  * Fill the bulk bar.
@@ -61,31 +62,31 @@ export function renderBulkBar(el, { count, visible, allFavorite }, on) {
       'span',
       { class: 'bulkbar__count', 'aria-live': 'polite' },
       h('strong', null, String(count)),
-      ' selected',
+      ` ${t('selectedSuffix')}`,
     ),
     count < visible
-      ? btn(`All ${visible}`, on.selectAll, {
+      ? btn(t('selectAllN', visible), on.selectAll, {
           cls: 'btn--ghost',
-          title: 'Select every visible prompt (Ctrl/Cmd+A)',
+          title: t('selectAllHint'),
         })
       : null,
     h('span', { class: 'spacer' }),
-    btn('Move…', on.move, { title: 'Move to a category (or drag onto one in the sidebar)' }),
-    btn('Tag…', on.tag, { title: 'Add or remove tags' }),
-    btn(allFavorite ? '☆ Unstar' : '★ Star', on.favorite, {
-      title: allFavorite ? 'Remove from favorites' : 'Add to favorites',
+    btn(t('moveEllipsis'), on.move, { title: t('moveHint') }),
+    btn(t('tagEllipsis'), on.tag, { title: t('tagHint') }),
+    btn(allFavorite ? t('unstarButton') : t('starButton'), on.favorite, {
+      title: allFavorite ? t('removeFromFavorites') : t('addToFavorites'),
     }),
-    btn('Copy', on.copy, { title: 'Copy all texts, one blank line apart' }),
-    btn('Export', on.exportSelected, { title: 'Download the selection as JSON' }),
-    btn('Pack…', on.pack, { title: 'Share the selection as a .prompty pack' }),
-    btn('Delete', on.remove, { cls: 'btn--danger', title: 'Delete (Del) — undo for 10 s' }),
+    btn(t('copy'), on.copy, { title: t('copyAllHint') }),
+    btn(t('export'), on.exportSelected, { title: t('exportSelectionHint') }),
+    btn(t('packEllipsis'), on.pack, { title: t('packHint') }),
+    btn(t('delete'), on.remove, { cls: 'btn--danger', title: t('bulkDeleteHint') }),
     h(
       'button',
       {
         type: 'button',
         class: 'icon-btn',
-        title: 'Clear selection (Esc)',
-        'aria-label': 'Clear selection',
+        title: t('clearSelectionHint'),
+        'aria-label': t('clearSelection'),
         on: { click: on.clear },
       },
       '✕',
@@ -104,21 +105,21 @@ export async function moveDialog(categories, count, current = null) {
   const select = /** @type {HTMLSelectElement} */ (
     h(
       'select',
-      { 'aria-label': 'Destination category' },
-      h('option', { value: '' }, 'Uncategorized'),
+      { 'aria-label': t('destinationCategory') },
+      h('option', { value: '' }, t('uncategorized')),
       orderedCategories(categories).map((c) => h('option', { value: c.id }, `${c.icon} ${c.name}`)),
     )
   );
   select.value = current ?? '';
   const result = await openModal({
-    title: `Move ${promptsLabel(count)}`,
+    title: t('moveTitle', promptsLabel(count)),
     body: h(
       'label',
       { class: 'field' },
-      h('span', { class: 'field__label' }, 'To category'),
+      h('span', { class: 'field__label' }, t('toCategory')),
       select,
     ),
-    submitLabel: 'Move',
+    submitLabel: t('move'),
     onSubmit: () => ({ categoryId: select.value }),
   });
   return result ? result.categoryId : null;
@@ -135,10 +136,10 @@ export async function tagDialog(prompts, ids) {
   /** @type {Set<string>} */
   const removing = new Set();
   const input = /** @type {HTMLInputElement} */ (
-    h('input', { type: 'text', placeholder: 'client-x, neon, hero', autocomplete: 'off' })
+    h('input', { type: 'text', placeholder: t('tagsPlaceholder'), autocomplete: 'off' })
   );
   const error = h('span', { class: 'field__error', role: 'alert' });
-  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Tags to remove' });
+  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': t('tagsToRemove') });
   const drawChips = () =>
     mount(
       chips,
@@ -150,7 +151,7 @@ export async function tagDialog(prompts, ids) {
             class: 'choice choice--remove',
             role: 'checkbox',
             'aria-checked': String(removing.has(tag)),
-            title: `On ${count} of ${ids.length}`,
+            title: t('onCountOf', count, ids.length),
             on: {
               click: () => {
                 if (removing.has(tag)) removing.delete(tag);
@@ -170,27 +171,27 @@ export async function tagDialog(prompts, ids) {
   drawChips();
 
   const result = await openModal({
-    title: `Tag ${promptsLabel(ids.length)}`,
+    title: t('tagTitle', promptsLabel(ids.length)),
     body: h(
       'div',
       null,
       h(
         'label',
         { class: 'field' },
-        h('span', { class: 'field__label' }, 'Add tags'),
+        h('span', { class: 'field__label' }, t('addTags')),
         input,
-        h('span', { class: 'field__hint' }, 'Comma-separated. Existing tags are kept.'),
+        h('span', { class: 'field__hint' }, t('addTagsHint')),
         error,
       ),
       existing.length
-        ? h('div', { class: 'field' }, h('span', { class: 'field__label' }, 'Remove tags'), chips)
-        : h('p', { class: 'muted' }, 'None of these prompts has tags yet.'),
+        ? h('div', { class: 'field' }, h('span', { class: 'field__label' }, t('removeTags')), chips)
+        : h('p', { class: 'muted' }, t('noTagsYet')),
     ),
-    submitLabel: 'Apply',
+    submitLabel: t('apply'),
     onSubmit: () => {
       const add = parseTags(input.value);
       if (add.length === 0 && removing.size === 0) {
-        error.textContent = 'Type a tag to add, or pick one to remove.';
+        error.textContent = t('tagNothingChosen');
         input.focus();
         return null;
       }
@@ -221,13 +222,18 @@ export function setDragGhost(e, count) {
  */
 export async function packDialog(count, suggested = '') {
   const name = /** @type {HTMLInputElement} */ (
-    h('input', { type: 'text', value: suggested, maxlength: '80', placeholder: 'Neon noir kit' })
+    h('input', {
+      type: 'text',
+      value: suggested,
+      maxlength: '80',
+      placeholder: t('packNamePlaceholder'),
+    })
   );
   const author = /** @type {HTMLInputElement} */ (
-    h('input', { type: 'text', maxlength: '80', placeholder: 'Optional' })
+    h('input', { type: 'text', maxlength: '80', placeholder: t('optional') })
   );
   const description = /** @type {HTMLTextAreaElement} */ (
-    h('textarea', { rows: '3', maxlength: '500', placeholder: 'Optional: what this pack is for' })
+    h('textarea', { rows: '3', maxlength: '500', placeholder: t('packDescriptionPlaceholder') })
   );
   const error = h('span', { class: 'field__error', role: 'alert' });
   /**
@@ -238,23 +244,19 @@ export async function packDialog(count, suggested = '') {
   const field = (label, control, extra) =>
     h('label', { class: 'field' }, h('span', { class: 'field__label' }, label), control, extra);
   const result = await openModal({
-    title: `Share ${promptsLabel(count)} as a pack`,
+    title: t('shareAsPackTitle', promptsLabel(count)),
     body: h(
       'div',
       null,
-      field('Pack name', name, error),
-      field('Author', author),
-      field('Description', description),
-      h(
-        'p',
-        { class: 'muted' },
-        'The pack holds the prompts, their categories and Composer blocks. Your use counts, favorites and edit history stay with you.',
-      ),
+      field(t('packName'), name, error),
+      field(t('author'), author),
+      field(t('description'), description),
+      h('p', { class: 'muted' }, t('packExplain')),
     ),
-    submitLabel: 'Download .prompty',
+    submitLabel: t('downloadPack'),
     onSubmit: () => {
       if (!name.value.trim()) {
-        error.textContent = 'Give the pack a name.';
+        error.textContent = t('packNameRequired');
         name.focus();
         return null;
       }

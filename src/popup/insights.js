@@ -1,3 +1,4 @@
+import { t, uiLanguage } from '../lib/i18n.js';
 /**
  * G7 — Local usage insights (pure). Computed only from fields Prompty already
  * stores (useCount, lastUsedAt, createdAt, categoryId, variableMemory); no new
@@ -23,7 +24,9 @@ export const GROWTH_MONTHS = 6;
 /** Prompts newer than this are not "never used" yet — they just arrived. */
 export const GRACE_DAYS = 7;
 const DAY = 86_400_000;
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Short month names in the UI language ("Jun", "juin"). */
+const monthLabel = (/** @type {Date} */ d) =>
+  new Intl.DateTimeFormat(uiLanguage(), { month: 'short' }).format(d).replace(/\.$/, '');
 
 /**
  * @param {{ prompts: Prompt[], categories: Category[], variableMemory?: unknown }} lib
@@ -53,7 +56,7 @@ export function computeInsights(lib, { now = Date.now(), top = 5 } = {}) {
     .filter(([, e]) => e.uses > 0)
     .map(([id, e]) => {
       const c = categories.find((x) => x.id === id);
-      return { id, name: c?.name ?? 'Uncategorized', icon: c?.icon ?? '•', ...e };
+      return { id, name: c?.name ?? t('uncategorized'), icon: c?.icon ?? '•', ...e };
     })
     .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name))
     .slice(0, top);
@@ -99,7 +102,7 @@ export function growthByMonth(prompts, now) {
     const d = new Date(end.getFullYear(), end.getMonth() - i, 1);
     months.push({
       key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-      label: MONTHS[d.getMonth()],
+      label: monthLabel(d),
       added: 0,
     });
   }

@@ -3,6 +3,7 @@
  * UI DOM code stays thin; all search/sort/import/export behaviour lives here
  * and reuses src/lib/ helpers rather than reimplementing them.
  */
+import { t } from '../lib/i18n.js';
 import {
   DEFAULT_SETTINGS,
   mergeById,
@@ -24,10 +25,10 @@ export const VIEWS = /** @type {const} */ (['all', 'favorites', 'recent', 'snipp
 
 /** The four SPEC §1 sorts, in the dropdown order shown to the user. */
 export const SORT_OPTIONS = [
-  { id: 'recent', label: 'Recently used' },
-  { id: 'created', label: 'Newest created' },
-  { id: 'name', label: 'Name (A→Z)' },
-  { id: 'mostUsed', label: 'Most used' },
+  { id: 'recent', label: t('sortRecent') },
+  { id: 'created', label: t('sortCreated') },
+  { id: 'name', label: t('sortName') },
+  { id: 'mostUsed', label: t('sortMostUsed') },
 ];
 
 /** 18 category colors (SPEC §1 picker size), first six match the seed presets. */
@@ -192,10 +193,10 @@ export function relativeTime(timestamp, now = Date.now()) {
   const minute = 60_000;
   const hour = 3_600_000;
   const day = 86_400_000;
-  if (delta < minute) return 'just now';
-  if (delta < hour) return `${Math.floor(delta / minute)}m ago`;
-  if (delta < day) return `${Math.floor(delta / hour)}h ago`;
-  if (delta < day * 7) return `${Math.floor(delta / day)}d ago`;
+  if (delta < minute) return t('justNow');
+  if (delta < hour) return t('minutesAgo', Math.floor(delta / minute));
+  if (delta < day) return t('hoursAgo', Math.floor(delta / hour));
+  if (delta < day * 7) return t('daysAgo', Math.floor(delta / day));
   return new Date(timestamp).toLocaleDateString();
 }
 
@@ -236,15 +237,15 @@ export function parseImport(jsonText) {
   try {
     parsed = JSON.parse(jsonText);
   } catch {
-    return { ok: false, error: 'File is not valid JSON.' };
+    return { ok: false, error: t('importNotJson') };
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { ok: false, error: 'Not an export file (expected a JSON object).' };
+    return { ok: false, error: t('importNotObject') };
   }
   const record = /** @type {Record<string, unknown>} */ (parsed);
   const hasData = 'prompts' in record || 'categories' in record;
   if (!hasData) {
-    return { ok: false, error: 'Export file has no prompts or categories.' };
+    return { ok: false, error: t('importNoData') };
   }
   if ('prompts' in record && !Array.isArray(record.prompts)) {
     return { ok: false, error: 'Field "prompts" must be an array.' };

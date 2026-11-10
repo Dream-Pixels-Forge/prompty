@@ -12,6 +12,7 @@ Everything lives in `browser.storage.local`.
 
 - **Prompt library popup** — browse by view or category, search (`/`), sort, star, and insert, append, copy, edit or delete (with undo) prompts; manage categories (drag to reorder).
 - **Cinematic starter library** — 52 prompts in 16 categories: Characters, Landscapes, Objects, Styles, Abstract, Camera Angles, Camera Movement, Lighting, Lens & Optics, Locations, Color Grading, Composition, Mood & Atmosphere, VFX & Transitions, Posters and Logos. Every prompt has `{variables}` to fill in.
+- **Prompt Composer** — build a shot from film-grammar blocks (subject, location, camera, lens, composition, lighting, grade, mood, transition), each picked from your library or written by hand; variables shared across blocks are asked once. Three starter shot templates; save the result and reopen it with 🎛.
 - **Command palette (`Ctrl/Cmd+K`)** — one keyboard-only list of prompts, snippets and commands.
 - **Settings** — default view, compact cards, floating widget, quick-insert trigger, sites to skip, custom site recipes, JSON import/export.
 - **Template variables** — `{subject}` text, `{lens:24mm|50mm|85mm}` choices, `{seed:1-999}` ranges (with 🎲), `{mood=calm}` defaults. A fill-in form with live preview remembers what you used last, in the popup and the in-page `!` palette.

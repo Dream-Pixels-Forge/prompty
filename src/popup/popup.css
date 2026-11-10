@@ -1129,3 +1129,137 @@ span.field__error {
   flex: none;
   padding-inline: 10px;
 }
+
+/* Composer (G9) */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.seg__btn {
+  border: 0;
+  background: none;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.seg__btn[aria-checked='true'] {
+  background: var(--invert-bg);
+  color: var(--invert-fg);
+  font-weight: 700;
+}
+.compose__templates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.compose__blocks {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.compose__block {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.compose__block:focus-within {
+  border-color: var(--fg);
+}
+.compose__block--muted {
+  opacity: 0.5;
+}
+.compose__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.compose__grip {
+  cursor: grab;
+  color: var(--muted);
+  letter-spacing: -2px;
+  user-select: none;
+}
+.compose__n {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent-text);
+  min-width: 14px;
+}
+.compose__slot {
+  border: 0;
+  background: none;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.compose__pick {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  background: var(--sunken);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+}
+.compose__text {
+  width: 100%;
+  resize: vertical;
+  font-size: 12.5px;
+  line-height: 1.45;
+  background: var(--sunken);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+}
+.compose__text:focus,
+.compose__pick:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.compose__add {
+  margin-bottom: 12px;
+}
+.compose__out {
+  position: sticky;
+  bottom: -20px;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -10px 16px -12px rgb(0 0 0 / 0.25);
+  padding: 6px 0 4px;
+  display: grid;
+  gap: 5px;
+}
+.compose__out .view__head {
+  margin: 0;
+}
+.compose__preview {
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--sunken);
+  border-radius: var(--radius-sm);
+  max-height: 64px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.compose__var {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-radius: 4px;
+  padding: 0 3px;
+  font-weight: 600;
+}

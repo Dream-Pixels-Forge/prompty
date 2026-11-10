@@ -56,13 +56,14 @@ CI also attaches both archives to every run as the `prompty-packages` artifact.
 
 ## Scripts
 
-| Command           | What it does                                                      |
-| ----------------- | ----------------------------------------------------------------- |
-| `pnpm type-check` | `tsc --noEmit` over JS with JSDoc types                           |
-| `pnpm lint`       | ESLint, zero warnings allowed                                     |
-| `pnpm test`       | Vitest unit tests                                                 |
-| `pnpm build`      | Emit `dist/chrome` + `dist/firefox` from `src/manifest.base.json` |
-| `pnpm package`    | Build, then zip both targets                                      |
+| Command                  | What it does                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `pnpm type-check`        | `tsc --noEmit` over JS with JSDoc types                                            |
+| `pnpm lint`              | ESLint, zero warnings allowed                                                      |
+| `pnpm test`              | Vitest unit tests                                                                  |
+| `pnpm build`             | Emit `dist/chrome` + `dist/firefox` from `src/manifest.base.json`                  |
+| `pnpm package`           | Build, then zip both targets                                                       |
+| `node scripts/icons.mjs` | Re-render the 16/32 px toolbar glyph from `src/icons/glyph.svg` (needs Playwright) |
 
 CI (`.github/workflows/pr-validation.yml`) runs all gates plus `web-ext lint`
 (Firefox) and `addons-linter` (Chrome) on every PR and every push to `main`.

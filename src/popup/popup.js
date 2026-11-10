@@ -8,6 +8,7 @@ import { copyText, usePrompt } from './actions.js';
 import {
   PROMPTS_DRAG_TYPE,
   moveDialog,
+  packDialog,
   promptsLabel,
   renderBulkBar,
   setDragGhost,
@@ -53,6 +54,8 @@ import { onComposeKey, openComposition, renderCompose } from './compose-view.js'
 import { renderSettings } from './settings-view.js';
 import { renderSnippets } from './snippets-view.js';
 import { load, save, state, subscribe, watchStorage } from './store.js';
+import { migrateFrom } from './import-ui.js';
+import { buildPack, packFileName } from '../lib/pack.js';
 
 /**
  * @typedef {import('../lib/storage.js').Prompt} Prompt
@@ -658,6 +661,22 @@ async function bulkDelete() {
   });
 }
 
+/** G13: download the selection as a `.prompty` pack. */
+async function sharePack() {
+  const ids = orderedSelection();
+  if (ids.length === 0) return;
+  const category =
+    route.view === 'category' ? state.categories.find((c) => c.id === route.categoryId) : null;
+  const meta = await packDialog(ids.length, category ? `${category.name} kit` : '');
+  if (!meta) return;
+  const pack = buildPack({ prompts: state.prompts, categories: state.categories }, ids, meta);
+  const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: packFileName(pack.name) });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast(`Pack “${pack.name}” saved: ${promptsLabel(pack.prompts.length)}.`);
+}
+
 /** @type {import('./bulk-ui.js').BulkHandlers} */
 const bulkHandlers = {
   move: () => void bulkMoveDialog(),
@@ -671,6 +690,7 @@ const bulkHandlers = {
         orderedSelection(),
       ),
     ),
+  pack: () => void sharePack(),
   remove: () => void bulkDelete(),
   selectAll: () => setSelection(selectAllVisible(visibleIds)),
   clear: clearAll,
@@ -831,6 +851,26 @@ const paletteHost = {
   exportLibrary,
 };
 $('open-palette').addEventListener('click', () => openPalette(paletteHost));
+
+// G11/G13: drop a pack or a file from another tool anywhere on the popup to import it.
+/** @param {DragEvent} e */
+const isFileDrag = (e) => Boolean(e.dataTransfer?.types.includes('Files'));
+document.addEventListener('dragover', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  document.body.classList.add('dropping');
+});
+document.addEventListener('dragleave', (e) => {
+  if (e.relatedTarget === null) document.body.classList.remove('dropping');
+});
+document.addEventListener('drop', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  document.body.classList.remove('dropping');
+  const file = e.dataTransfer?.files?.[0];
+  if (file) void migrateFrom(file);
+});
 
 document.addEventListener('keydown', (e) => {
   if (document.querySelector('.backdrop')) return; // a modal or the palette owns the keyboard

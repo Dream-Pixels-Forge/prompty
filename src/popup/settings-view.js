@@ -6,8 +6,8 @@ import browser from '../lib/browser.js';
 import { DEFAULT_SETTINGS } from '../lib/storage.js';
 import { h, mount } from './dom.js';
 import { normalizeSiteInput, removeRecipe, toggleRecipe, upsertRecipe } from './library.js';
-import { CATEGORY_COLORS, applyImportData, parseImport, validateRecipeInput } from './logic.js';
-import { planMigration, readFile } from '../lib/migrate.js';
+import { applyImportData, parseImport, validateRecipeInput } from './logic.js';
+import { IMPORT_ACCEPT, migrateFrom } from './import-ui.js';
 import { confirmDialog, openModal, toast } from './modals.js';
 import { exportLibrary } from './palette-ui.js';
 import { save, state } from './store.js';
@@ -474,7 +474,7 @@ function backupSection() {
   });
   const migrateFile = h('input', {
     type: 'file',
-    accept: '.json,.csv,.tsv,.txt,.md,application/json,text/csv,text/plain,text/markdown',
+    accept: IMPORT_ACCEPT,
     hidden: true,
   });
   migrateFile.addEventListener('change', async () => {
@@ -484,7 +484,7 @@ function backupSection() {
   });
   return section(
     'Backup',
-    'Export your prompts, categories and settings as a JSON file, or bring them back from one. Moving from another tool? Import a Higgsfield Prompt Saver export, a CSV, a text or Markdown file, or a JSON list: duplicates are skipped and categories matched by name.',
+    'Export your prompts, categories and settings as a JSON file, or bring them back from one. Moving from another tool, or got a shared .prompty pack? Import a pack, a Higgsfield Prompt Saver export, a CSV, a text or Markdown file, or a JSON list (or drop the file on the popup): duplicates are skipped and categories matched by name.',
     h(
       'div',
       { class: 'inline-form' },
@@ -502,78 +502,5 @@ function backupSection() {
       ),
       migrateFile,
     ),
-  );
-}
-
-const FORMAT_LABEL = /** @type {Record<string, string>} */ ({
-  envelope: 'Prompty / Higgsfield Prompt Saver export',
-  'json-list': 'JSON list',
-  csv: 'CSV',
-  txt: 'text / Markdown',
-});
-
-/** @param {number} n */
-const nPrompts = (n) => `${n} prompt${n === 1 ? '' : 's'}`;
-
-/**
- * G11: read a file from another tool, show what would happen, import on confirm (10 s undo).
- * @param {File} file
- */
-async function migrateFrom(file) {
-  const { format, candidates } = readFile(file.name, await file.text());
-  if (format === 'unknown' || candidates.length === 0)
-    return toast(`Nothing to import from ${file.name}.`, 'error');
-  const plan = planMigration({ prompts: state.prompts, categories: state.categories }, candidates, {
-    newId: () => crypto.randomUUID(),
-    colors: CATEGORY_COLORS,
-  });
-  const { added, merged, skipped, categoriesAdded } = plan.report;
-  /**
-   * @param {string} label
-   * @param {string[]} items
-   */
-  const bucket = (label, items) =>
-    items.length
-      ? h(
-          'div',
-          { class: 'migrate__bucket' },
-          h('strong', null, `${label} (${items.length})`),
-          h(
-            'ul',
-            null,
-            items.slice(0, 5).map((t) => h('li', null, t)),
-            items.length > 5 ? h('li', { class: 'muted' }, `…and ${items.length - 5} more`) : null,
-          ),
-        )
-      : null;
-  const nothing = added.length === 0 && merged.length === 0;
-  const ok = await openModal({
-    title: nothing ? 'Nothing new to import' : `Import from ${file.name}?`,
-    body: h(
-      'div',
-      { class: 'migrate' },
-      h(
-        'p',
-        { class: 'muted' },
-        `Read as ${FORMAT_LABEL[format]}: ${nPrompts(candidates.length)}.`,
-      ),
-      bucket('Add', added),
-      bucket('Merge tags/favorite into existing', merged),
-      bucket(
-        'Skip',
-        skipped.map((s) => `${s.title} — ${s.reason}`),
-      ),
-      bucket('New categories', categoriesAdded),
-    ),
-    submitLabel: nothing ? 'OK' : `Import ${nPrompts(added.length)}`,
-    onSubmit: () => true,
-  });
-  if (!ok || nothing) return;
-  const before = { prompts: state.prompts, categories: state.categories };
-  await save({ prompts: plan.prompts, categories: plan.categories });
-  toast(
-    `Imported ${nPrompts(added.length)}${merged.length ? `, merged ${merged.length}` : ''}${skipped.length ? `, skipped ${skipped.length}` : ''}.`,
-    'info',
-    { actionLabel: 'Undo', ms: 10_000, onAction: () => void save(before) },
   );
 }

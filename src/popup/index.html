@@ -7,7 +7,50 @@
     <script type="module" src="popup.js"></script>
   </head>
   <body>
-    <!-- Reserved for Issue #3 — full popup UI. -->
-    <main class="placeholder">Prompty</main>
+    <div class="app">
+      <aside class="sidebar" aria-label="Library navigation">
+        <div class="brand">
+          <img class="brand__logo" src="../icons/icon-128.png" alt="" width="30" height="30" />
+          <span class="brand__text">
+            <span class="brand__name">Prompty</span>
+            <span class="brand__by">Dream Pixels Forge</span>
+          </span>
+        </div>
+        <nav class="nav" id="nav"></nav>
+        <div class="sidebar__section">
+          <span>Categories</span>
+          <button
+            class="icon-btn"
+            id="add-category"
+            type="button"
+            title="New category"
+            aria-label="New category"
+          >
+            +
+          </button>
+        </div>
+        <nav class="nav nav--categories" id="categories"></nav>
+        <nav class="nav nav--bottom" id="nav-bottom"></nav>
+      </aside>
+
+      <main class="main">
+        <header class="toolbar">
+          <input
+            id="search"
+            class="search"
+            type="search"
+            placeholder="Search title, text, tags…  ( / )"
+            aria-label="Search prompts"
+            autocomplete="off"
+          />
+          <select id="sort" class="select" aria-label="Sort prompts"></select>
+          <button id="open-palette" class="btn btn--ghost" type="button" title="Command palette">
+            <kbd>Ctrl K</kbd>
+          </button>
+          <button id="new-prompt" class="btn btn--primary" type="button">+ New</button>
+        </header>
+        <section id="view" class="view" aria-live="polite"></section>
+      </main>
+    </div>
   </body>
 </html>

@@ -1,10 +1,20 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  PRESETS_VERSION,
+  SEED_CATEGORIES,
+  SEED_PROMPT_DEFS,
+  createPresetsInstance,
+  seedPresets,
+} from '../src/lib/presets.js';
+import { extractVariables } from '../src/lib/variables.js';
+import { CATEGORY_COLORS, CATEGORY_EMOJIS } from '../src/popup/logic.js';
 
 /**
  * @typedef {import('../src/lib/storage.js').Prompt} Prompt
+ * @typedef {import('../src/lib/storage.js').Category} Category
  */
 
-const SEED_TITLES = [
+const V2_TITLES = [
   'Full-Body Character Portrait',
   'Character Design Sheet',
   'Wide Scenic Landscape',
@@ -14,7 +24,7 @@ const SEED_TITLES = [
   'Wide Shot',
   'Extreme Close-Up',
 ];
-const SEED_CATEGORY_NAMES = [
+const V2_CATEGORIES = [
   'Characters',
   'Landscapes',
   'Objects',
@@ -22,209 +32,211 @@ const SEED_CATEGORY_NAMES = [
   'Abstract',
   'Camera Angles',
 ];
+const V3_CATEGORIES = [
+  'Camera Movement',
+  'Lighting',
+  'Lens & Optics',
+  'Locations',
+  'Color Grading',
+  'Composition',
+  'Mood & Atmosphere',
+  'VFX & Transitions',
+  'Posters',
+  'Logos',
+];
 
-describe('createPresetsInstance (pure factory)', () => {
-  it('builds 6 categories and 8 prompts from injected seed ids', async () => {
-    const { createPresetsInstance, SEED_PROMPT_DEFS, SEED_CATEGORIES } = await import(
-      '../src/lib/presets.js'
-    );
-    expect(SEED_PROMPT_DEFS).toHaveLength(8);
-    expect(SEED_CATEGORIES).toHaveLength(6);
-    const instance = createPresetsInstance({
-      categoryIds: Array.from(SEED_CATEGORIES, (_, i) => `cat-${i}`),
-      promptIds: Array.from(SEED_PROMPT_DEFS, (_, i) => `p-${i}`),
-    });
-    expect(instance.categories.map((c) => c.name)).toEqual(SEED_CATEGORY_NAMES);
-    expect(instance.prompts.map((p) => p.title)).toEqual(SEED_TITLES);
-    expect(instance.categories.map((c) => c.id)).toEqual(
-      SEED_CATEGORIES.map((_, i) => `cat-${i}`),
-    );
+const v3Prompts = SEED_PROMPT_DEFS.filter((p) => p.since === 3);
+
+describe('seed data', () => {
+  it('keeps the v2 originals first and adds the v3 cinematic pack', () => {
+    expect(PRESETS_VERSION).toBe(3);
+    expect(SEED_CATEGORIES.map((c) => c.name)).toEqual([...V2_CATEGORIES, ...V3_CATEGORIES]);
+    expect(SEED_PROMPT_DEFS.slice(0, 8).map((p) => p.title)).toEqual(V2_TITLES);
+    expect(v3Prompts.length).toBeGreaterThanOrEqual(40);
   });
 
-  it('every preset prompt references a valid category id and is fully normalized', async () => {
-    const { createPresetsInstance, SEED_PROMPT_DEFS, SEED_CATEGORIES } = await import(
-      '../src/lib/presets.js'
-    );
-    const instance = createPresetsInstance({
-      categoryIds: Array.from(SEED_CATEGORIES, (_, i) => `cat-${i}`),
-      promptIds: Array.from(SEED_PROMPT_DEFS, (_, i) => `p-${i}`),
-    });
-    const catIds = new Set(instance.categories.map((c) => c.id));
-    for (const p of instance.prompts) {
-      expect(p.id).toBeTruthy();
-      expect(p.text.length).toBeGreaterThan(0);
-      expect(catIds.has(/** @type {string} */ (p.categoryId))).toBe(true);
+  it('every v3 category has at least 3 prompts', () => {
+    for (const name of V3_CATEGORIES) {
+      expect(v3Prompts.filter((p) => p.category === name).length).toBeGreaterThanOrEqual(3);
     }
   });
 
-  it('category colors match SPEC §1 palette', async () => {
-    const { SEED_CATEGORIES } = await import('../src/lib/presets.js');
-    const colors = SEED_CATEGORIES.map((c) => c.color);
-    expect(colors).toEqual(
-      expect.arrayContaining([
-        '#8b5cf6',
-        '#10b981',
-        '#f59e0b',
-        '#ec4899',
-        '#6366f1',
-        '#06b6d4',
-      ]),
-    );
+  it('every prompt names a seed category, has a unique title and a fill-in variable', () => {
+    const names = new Set(SEED_CATEGORIES.map((c) => c.name));
+    const titles = new Set();
+    for (const p of SEED_PROMPT_DEFS) {
+      expect(names.has(p.category)).toBe(true);
+      expect(titles.has(p.title)).toBe(false);
+      titles.add(p.title);
+      expect(extractVariables(p.text).length).toBeGreaterThan(0);
+    }
   });
 
-  it('category icons match SPEC §1 emoji set', async () => {
-    const { SEED_CATEGORIES } = await import('../src/lib/presets.js');
-    expect(SEED_CATEGORIES.map((c) => c.icon)).toEqual([
-      '👤',
-      '🏔️',
-      '📦',
-      '🎨',
-      '✨',
-      '🎬',
-    ]);
+  it('category colors and icons are selectable in the category editor pickers', () => {
+    for (const c of SEED_CATEGORIES) {
+      expect(CATEGORY_COLORS).toContain(c.color);
+      expect(CATEGORY_EMOJIS).toContain(c.icon);
+    }
   });
 });
 
-describe('seedPresets (idempotent via presetsInitialized/presetsVersion)', () => {
+describe('createPresetsInstance (pure factory)', () => {
+  it('uses injected ids, orders categories, and links every prompt to its category', () => {
+    const instance = createPresetsInstance({
+      categoryIds: SEED_CATEGORIES.map((_, i) => `cat-${i}`),
+      promptIds: SEED_PROMPT_DEFS.map((_, i) => `p-${i}`),
+    });
+    expect(instance.categories.map((c) => c.id)).toEqual(SEED_CATEGORIES.map((_, i) => `cat-${i}`));
+    expect(instance.categories.map((c) => c.order)).toEqual(SEED_CATEGORIES.map((_, i) => i));
+    expect(instance.prompts).toHaveLength(SEED_PROMPT_DEFS.length);
+    const byId = new Map(instance.categories.map((c) => [c.id, c.name]));
+    instance.prompts.forEach((p, i) => {
+      expect(p.id).toBe(`p-${i}`);
+      expect(byId.get(/** @type {string} */ (p.categoryId))).toBe(SEED_PROMPT_DEFS[i].category);
+    });
+  });
+});
+
+describe('seedPresets', () => {
   /** @type {ReturnType<typeof mockStorageArea>} */
-  let storageMock;
-
+  let store;
   beforeEach(() => {
-    storageMock = mockStorageArea();
+    store = mockStorageArea();
   });
 
-  it('seeds empty storage once: 8 prompts + 6 categories, flags set', async () => {
-    const { seedPresets, PRESETS_VERSION } = await import('../src/lib/presets.js');
-    await seedPresets(storageMock);
-    const data = await storageMock.get([
-      'prompts',
-      'categories',
-      'presetsInitialized',
-      'presetsVersion',
-    ]);
-    /** @type {Prompt[]} */
-    const prompts = /** @type {Prompt[]} */ (data.prompts);
-    /** @type {Array<import('../src/lib/storage.js').Category>} */
-    const categories = /** @type {Array<import('../src/lib/storage.js').Category>} */ (
-      data.categories
-    );
-    expect(prompts).toHaveLength(8);
-    expect(categories).toHaveLength(6);
-    expect(data.presetsInitialized).toBe(true);
-    expect(data.presetsVersion).toBe(PRESETS_VERSION);
-  });
-
-  it('is idempotent — second seed does not append duplicates', async () => {
-    const { seedPresets } = await import('../src/lib/presets.js');
-    await seedPresets(storageMock);
-    const first = await storageMock.get(['prompts', 'categories']);
-    await seedPresets(storageMock);
-    const second = await storageMock.get(['prompts', 'categories']);
-    expect(second).toEqual(first);
-    /** @type {Prompt[]} */
-    const prompts = /** @type {Prompt[]} */ (second.prompts);
-    /** @type {Array<import('../src/lib/storage.js').Category>} */
-    const categories = /** @type {Array<import('../src/lib/storage.js').Category>} */ (
-      second.categories
-    );
-    expect(prompts).toHaveLength(8);
-    expect(categories).toHaveLength(6);
-  });
-
-  it('v1→v2 repair-merge: adds missing presets, dedupes existing ones', async () => {
-    const { seedPresets, PRESETS_VERSION } = await import('../src/lib/presets.js');
-    // Simulate a v1 install: one prompt seeded, then the user lost the other 7.
-    /** @type {Prompt} */
-    const legacy = {
-      id: 'legacy-p1',
-      title: SEED_TITLES[0],
-      text: 'legacy text with same title signature',
-      createdAt: 1,
-      useCount: 3,
-      isFavorite: false,
-      categoryId: 'legacy-cat',
-      tags: [],
-      aspectRatio: null,
-      quality: null,
-      lastUsedAt: null,
+  /** @returns {Promise<{ prompts: Prompt[], categories: Category[], version: unknown }>} */
+  const read = async () => {
+    const d = await store.get(['prompts', 'categories', 'presetsVersion']);
+    return {
+      prompts: /** @type {Prompt[]} */ (d.prompts),
+      categories: /** @type {Category[]} */ (d.categories),
+      version: d.presetsVersion,
     };
-    await storageMock.set({
-      prompts: [legacy],
+  };
+
+  it('fresh install seeds everything and sets the flags', async () => {
+    await seedPresets(store);
+    const { prompts, categories, version } = await read();
+    expect(prompts).toHaveLength(SEED_PROMPT_DEFS.length);
+    expect(categories).toHaveLength(SEED_CATEGORIES.length);
+    expect(version).toBe(PRESETS_VERSION);
+    expect((await store.get(['presetsInitialized'])).presetsInitialized).toBe(true);
+  });
+
+  it('is idempotent', async () => {
+    await seedPresets(store);
+    const first = await read();
+    await seedPresets(store);
+    expect(await read()).toEqual(first);
+  });
+
+  it('leaves user data alone at the current version', async () => {
+    await seedPresets(store);
+    const { prompts } = await read();
+    await store.set({ prompts: [...prompts, prompt({ id: 'u1', title: 'User Custom' })] });
+    await seedPresets(store);
+    expect((await read()).prompts).toHaveLength(SEED_PROMPT_DEFS.length + 1);
+  });
+
+  it('v2 → v3 adds only the cinematic pack; deleted starters stay deleted', async () => {
+    // A v2 user who deleted "Watercolor Style" and the "Abstract" category.
+    const v2Cats = V2_CATEGORIES.filter((n) => n !== 'Abstract').map((name, order) => ({
+      id: `old-${name}`,
+      name,
+      color: '#000000',
+      icon: '•',
+      order,
+    }));
+    const v2Prompts = V2_TITLES.filter((t) => t !== 'Watercolor Style').map((title, i) =>
+      prompt({ id: `old-p${i}`, title, useCount: 5 }),
+    );
+    await store.set({
+      prompts: v2Prompts,
+      categories: v2Cats,
+      presetsInitialized: true,
+      presetsVersion: 2,
+    });
+
+    await seedPresets(store);
+    const { prompts, categories, version } = await read();
+
+    expect(version).toBe(3);
+    expect(categories.map((c) => c.name)).toEqual([...v2Cats.map((c) => c.name), ...V3_CATEGORIES]);
+    expect(categories.some((c) => c.name === 'Abstract')).toBe(false);
+    expect(prompts.some((p) => p.title === 'Watercolor Style')).toBe(false);
+    expect(prompts).toHaveLength(v2Prompts.length + v3Prompts.length);
+    // existing prompts untouched
+    expect(prompts.slice(0, v2Prompts.length)).toEqual(v2Prompts);
+    // new categories ordered after the user's, every new prompt linked to a real category
+    expect(categories.slice(v2Cats.length).map((c) => c.order)).toEqual(
+      V3_CATEGORIES.map((_, i) => v2Cats.length + i),
+    );
+    const ids = new Set(categories.map((c) => c.id));
+    for (const p of prompts.slice(v2Prompts.length))
+      expect(ids.has(/** @type {string} */ (p.categoryId))).toBe(true);
+  });
+
+  it('joins new prompts to a same-named category the user already has', async () => {
+    const mine = { id: 'my-lighting', name: 'lighting', color: '#111111', icon: '🔦', order: 0 };
+    await store.set({
+      prompts: [],
+      categories: [mine],
+      presetsInitialized: true,
+      presetsVersion: 2,
+    });
+    await seedPresets(store);
+    const { prompts, categories } = await read();
+    expect(categories.filter((c) => c.name.toLowerCase() === 'lighting')).toEqual([mine]);
+    const lighting = SEED_PROMPT_DEFS.filter((p) => p.category === 'Lighting').map((p) => p.title);
+    for (const p of prompts.filter((x) => lighting.includes(x.title)))
+      expect(p.categoryId).toBe('my-lighting');
+  });
+
+  it('v1 → v3 repair adds every starter, deduping by title', async () => {
+    await store.set({
+      prompts: [prompt({ id: 'legacy', title: V2_TITLES[0], useCount: 3 })],
       categories: [],
       presetsInitialized: true,
       presetsVersion: 1,
     });
-    await seedPresets(storageMock);
-    const data = await storageMock.get(['prompts', 'categories', 'presetsVersion']);
-    expect(data.presetsVersion).toBe(PRESETS_VERSION);
-    /** @type {Prompt[]} */
-    const prompts = /** @type {Prompt[]} */ (data.prompts);
-    /** @type {Array<import('../src/lib/storage.js').Category>} */
-    const categories = /** @type {Array<import('../src/lib/storage.js').Category>} */ (
-      data.categories
-    );
-    expect(prompts).toHaveLength(8);
-    expect(prompts.map((p) => p.title)).toEqual(
-      expect.arrayContaining(SEED_TITLES),
-    );
-    expect(categories.map((c) => c.name)).toEqual(SEED_CATEGORY_NAMES);
-  });
-
-  it('does not touch user prompts when already initialized at current version', async () => {
-    const { seedPresets, PRESETS_VERSION } = await import('../src/lib/presets.js');
-    await seedPresets(storageMock);
-    const afterSeed = await storageMock.get(['prompts']);
-    /** @type {Prompt[]} */
-    const seededPrompts = /** @type {Prompt[]} */ (afterSeed.prompts);
-    await storageMock.set({
-      prompts: [
-        ...seededPrompts,
-        {
-          id: 'user-1',
-          title: 'User Custom',
-          text: 'user text',
-          createdAt: 1,
-          useCount: 0,
-          isFavorite: false,
-          categoryId: null,
-          tags: [],
-          aspectRatio: null,
-          quality: null,
-          lastUsedAt: null,
-        },
-      ],
-      presetsVersion: PRESETS_VERSION,
-      presetsInitialized: true,
-    });
-    await seedPresets(storageMock);
-    const { prompts: userPrompts } = await storageMock.get(['prompts']);
-    /** @type {Prompt[]} */
-    const prompts = /** @type {Prompt[]} */ (userPrompts);
-    expect(prompts).toHaveLength(9);
-    expect(prompts.some((p) => p.title === 'User Custom')).toBe(true);
+    await seedPresets(store);
+    const { prompts, categories } = await read();
+    expect(prompts).toHaveLength(SEED_PROMPT_DEFS.length);
+    expect(prompts[0]).toMatchObject({ id: 'legacy', useCount: 3 });
+    expect(categories.map((c) => c.name)).toEqual([...V2_CATEGORIES, ...V3_CATEGORIES]);
   });
 });
 
-/** ---- mock storage.local (structuredClone deep-copy, Chrome-like) ---- */
-
 /**
- * @typedef {object} MockArea
- * @property {(keys: string | string[] | null) => Promise<Record<string, unknown>>} get
- * @property {(patch: Record<string, unknown>) => Promise<void>} set
- * @property {() => Record<string, unknown>} _dump
+ * @param {Partial<Prompt>} o
+ * @returns {Prompt}
  */
+function prompt(o) {
+  return {
+    id: 'p',
+    title: 'T',
+    text: 'x',
+    createdAt: 1,
+    useCount: 0,
+    isFavorite: false,
+    categoryId: null,
+    tags: [],
+    aspectRatio: null,
+    quality: null,
+    lastUsedAt: null,
+    ...o,
+  };
+}
 
-/**
- * @returns {MockArea}
- */
+/** Mock storage.local (structuredClone deep-copy, Chrome-like). */
 function mockStorageArea() {
   /** @type {Map<string, unknown>} */
   const data = new Map();
   return {
+    /** @param {string | string[] | null} keys */
     async get(keys) {
       /** @type {Record<string, unknown>} */
       const out = {};
-      /** @type {string[]} */
       const list = Array.isArray(keys) ? keys : keys == null ? [...data.keys()] : [keys];
       for (const k of list) {
         const value = data.get(k);
@@ -232,9 +244,9 @@ function mockStorageArea() {
       }
       return out;
     },
+    /** @param {Record<string, unknown>} patch */
     async set(patch) {
       for (const [k, v] of Object.entries(patch)) data.set(k, structuredClone(v));
     },
-    _dump: () => Object.fromEntries(data),
   };
 }

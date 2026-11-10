@@ -37,11 +37,11 @@ const prompt = (overrides) => ({
 });
 
 describe('popup constants', () => {
-  it('exposes 18 category colors and 24 category emojis per SPEC §1', () => {
+  it('exposes 18 category colors and 36 category emojis (SPEC §1 + cinematic pack)', () => {
     expect(CATEGORY_COLORS).toHaveLength(18);
-    expect(CATEGORY_EMOJIS).toHaveLength(24);
+    expect(CATEGORY_EMOJIS).toHaveLength(36);
     expect(new Set(CATEGORY_COLORS).size).toBe(18);
-    expect(new Set(CATEGORY_EMOJIS).size).toBe(24);
+    expect(new Set(CATEGORY_EMOJIS).size).toBe(36);
   });
 
   it('exposes the four SPEC sorts', () => {

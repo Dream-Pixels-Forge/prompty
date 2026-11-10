@@ -1,6 +1,6 @@
 {
   "name": "prompty",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Save, organize, and paste prompts on any site",
@@ -8,7 +8,8 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "package": "node scripts/build.mjs && node scripts/package.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

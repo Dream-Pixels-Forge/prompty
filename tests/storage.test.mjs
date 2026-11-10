@@ -252,3 +252,22 @@ describe('appendSnippet (snippets[] helpers)', () => {
     expect(original).toEqual(copy);
   });
 });
+
+describe('mergeSettings — quick trigger (G1 keys used by the content script)', () => {
+  it('defaults to "!" enabled and keeps valid single characters', () => {
+    expect(DEFAULT_SETTINGS.quickTrigger).toBe('!');
+    expect(DEFAULT_SETTINGS.quickTriggerEnabled).toBe(true);
+    const s = mergeSettings(DEFAULT_SETTINGS, { quickTrigger: '/', quickTriggerEnabled: false });
+    expect(s.quickTrigger).toBe('/');
+    expect(s.quickTriggerEnabled).toBe(false);
+  });
+  it('rejects multi-character, empty and whitespace triggers', () => {
+    for (const bad of ['//', '', ' ', 3]) {
+      expect(mergeSettings(DEFAULT_SETTINGS, { quickTrigger: bad }).quickTrigger).toBe('!');
+    }
+  });
+  it('preserves quick-trigger keys across unrelated updates', () => {
+    const base = mergeSettings(DEFAULT_SETTINGS, { quickTrigger: ';' });
+    expect(mergeSettings(base, { compactMode: true }).quickTrigger).toBe(';');
+  });
+});

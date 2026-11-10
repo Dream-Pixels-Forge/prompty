@@ -2,7 +2,7 @@
 
 - Project: prompty
 - Started: 2026-11-05
-- Current Phase: v0.2 complete → v0.3 wave ready
+- Current Phase: v0.3 in progress — G2 command palette landed
 
 ## Phase completion
 - [x] REA analysis of upstream artifact (ev_84b4661a…) + behavior spec ses_e568a18b…
@@ -42,6 +42,26 @@
 | Variable fill-in form in palette | G1 | ✅ |
 | Shared `src/lib/search.js` (reusable by G2) | G1 | ✅ |
 | Settings: `quickTrigger`, `quickTriggerEnabled`, `siteRecipes[]`, `enabledRecipes[]` | G1/G3 | ✅ |
+
+### Audit findings (2026-11-09) — gaps behind earlier ✅ marks
+- **Popup UI was never built**: #2/#8 shipped only `popup/logic.js`; `popup.js`/`index.html` were stubs.
+  ✅ Now built (see v0.3 progress): library grid, editor, categories, snippets, settings, recipe editor.
+- **Settings keys `quickTrigger`/`quickTriggerEnabled` were not whitelisted** (any settings write reset
+  them) and **custom recipes had no path to the content script** (it reads top-level `siteRecipes`).
+  ✅ Whitelisted; popup mirrors enabled user recipes to `siteRecipes` on every settings save.
+- **background.js imports were commented out** (unclosed `/**` header): every background message,
+  command and `mergeSettings` call threw `ReferenceError`. Fixed; ESLint `no-undef` now guards the file.
+- **Seed presets never ran** (`seedPresets()` had no caller). Background now seeds on every start (idempotent).
+- **Context-menu "Save Selection" has no `onClicked` listener**, and save-selection only records a
+  snippet, never a prompt. Open.
+
+### v0.3 progress
+| Goal | Status |
+|------|--------|
+| G2 Ctrl+K command palette (`src/popup/palette.js` + `palette-ui.js` overlay) | ✅ prompts/snippets/commands ranked; insert/append/copy/promote keyboard-only; variable fill-in; jump-to-category/compact/widget/export commands |
+| Brand + mascot | ✅ Dream Pixels Forge palette (black/white, orange #FF6A00 sampled from the icon); mascot icon at 16/32/48/128 with transparent corners; mascot in popup header |
+| Seed v3 cinematic pack | ✅ +10 categories, +44 prompts; upgrades add only what a newer seed version introduced (deleted starters stay deleted), join prompts to existing categories by name, never duplicate a category |
+| Popup screens (SPEC §1 parity) | ✅ 780×580 shell; sidebar views + categories CRUD/reorder (18 colors × 24 emoji); cards with favorite, ⚡vars, chips, stats, insert/append/copy/edit/delete (10s undo); search (`/`), sort; prompt editor; variable fill-in modal; snippets tab; settings (general, quick insert, disabled sites, recipes, import/export); live sync; light/dark |
 
 ### Next wave: v0.3 "Differentiators" (ROADMAP.md)
 Priority order per ROADMAP:

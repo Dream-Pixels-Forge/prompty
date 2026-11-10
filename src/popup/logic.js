@@ -52,7 +52,7 @@ export const CATEGORY_COLORS = [
   '#64748b',
 ];
 
-/** 24 category emoji options (SPEC §1 picker size). */
+/** 36 category emoji options (SPEC §1's 24 + 12 film-craft icons for the v3 cinematic pack). */
 export const CATEGORY_EMOJIS = [
   '👤',
   '🏔️',
@@ -78,6 +78,18 @@ export const CATEGORY_EMOJIS = [
   '🪞',
   '🎯',
   '🧩',
+  '🎥',
+  '🔭',
+  '📍',
+  '🎞️',
+  '📐',
+  '🌫️',
+  '✒️',
+  '🌀',
+  '📷',
+  '🎭',
+  '🏙️',
+  '🔦',
 ];
 
 /* ------------------------------------------------------------------ */

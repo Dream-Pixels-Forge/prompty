@@ -1,5 +1,12 @@
 ## Goal: S3 — A toolbar glyph that reads at 16 and 32 px
 
+> **Status: done.** Notes from the PR:
+>
+> - Playwright is not a project dependency, so `scripts/icons.mjs` is a local dev tool and the PNGs
+>   are committed. Byte-identical regeneration was checked locally (sha1), not in CI.
+> - `tests/icons.test.mjs` decodes the PNGs (sizes, transparent corners, key glyph pixels), checks
+>   the manifest maps and the glyph's colors/contrast.
+
 ### Objective
 
 Ship pixel-aligned 16 px and 32 px icons drawn as a simplified glyph of the mascot (dark rounded
@@ -14,20 +21,20 @@ rounded square nearly disappears. Toolbar size is where the icon is seen most.
 
 ### Deliverables
 
-- [ ] `src/icons/glyph.svg` — source glyph on a 16-unit grid: rounded screen silhouette, two eye dots,
+- [x] `src/icons/glyph.svg` — source glyph on a 16-unit grid: rounded screen silhouette, two eye dots,
       orange `#FF6A00` cursor at top-right; strokes on whole pixels.
-- [ ] `scripts/icons.mjs` — rasterizes `glyph.svg` to `icon-16.png` / `icon-32.png` with headless
+- [x] `scripts/icons.mjs` — rasterizes `glyph.svg` to `icon-16.png` / `icon-32.png` with headless
       Chromium (already available to tests) — reproducible, no new dependency.
-- [ ] Optional designer override: if `src/icons/icon-16.override.png` exists, it wins (lets the
+- [x] Optional designer override: if `src/icons/icon-16.override.png` exists, it wins (lets the
       brand team hand-tune pixels).
-- [ ] `action.default_icon` keeps 16/32 glyph + 48/128 mascot (manifest already lists all four).
+- [x] `action.default_icon` keeps 16/32 glyph + 48/128 mascot (manifest already lists all four).
 
 ### Definition of Done
 
-- [ ] Preview sheet (light toolbar `#F1F3F4`, dark toolbar `#202124`, 1× and 2×) attached to the PR;
+- [x] Preview sheet (light toolbar `#F1F3F4`, dark toolbar `#202124`, 1× and 2×) attached to the PR;
       glyph identifiable in all four.
-- [ ] Glyph-to-toolbar contrast ≥ 3:1 on both toolbars (outline/bezel provides the edge on dark).
-- [ ] Gates green; both linters accept the icons.
+- [x] Glyph-to-toolbar contrast ≥ 3:1 on both toolbars (outline/bezel provides the edge on dark).
+- [x] Gates green; both linters accept the icons.
 
 ### Verification Steps
 

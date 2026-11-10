@@ -3,6 +3,7 @@
  * prompt grid with insert/append/copy/edit/delete/favorite, snippets tab,
  * settings, and the Ctrl/Cmd+K command palette (G2).
  */
+import { localizeDom, t, tn, uiLanguage } from '../lib/i18n.js';
 import { extractVariables } from '../lib/variables.js';
 import { copyText, usePrompt } from './actions.js';
 import {
@@ -67,6 +68,8 @@ import { buildPack, packFileName } from '../lib/pack.js';
 
 /** @param {string} id */
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
+localizeDom(document); // G8b: static strings in index.html
+document.documentElement.lang = uiLanguage().split('-')[0];
 const navEl = $('nav');
 const navBottomEl = $('nav-bottom');
 const categoriesEl = $('categories');
@@ -82,12 +85,12 @@ const route = {
 };
 
 const NAV = /** @type {const} */ ([
-  ['all', '◎', 'All prompts'],
-  ['favorites', '★', 'Favorites'],
-  ['recent', '↺', 'Recently used'],
-  ['snippets', '⧉', 'Snippets'],
-  ['compose', '✦', 'Compose'],
-  ['insights', '▥', 'Insights'],
+  ['all', '◎', t('navAll')],
+  ['favorites', '★', t('navFavorites')],
+  ['recent', '↺', t('navRecent')],
+  ['snippets', '⧉', t('navSnippets')],
+  ['compose', '✦', t('navCompose')],
+  ['insights', '▥', t('navInsights')],
 ]);
 
 /**
@@ -144,12 +147,12 @@ function renderSidebar() {
       ),
     ),
   );
-  mount(navBottomEl, navButton('settings', '⚙', 'Settings'));
+  mount(navBottomEl, navButton('settings', '⚙', t('navSettings')));
 
   const cats = orderedCategories(state.categories);
   mount(
     categoriesEl,
-    cats.length === 0 ? h('p', { class: 'nav__empty' }, 'No categories yet') : null,
+    cats.length === 0 ? h('p', { class: 'nav__empty' }, t('noCategoriesYet')) : null,
     cats.map((cat) =>
       h(
         'div',
@@ -200,8 +203,13 @@ function renderSidebar() {
         h(
           'span',
           { class: 'nav__tools' },
-          iconButton('✎', `Edit ${cat.name}`, () => void editCategory(cat)),
-          iconButton('✕', `Delete ${cat.name}`, () => void removeCategory(cat), 'icon-btn--danger'),
+          iconButton('✎', t('editNamed', cat.name), () => void editCategory(cat)),
+          iconButton(
+            '✕',
+            t('deleteNamed', cat.name),
+            () => void removeCategory(cat),
+            'icon-btn--danger',
+          ),
         ),
       ),
     ),
@@ -293,11 +301,9 @@ async function editCategory(cat) {
 async function removeCategory(cat) {
   const count = state.prompts.filter((p) => p.categoryId === cat.id).length;
   const ok = await confirmDialog(
-    `Delete “${cat.name}”?`,
-    count > 0
-      ? `Its ${count} prompt${count === 1 ? '' : 's'} will stay in your library, uncategorized.`
-      : 'This category is empty.',
-    { confirmLabel: 'Delete', danger: true },
+    t('deleteCategoryTitle', cat.name),
+    count > 0 ? tn('deleteCategoryKeeps', count) : t('categoryEmpty'),
+    { confirmLabel: t('delete'), danger: true },
   );
   if (!ok) return;
   await save(deleteCategory({ prompts: state.prompts, categories: state.categories }, cat.id));
@@ -329,24 +335,24 @@ function renderLibrary() {
   const heading =
     route.view === 'category' && category
       ? `${category.icon} ${category.name}`
-      : (NAV.find(([v]) => v === route.view)?.[2] ?? 'All prompts');
+      : (NAV.find(([v]) => v === route.view)?.[2] ?? t('navAll'));
 
   const header = h(
     'div',
     { class: 'view__head' },
     h('h1', { class: 'view__title' }, heading),
-    h('span', { class: 'muted' }, `${prompts.length} prompt${prompts.length === 1 ? '' : 's'}`),
+    h('span', { class: 'muted' }, tn('nPrompts', prompts.length)),
   );
 
   if (prompts.length === 0) {
     const query = searchEl.value.trim();
     const message = query
-      ? `Nothing matches “${query}”.`
+      ? t('nothingMatches', query)
       : route.view === 'favorites'
-        ? 'Star a prompt to pin it here.'
+        ? t('emptyFavorites')
         : route.view === 'recent'
-          ? 'Prompts you insert or copy show up here.'
-          : 'No prompts here yet.';
+          ? t('emptyRecent')
+          : t('emptyView');
     mount(
       viewEl,
       header,
@@ -359,7 +365,7 @@ function renderLibrary() {
           : h(
               'button',
               { class: 'btn btn--primary', type: 'button', on: { click: () => void newPrompt() } },
-              '+ New prompt',
+              t('newPromptButton'),
             ),
       ),
     );
@@ -388,7 +394,7 @@ function card(prompt) {
       class: `card${selected ? ' card--selected' : ''}`,
       tabindex: '0',
       draggable: 'true',
-      'aria-label': prompt.title || 'Untitled',
+      'aria-label': prompt.title || t('untitled'),
       dataset: { id: prompt.id },
       on: {
         // Ctrl/Cmd-click toggles, Shift-click extends — on the card body, not its buttons.
@@ -417,7 +423,7 @@ function card(prompt) {
           {
             type: 'button',
             class: 'card__eyebrow',
-            title: `Open ${category.name}`,
+            title: t('openNamed', category.name),
             on: { click: () => go('category', category.id) },
           },
           h('span', { class: 'dot', style: { background: category.color }, 'aria-hidden': 'true' }),
@@ -431,8 +437,8 @@ function card(prompt) {
         type: 'checkbox',
         class: 'card__check',
         checked: selected,
-        'aria-label': `Select ${prompt.title || 'Untitled'}`,
-        title: 'Select (Space) · Shift-click for a range',
+        'aria-label': t('selectNamed', prompt.title || t('untitled')),
+        title: t('selectHint'),
         on: {
           click: (e) => {
             e.stopPropagation();
@@ -442,16 +448,16 @@ function card(prompt) {
           },
         },
       }),
-      prompt.createdAt > state.newSince ? h('span', { class: 'chip-new' }, 'New') : null,
-      h('h2', { class: 'card__title', title: prompt.title }, prompt.title || 'Untitled'),
+      prompt.createdAt > state.newSince ? h('span', { class: 'chip-new' }, t('newChip')) : null,
+      h('h2', { class: 'card__title', title: prompt.title }, prompt.title || t('untitled')),
       h(
         'button',
         {
           type: 'button',
           class: `star${prompt.isFavorite ? ' star--on' : ''}`,
           'aria-pressed': String(prompt.isFavorite),
-          'aria-label': prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites',
-          title: prompt.isFavorite ? 'Unfavorite' : 'Favorite',
+          'aria-label': prompt.isFavorite ? t('removeFromFavorites') : t('addToFavorites'),
+          title: prompt.isFavorite ? t('unfavorite') : t('favorite'),
           on: { click: () => void save({ prompts: toggleFavorite(state.prompts, prompt.id) }) },
         },
         prompt.isFavorite ? '★' : '☆',
@@ -461,12 +467,12 @@ function card(prompt) {
     h(
       'div',
       { class: 'card__meta' },
-      vars > 0 ? h('span', { class: 'badge' }, `⚡ ${vars} var${vars === 1 ? '' : 's'}`) : null,
+      vars > 0 ? h('span', { class: 'badge' }, `⚡ ${tn('nVars', vars)}`) : null,
       chipsFor(prompt.tags).map((tag) => h('span', { class: 'chip' }, tag)),
       h(
         'span',
         { class: 'card__stats' },
-        `${prompt.useCount} use${prompt.useCount === 1 ? '' : 's'} · ${relativeTime(prompt.lastUsedAt ?? prompt.createdAt)}`,
+        `${tn('nUses', prompt.useCount)} · ${relativeTime(prompt.lastUsedAt ?? prompt.createdAt)}`,
       ),
     ),
     h(
@@ -479,7 +485,7 @@ function card(prompt) {
           type: 'button',
           on: { click: () => void usePrompt(prompt, 'insert') },
         },
-        'Insert',
+        t('insert'),
       ),
       h(
         'button',
@@ -488,7 +494,7 @@ function card(prompt) {
           type: 'button',
           on: { click: () => void usePrompt(prompt, 'append') },
         },
-        'Append',
+        t('append'),
       ),
       h(
         'button',
@@ -497,26 +503,26 @@ function card(prompt) {
           type: 'button',
           on: { click: () => void usePrompt(prompt, 'copy') },
         },
-        'Copy',
+        t('copy'),
       ),
       h('span', { class: 'spacer' }),
       prompt.versions?.length
         ? iconButton(
             '🕘',
-            `History of ${prompt.title} (${prompt.versions.length})`,
+            t('historyOf', prompt.title, prompt.versions.length),
             () => void showHistory(prompt.id),
           )
         : null,
       prompt.composition
-        ? iconButton('🎛', `Open ${prompt.title} in Composer`, () => {
+        ? iconButton('🎛', t('openInComposer', prompt.title), () => {
             openComposition(/** @type {any} */ (prompt.composition), prompt.title);
             go('compose');
           })
         : null,
-      iconButton('✎', `Edit ${prompt.title}`, () => void editPrompt(prompt)),
+      iconButton('✎', t('editNamed', prompt.title), () => void editPrompt(prompt)),
       iconButton(
         '🗑',
-        `Delete ${prompt.title}`,
+        t('deleteNamed', prompt.title),
         () => void deletePrompt(prompt),
         'icon-btn--danger',
       ),
@@ -537,7 +543,7 @@ export async function newPrompt(initial = {}) {
   // A new prompt has no history, so the editor can't hand off to it here.
   if (!draft || draft === OPEN_HISTORY) return false;
   await save({ prompts: upsertPrompt(state.prompts, draft, { id: crypto.randomUUID() }) });
-  toast(`Added “${draft.title.trim()}”.`);
+  toast(t('addedNamed', draft.title.trim()));
   return true;
 }
 
@@ -551,12 +557,12 @@ async function editPrompt(prompt) {
 /** @param {string} id — G5 version history; restore is itself undoable. */
 async function showHistory(id) {
   const prompt = state.prompts.find((p) => p.id === id);
-  if (!prompt?.versions?.length) return toast('No earlier versions yet.');
+  if (!prompt?.versions?.length) return toast(t('noVersionsYet'));
   const index = await historyModal(prompt);
   if (index === null) return;
   const when = relativeTime(prompt.versions[index].editedAt);
   await save({ prompts: restoreVersion(state.prompts, id, index) });
-  toast(`Restored the version from ${when}. Your previous text is in History.`);
+  toast(t('restoredVersion', when));
 }
 
 /** @param {Prompt} prompt — immediate delete with a 10s undo (no confirm friction). */
@@ -564,8 +570,8 @@ async function deletePrompt(prompt) {
   const { prompts, removed, index } = removePrompt(state.prompts, prompt.id);
   if (!removed) return;
   await save({ prompts });
-  toast(`Deleted “${removed.title}”.`, 'info', {
-    actionLabel: 'Undo',
+  toast(t('deletedNamed', removed.title), 'info', {
+    actionLabel: t('undo'),
     ms: 10_000,
     onAction: () => void save({ prompts: restorePrompt(state.prompts, removed, index) }),
   });
@@ -621,7 +627,7 @@ async function moveTo(ids, categoryId) {
   await save({ prompts: bulkMove(state.prompts, ids, categoryId) });
   const cat = state.categories.find((c) => c.id === categoryId);
   toast(
-    `Moved ${promptsLabel(ids.length)} to ${cat ? `${cat.icon} ${cat.name}` : 'Uncategorized'}.`,
+    t('movedTo', promptsLabel(ids.length), cat ? `${cat.icon} ${cat.name}` : t('uncategorized')),
   );
 }
 
@@ -641,10 +647,10 @@ async function bulkTagDialog() {
   if (!change) return;
   await save({ prompts: bulkTag(state.prompts, ids, change.add, change.remove) });
   const parts = [
-    change.add.length ? `added ${change.add.join(', ')}` : '',
-    change.remove.length ? `removed ${change.remove.join(', ')}` : '',
+    change.add.length ? t('tagsAdded', change.add.join(', ')) : '',
+    change.remove.length ? t('tagsRemoved', change.remove.join(', ')) : '',
   ].filter(Boolean);
-  toast(`Tags ${parts.join(' · ')} on ${promptsLabel(ids.length)}.`);
+  toast(t('tagsChanged', parts.join(' · '), promptsLabel(ids.length)));
 }
 
 async function bulkDelete() {
@@ -654,8 +660,8 @@ async function bulkDelete() {
   rangeBase = [];
   selection = clearSelection();
   await save({ prompts });
-  toast(`Deleted ${promptsLabel(removed.length)}.`, 'info', {
-    actionLabel: 'Undo',
+  toast(t('deletedCount', promptsLabel(removed.length)), 'info', {
+    actionLabel: t('undo'),
     ms: 10_000,
     onAction: () => {
       selection = { ids: removed.map((r) => r.prompt.id), anchor: null };
@@ -670,14 +676,14 @@ async function sharePack() {
   if (ids.length === 0) return;
   const category =
     route.view === 'category' ? state.categories.find((c) => c.id === route.categoryId) : null;
-  const meta = await packDialog(ids.length, category ? `${category.name} kit` : '');
+  const meta = await packDialog(ids.length, category ? t('packKitName', category.name) : '');
   if (!meta) return;
   const pack = buildPack({ prompts: state.prompts, categories: state.categories }, ids, meta);
   const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
   const a = h('a', { href: URL.createObjectURL(blob), download: packFileName(pack.name) });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast(`Pack “${pack.name}” saved: ${promptsLabel(pack.prompts.length)}.`);
+  toast(t('packSaved', pack.name, promptsLabel(pack.prompts.length)));
 }
 
 /** @type {import('./insights-view.js').InsightsHost} */
@@ -836,7 +842,7 @@ function render() {
   sortEl.disabled = !isLibrary || route.view === 'recent';
   sortEl.value = state.settings.sortBy;
   searchEl.placeholder =
-    route.view === 'snippets' ? 'Search snippets…  ( / )' : 'Search title, text, tags…  ( / )';
+    route.view === 'snippets' ? t('searchSnippetsPlaceholder') : t('searchPlaceholder');
   searchEl.disabled = ['settings', 'compose', 'insights'].includes(route.view);
   if (route.view === 'snippets') renderSnippets(viewEl, searchEl.value, { newPrompt });
   else if (route.view === 'settings') renderSettings(viewEl);
@@ -924,7 +930,7 @@ load()
     const view = state.settings.defaultView;
     route.view = view === 'favorites' || view === 'recent' ? view : 'all';
   })
-  .catch(() => toast('Could not load your library.', 'error'))
+  .catch(() => toast(t('loadFailed'), 'error'))
   .finally(() => {
     render();
     watchStorage();

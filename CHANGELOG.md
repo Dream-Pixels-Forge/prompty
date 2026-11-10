@@ -5,6 +5,14 @@ before 1.0, minor versions may change stored data shapes, and every such change 
 
 ## [Unreleased]
 
+### Languages
+
+- **French** (G8b): the whole popup is translated and follows the browser's language. Prompt text
+  and the text written for models stay English.
+  - Plurals follow each language's rules.
+  - Month names come from the browser.
+  - The extension name and commands are localized in the browser's extension list.
+
 ### Security
 
 - **Vault Mode** (G10, opt-in, Settings → Vault): prompts, snippets, fill-in memory and Composer

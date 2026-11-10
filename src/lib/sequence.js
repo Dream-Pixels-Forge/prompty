@@ -392,10 +392,11 @@ export const MUSE_WORD_LIMIT = 260;
 /**
  * Warnings and tips for the current format.
  * @param {Sequence} seq
- * @returns {{ level: 'warn'|'info', text: string }[]}
+ * @returns {{ level: 'warn'|'info', text: string, key: string, args: (string|number)[] }[]}
+ *   `text` is English; `key`/`args` let the UI show it in the user's language.
  */
 export function lintSequence(seq) {
-  /** @type {{ level: 'warn'|'info', text: string }[]} */
+  /** @type {{ level: 'warn'|'info', text: string, key: string, args: (string|number)[] }[]} */
   const out = [];
   const used = timeline(seq);
   if (seq.shots.length < 2 || used.length === 0) return out;
@@ -404,39 +405,52 @@ export function lintSequence(seq) {
     if (used.length > 4)
       out.push({
         level: 'warn',
+        key: 'lintMuseShots',
+        args: [used.length],
         text: `${used.length} shots in one Muse clip: identity drifts with every cut. Keep it to 4, or generate the shots separately.`,
       });
     const short = used.filter((u) => u.end - u.start < 2).map((u) => u.n);
     if (short.length)
       out.push({
         level: 'warn',
+        key: 'lintMuseShort',
+        args: [short.join(', ')],
         text: `Shot ${listOf(short.map(String))} under 2 s: Muse reads shots of 2 s or more clearly.`,
       });
-    const soft = used
-      .slice(0, -1)
-      .filter((u) => !MUSE_HARD.has(u.shot.cut))
-      .map((u) => cutOf(u.shot.cut).label.toLowerCase());
+    const softCuts = used.slice(0, -1).filter((u) => !MUSE_HARD.has(u.shot.cut));
+    const soft = softCuts.map((u) => cutOf(u.shot.cut).label.toLowerCase());
     if (soft.length)
       out.push({
         level: 'warn',
+        key: 'lintMuseSoft',
+        args: [[...new Set(softCuts.map((u) => u.shot.cut))].join(',')],
         text: `Muse holds hard cuts only: ${listOf([...new Set(soft)])} will be written as a hard cut.`,
       });
     const words = composeSequence(seq).text.split(/\s+/).filter(Boolean).length;
     if (words > MUSE_WORD_LIMIT)
       out.push({
         level: 'warn',
+        key: 'lintMuseWords',
+        args: [words, MUSE_WORD_LIMIT],
         text: `${words} words: above about ${MUSE_WORD_LIMIT} Muse starts dropping clauses. Trim the blocks.`,
       });
   } else if (seq.format === 'seedance') {
     out.push({
       level: 'info',
+      key: 'lintSeedanceDuration',
+      args: [duration],
       text: `Set the duration to ${duration} s on the generation page. Seedance takes it from the settings, not the prompt.`,
     });
   } else if (
     seq.format === 'one-take' &&
     used.slice(0, -1).some((u) => u.shot.cut !== 'continuous')
   ) {
-    out.push({ level: 'info', text: 'One take: the cuts between shots are ignored.' });
+    out.push({
+      level: 'info',
+      key: 'lintOneTake',
+      args: [],
+      text: 'One take: the cuts between shots are ignored.',
+    });
   }
   return out;
 }

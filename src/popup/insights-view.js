@@ -7,6 +7,7 @@
  * Every mark has a native hover title, and every row is a button, so the
  * charts double as their own table view. Metrics live in ./insights.js.
  */
+import { t, tn } from '../lib/i18n.js';
 import { barShare, computeInsights, DORMANT_DAYS } from './insights.js';
 import { h, mount } from './dom.js';
 import { relativeTime } from './logic.js';
@@ -18,7 +19,7 @@ import { state } from './store.js';
  */
 
 /** @param {number} n @param {string} one */
-const count = (n, one) => `${n.toLocaleString()} ${one}${n === 1 ? '' : 's'}`;
+const count = (n, one) => tn(one, n);
 
 /**
  * @param {HTMLElement} root
@@ -30,60 +31,70 @@ export function renderInsights(root, host) {
     categories: state.categories,
     variableMemory: state.variableMemory,
   });
-  const head = h('div', { class: 'view__head' }, h('h1', { class: 'view__title' }, '▥ Insights'));
+  const head = h(
+    'div',
+    { class: 'view__head' },
+    h('h1', { class: 'view__title' }, `▥ ${t('navInsights')}`),
+  );
   if (ins.totals.prompts === 0) {
-    mount(
-      root,
-      head,
-      h('div', { class: 'empty' }, h('p', null, 'Add a few prompts and come back.')),
-    );
+    mount(root, head, h('div', { class: 'empty' }, h('p', null, t('insEmptyLibrary'))));
     return;
   }
 
   const tiles = h(
     'div',
     { class: 'ins-tiles' },
-    tile('Prompts', ins.totals.prompts),
-    tile('Uses', ins.totals.uses),
-    tile('Favorites', ins.totals.favorites),
-    tile('Categories', ins.totals.categories),
+    tile(t('tilePrompts'), ins.totals.prompts),
+    tile(t('tileUses'), ins.totals.uses),
+    tile(t('tileFavorites'), ins.totals.favorites),
+    tile(t('tileCategories'), ins.totals.categories),
   );
 
   const maxUse = ins.topPrompts[0]?.useCount ?? 0;
   const mostUsed = panel(
-    'Most used',
+    t('insMostUsed'),
     ins.topPrompts.length
       ? barList(
           ins.topPrompts.map((p) => ({
-            label: p.title || 'Untitled',
+            label: p.title || t('untitled'),
             value: p.useCount,
             share: barShare(p.useCount, maxUse),
-            title: `${p.title}: ${count(p.useCount, 'use')}, last ${relativeTime(p.lastUsedAt ?? p.createdAt)}`,
+            title: t(
+              'insPromptTip',
+              p.title,
+              count(p.useCount, 'nUses'),
+              relativeTime(p.lastUsedAt ?? p.createdAt),
+            ),
             onClick: () => host.editPrompt(p.id),
           })),
         )
-      : h('p', { class: 'muted' }, 'Insert or copy a prompt and it shows up here.'),
+      : h('p', { class: 'muted' }, t('insNoUsesPrompts')),
   );
 
   const maxCat = ins.topCategories[0]?.uses ?? 0;
   const byCategory = panel(
-    'Uses by category',
+    t('insByCategory'),
     ins.topCategories.length
       ? barList(
           ins.topCategories.map((c) => ({
             label: `${c.icon} ${c.name}`,
             value: c.uses,
             share: barShare(c.uses, maxCat),
-            title: `${c.name}: ${count(c.uses, 'use')} across ${count(c.prompts, 'prompt')}`,
+            title: t(
+              'insCategoryTip',
+              c.name,
+              count(c.uses, 'nUses'),
+              count(c.prompts, 'nPrompts'),
+            ),
             onClick: () => host.goCategory(c.id),
           })),
         )
-      : h('p', { class: 'muted' }, 'No uses yet.'),
+      : h('p', { class: 'muted' }, t('insNoUses')),
   );
 
   const maxAdded = Math.max(0, ...ins.growth.map((m) => m.added));
   const growth = panel(
-    'Added per month',
+    t('insAddedPerMonth'),
     h(
       'div',
       { class: 'ins-cols', role: 'list' },
@@ -93,7 +104,7 @@ export function renderInsights(root, host) {
           {
             class: 'ins-col',
             role: 'listitem',
-            title: `${m.label}: ${count(m.added, 'prompt')} added`,
+            title: t('insMonthTip', m.label, count(m.added, 'nPrompts')),
           },
           h('span', { class: 'ins-col__value' }, String(m.added)),
           h(
@@ -111,19 +122,14 @@ export function renderInsights(root, host) {
   );
 
   const attention = panel(
-    'Needs a look',
+    t('insNeedsLook'),
     h(
       'div',
       { class: 'ins-attn' },
+      attentionRow(t('insNeverUsed'), t('insNeverUsedHint'), ins.neverUsed, host),
       attentionRow(
-        'Never used',
-        'Older than a week, never inserted or copied.',
-        ins.neverUsed,
-        host,
-      ),
-      attentionRow(
-        `Dormant ${DORMANT_DAYS}+ days`,
-        `Used before, but not in the last ${DORMANT_DAYS} days.`,
+        t('insDormant', DORMANT_DAYS),
+        t('insDormantHint', DORMANT_DAYS),
         ins.dormant,
         host,
       ),
@@ -131,7 +137,7 @@ export function renderInsights(root, host) {
   );
 
   const fills = panel(
-    'Recent fill-ins',
+    t('insRecentFills'),
     ins.variables.length
       ? h(
           'ul',
@@ -139,14 +145,14 @@ export function renderInsights(root, host) {
           ins.variables.map((v) =>
             h(
               'li',
-              { title: `Last used ${relativeTime(v.usedAt)}` },
+              { title: t('lastUsed', relativeTime(v.usedAt)) },
               h('code', null, `{${v.name}}`),
               ' ',
               h('span', null, v.value),
             ),
           ),
         )
-      : h('p', { class: 'muted' }, 'Values you type into {variables} appear here.'),
+      : h('p', { class: 'muted' }, t('insNoFills')),
   );
 
   mount(
@@ -220,7 +226,7 @@ function attentionRow(label, hint, prompts, host) {
             { class: 'ins-attn__sample' },
             prompts
               .slice(0, 3)
-              .map((p) => p.title || 'Untitled')
+              .map((p) => p.title || t('untitled'))
               .join(' · ') + (prompts.length > 3 ? ' …' : ''),
           )
         : null,
@@ -231,10 +237,10 @@ function attentionRow(label, hint, prompts, host) {
           {
             type: 'button',
             class: 'btn btn--sm',
-            title: 'Select them in the library, then move, tag or delete in bulk',
+            title: t('selectTheseHint'),
             on: { click: () => host.selectPrompts(prompts.map((p) => p.id)) },
           },
-          'Select these',
+          t('selectThese'),
         )
       : null,
   );

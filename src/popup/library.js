@@ -3,6 +3,7 @@
  * Prompts, categories, recipes and site lists — no DOM, no extension API.
  * Search/sort reuse ./logic.js; nothing here re-implements them.
  */
+import { t } from '../lib/i18n.js';
 import { getOrigin } from '../lib/sites.js';
 import { MAX_VERSIONS } from '../lib/storage.js';
 import { filterPrompts, sortPrompts } from './logic.js';
@@ -94,9 +95,9 @@ export function validatePromptDraft(draft) {
   /** @type {{ title?: string, text?: string }} */
   const errors = {};
   const title = String(draft.title ?? '').trim();
-  if (title === '') errors.title = 'Give the prompt a title.';
-  else if (title.length > MAX_TITLE) errors.title = `Keep the title under ${MAX_TITLE} characters.`;
-  if (String(draft.text ?? '').trim() === '') errors.text = 'The prompt text is empty.';
+  if (title === '') errors.title = t('titleRequired');
+  else if (title.length > MAX_TITLE) errors.title = t('titleTooLong', MAX_TITLE);
+  if (String(draft.text ?? '').trim() === '') errors.text = t('textRequired');
   return errors;
 }
 

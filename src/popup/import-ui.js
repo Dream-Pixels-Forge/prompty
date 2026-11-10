@@ -3,6 +3,7 @@
  * show what would happen (pack card + added/merged/skipped), import on
  * confirm with a 10 s undo. Used by Settings and by dropping a file on the popup.
  */
+import { t, tn } from '../lib/i18n.js';
 import { planMigration, readFile } from '../lib/migrate.js';
 import { h } from './dom.js';
 import { CATEGORY_COLORS } from './logic.js';
@@ -14,15 +15,25 @@ export const IMPORT_ACCEPT =
   '.prompty,.json,.csv,.tsv,.txt,.md,application/json,text/csv,text/plain,text/markdown';
 
 const FORMAT_LABEL = /** @type {Record<string, string>} */ ({
-  pack: 'Prompty pack',
-  envelope: 'Prompty / Higgsfield Prompt Saver export',
-  'json-list': 'JSON list',
+  pack: t('fmtPack'),
+  envelope: t('fmtEnvelope'),
+  'json-list': t('fmtJsonList'),
   csv: 'CSV',
-  txt: 'text / Markdown',
+  txt: t('fmtTxt'),
 });
 
 /** @param {number} n */
-const nPrompts = (n) => `${n} prompt${n === 1 ? '' : 's'}`;
+const nPrompts = (n) => tn('nPrompts', n);
+
+/** Skip reasons from lib/migrate.js → UI language. @param {string} r */
+const reasonLabel = (r) =>
+  ({
+    empty: t('skipEmpty'),
+    'too long': t('skipTooLong'),
+    'duplicate in file': t('skipDuplicateInFile'),
+    'already in library': t('skipAlreadyInLibrary'),
+    invalid: t('skipInvalid'),
+  })[r] ?? r;
 
 /**
  * G11: read a file from another tool, show what would happen, import on confirm (10 s undo).
@@ -32,7 +43,7 @@ export async function migrateFrom(file) {
   const { format, candidates, pack, error } = readFile(file.name, await file.text());
   if (error) return toast(`${file.name}: ${error}`, 'error');
   if (format === 'unknown' || candidates.length === 0)
-    return toast(`Nothing to import from ${file.name}.`, 'error');
+    return toast(t('nothingToImportFrom', file.name), 'error');
   const plan = planMigration({ prompts: state.prompts, categories: state.categories }, candidates, {
     newId: () => crypto.randomUUID(),
     colors: CATEGORY_COLORS,
@@ -52,17 +63,17 @@ export async function migrateFrom(file) {
             'ul',
             null,
             items.slice(0, 5).map((t) => h('li', null, t)),
-            items.length > 5 ? h('li', { class: 'muted' }, `…and ${items.length - 5} more`) : null,
+            items.length > 5 ? h('li', { class: 'muted' }, t('andNMore', items.length - 5)) : null,
           ),
         )
       : null;
   const nothing = added.length === 0 && merged.length === 0;
   const ok = await openModal({
     title: nothing
-      ? 'Nothing new to import'
+      ? t('nothingNew')
       : pack
-        ? `Add the “${pack.name}” pack?`
-        : `Import from ${file.name}?`,
+        ? t('addPackTitle', pack.name)
+        : t('importFromTitle', file.name),
     body: h(
       'div',
       { class: 'migrate' },
@@ -75,33 +86,30 @@ export async function migrateFrom(file) {
               'div',
               null,
               h('strong', { class: 'pack-card__name' }, pack.name),
-              pack.author ? h('span', { class: 'muted' }, ` by ${pack.author}`) : null,
+              pack.author ? h('span', { class: 'muted' }, ` ${t('byAuthor', pack.author)}`) : null,
               pack.description ? h('p', { class: 'pack-card__desc' }, pack.description) : null,
             ),
           )
         : null,
-      h(
-        'p',
-        { class: 'muted' },
-        `Read as ${FORMAT_LABEL[format]}: ${nPrompts(candidates.length)}.`,
-      ),
-      bucket('Add', added),
-      bucket('Merge tags/favorite into existing', merged),
+      h('p', { class: 'muted' }, t('readAs', FORMAT_LABEL[format], nPrompts(candidates.length))),
+      bucket(t('bucketAdd'), added),
+      bucket(t('bucketMerge'), merged),
       bucket(
-        'Skip',
-        skipped.map((s) => `${s.title} — ${s.reason}`),
+        t('bucketSkip'),
+        skipped.map((s) => `${s.title} — ${reasonLabel(s.reason)}`),
       ),
-      bucket('New categories', categoriesAdded),
+      bucket(t('bucketNewCategories'), categoriesAdded),
     ),
-    submitLabel: nothing ? 'OK' : `Import ${nPrompts(added.length)}`,
+    submitLabel: nothing ? t('ok') : t('importN', nPrompts(added.length)),
     onSubmit: () => true,
   });
   if (!ok || nothing) return;
   const before = { prompts: state.prompts, categories: state.categories };
   await save({ prompts: plan.prompts, categories: plan.categories });
   toast(
-    `Imported ${nPrompts(added.length)}${merged.length ? `, merged ${merged.length}` : ''}${skipped.length ? `, skipped ${skipped.length}` : ''}.`,
+    // Joined in code: "$1$2$3" would read as a named placeholder to browser.i18n linters.
+    `${t('importedSummary', nPrompts(added.length))}${merged.length ? t('mergedPart', merged.length) : ''}${skipped.length ? t('skippedPart', skipped.length) : ''}.`,
     'info',
-    { actionLabel: 'Undo', ms: 10_000, onAction: () => void save(before) },
+    { actionLabel: t('undo'), ms: 10_000, onAction: () => void save(before) },
   );
 }

@@ -8,6 +8,7 @@
  * to `composerDraft` so closing the popup doesn't lose it. Delivery reuses
  * the shared fill-in form and insert/copy pipeline (actions.js).
  */
+import { t, tn } from '../lib/i18n.js';
 import browser from '../lib/browser.js';
 import { secureArea } from '../lib/secure.js';
 import {
@@ -61,6 +62,23 @@ import { save, state } from './store.js';
  */
 
 const DRAFT_KEY = 'composerDraft';
+
+/** G8b: labels from lib/ (ids) shown in the UI language. */
+const slotLabel = (/** @type {string} */ id) => t(`slot_${id}`);
+const cutLabel = (/** @type {string} */ id) => t(`cut_${id}`);
+const formatLabel = (/** @type {string} */ id) => t(`format_${id.replace(/-/g, '_')}`);
+const tplName = (/** @type {{ id: string }} */ tpl) => t(`tpl_${tpl.id.replace(/-/g, '_')}`);
+/** @param {{ key: string, args: (string|number)[] }} l */
+const lintText = (l) =>
+  l.key === 'lintMuseSoft'
+    ? t(
+        l.key,
+        String(l.args[0])
+          .split(',')
+          .map((c) => cutLabel(c).toLowerCase())
+          .join(', '),
+      )
+    : t(l.key, ...l.args);
 /** G9c: origin → format the user wrote for on that site. */
 const TARGETS_KEY = 'composerTargets';
 
@@ -200,10 +218,10 @@ export function renderCompose(root) {
           {
             type: 'button',
             class: 'choice choice--seq compose__suggest',
-            title: 'Rewrite the sequence in this format',
+            title: t('rewriteInFormat'),
             on: { click: () => setFormat(suggested) },
           },
-          `On ${hostOf(site.origin)}: write for ${FORMATS.find((f) => f.id === suggested)?.label}`,
+          t('suggestFormatOn', hostOf(site.origin), formatLabel(suggested)),
         )
       : null;
   const lint = h('ul', { class: 'compose__lint', 'aria-live': 'polite' });
@@ -218,29 +236,32 @@ export function renderCompose(root) {
   const preview = h('p', {
     class: 'compose__preview',
     tabindex: '0',
-    'aria-label': 'Assembled prompt',
+    'aria-label': t('assembledPrompt'),
   });
   const stats = h('span', { class: 'muted' });
   const updatePreview = () => {
     mount(
       lint,
       lintSequence(seq()).map((l) =>
-        h('li', { class: `compose__lint--${l.level}` }, l.level === 'warn' ? '⚠ ' : 'ℹ ', l.text),
+        h(
+          'li',
+          { class: `compose__lint--${l.level}` },
+          l.level === 'warn' ? '⚠ ' : 'ℹ ',
+          lintText(l),
+        ),
       ),
     );
     const out = composeSequence(seq());
     mount(
       preview,
-      out.text
-        ? highlightVariables(out.text)
-        : h('span', { class: 'muted' }, 'Pick or write a few blocks — the shot assembles here.'),
+      out.text ? highlightVariables(out.text) : h('span', { class: 'muted' }, t('composeEmpty')),
     );
-    const vars = `${out.variables.length} variable${out.variables.length === 1 ? '' : 's'}`;
+    const vars = tn('nVariables', out.variables.length);
     if (seq().shots.length > 1) {
-      stats.textContent = `${out.used} shot${out.used === 1 ? '' : 's'} · ${out.duration}s · ${vars}`;
+      stats.textContent = `${tn('nShots', out.used)} · ${out.duration}s · ${vars}`;
     } else {
       const blocks = compose(shot().composition).used;
-      stats.textContent = `${blocks} block${blocks === 1 ? '' : 's'} · ${vars}`;
+      stats.textContent = `${tn('nBlocks', blocks)} · ${vars}`;
     }
   };
 
@@ -249,11 +270,11 @@ export function renderCompose(root) {
     h(
       'div',
       { class: 'view__head' },
-      h('h1', { class: 'view__title' }, multi ? '✦ Compose a sequence' : '✦ Compose a shot'),
+      h('h1', { class: 'view__title' }, multi ? t('composeSequenceTitle') : t('composeShotTitle')),
       h('span', { class: 'spacer' }),
       h(
         'div',
-        { class: 'seg', role: 'radiogroup', 'aria-label': 'Join blocks with' },
+        { class: 'seg', role: 'radiogroup', 'aria-label': t('joinBlocksWith') },
         JOINERS.map((j) =>
           h(
             'button',
@@ -262,7 +283,7 @@ export function renderCompose(root) {
               class: 'seg__btn',
               role: 'radio',
               'aria-checked': String(c.joiner === j),
-              title: j === ', ' ? 'Join with commas' : 'Join as sentences',
+              title: j === ', ' ? t('joinCommas') : t('joinSentences'),
               on: { click: () => setComposition({ ...c, joiner: j }) },
             },
             j === ', ' ? 'a, b' : 'A. B.',
@@ -281,14 +302,14 @@ export function renderCompose(root) {
             },
           },
         },
-        'Clear',
+        t('clear'),
       ),
     ),
     h(
       'div',
       { class: 'compose__templates' },
-      h('span', { class: 'field__label' }, 'Start from'),
-      TEMPLATES.map((t) =>
+      h('span', { class: 'field__label' }, t('startFrom')),
+      TEMPLATES.map((tpl) =>
         h(
           'button',
           {
@@ -296,36 +317,36 @@ export function renderCompose(root) {
             type: 'button',
             on: {
               click: () => {
-                const next = fromTemplate(t.id, state.prompts, newId);
+                const next = fromTemplate(tpl.id, state.prompts, newId);
                 if (!next) return;
-                suggestedTitle = t.name;
+                suggestedTitle = tplName(tpl);
                 setComposition(next);
-                toast(`“${t.name}” loaded. Edit any block.`);
+                toast(t('templateLoaded', tplName(tpl)));
               },
             },
           },
-          t.name,
+          tplName(tpl),
         ),
       ),
-      SEQUENCE_TEMPLATES.map((t) =>
+      SEQUENCE_TEMPLATES.map((tpl) =>
         h(
           'button',
           {
             class: 'choice choice--seq',
             type: 'button',
-            title: 'A whole sequence: replaces every shot',
+            title: t('sequenceTemplateHint'),
             on: {
               click: () => {
-                const next = fromSequenceTemplate(t.id, state.prompts, newId);
+                const next = fromSequenceTemplate(tpl.id, state.prompts, newId);
                 if (!next) return;
-                suggestedTitle = t.name;
+                suggestedTitle = tplName(tpl);
                 activeId = next.shots[0].id;
                 setSequence(next);
-                toast(`“${t.name}” loaded: ${next.shots.length} shots. {hero} is shared by all.`);
+                toast(t('sequenceTemplateLoaded', tplName(tpl), next.shots.length));
               },
             },
           },
-          `🎬 ${t.name}`,
+          `🎬 ${tplName(tpl)}`,
         ),
       ),
     ),
@@ -335,9 +356,7 @@ export function renderCompose(root) {
       'ol',
       {
         class: 'compose__blocks',
-        'aria-label': multi
-          ? `Shot ${sq.shots.indexOf(current) + 1} blocks, in order`
-          : 'Shot blocks, in order',
+        'aria-label': multi ? t('shotBlocksN', sq.shots.indexOf(current) + 1) : t('shotBlocks'),
       },
       c.blocks.map((b, i) => blockRow(b, i, c, updatePreview)),
     ),
@@ -348,7 +367,7 @@ export function renderCompose(root) {
         'select',
         {
           class: 'select',
-          'aria-label': 'Add a block',
+          'aria-label': t('addABlock'),
           on: {
             change: (e) => {
               const select = /** @type {HTMLSelectElement} */ (e.target);
@@ -357,8 +376,8 @@ export function renderCompose(root) {
             },
           },
         },
-        h('option', { value: '' }, '+ Add block…'),
-        SLOTS.map((s) => h('option', { value: s.id }, s.label)),
+        h('option', { value: '' }, t('addBlockOption')),
+        SLOTS.map((s) => h('option', { value: s.id }, slotLabel(s.id))),
       ),
     ),
     h(
@@ -367,12 +386,12 @@ export function renderCompose(root) {
       h(
         'div',
         { class: 'view__head' },
-        h('span', { class: 'field__label' }, multi ? 'Sequence' : 'Shot'),
+        h('span', { class: 'field__label' }, multi ? t('sequence') : t('shot')),
         multi
           ? h(
               'label',
               { class: 'shot-controls__field' },
-              h('span', null, 'Write for'),
+              h('span', null, t('writeFor')),
               h(
                 'select',
                 {
@@ -384,14 +403,14 @@ export function renderCompose(root) {
                   },
                 },
                 [
-                  ['any', 'Any model'],
-                  ['model', 'Model dialect'],
+                  ['any', t('anyModel')],
+                  ['model', t('modelDialect')],
                 ].map(([group, label]) =>
                   h(
                     'optgroup',
                     { label },
                     FORMATS.filter((f) => f.group === group).map((f) =>
-                      h('option', { value: f.id, selected: f.id === sq.format }, f.label),
+                      h('option', { value: f.id, selected: f.id === sq.format }, formatLabel(f.id)),
                     ),
                   ),
                 ),
@@ -414,12 +433,12 @@ export function renderCompose(root) {
             type: 'button',
             on: { click: () => void deliver('insert') },
           },
-          'Insert',
+          t('insert'),
         ),
         h(
           'button',
           { class: 'btn btn--sm', type: 'button', on: { click: () => void deliver('append') } },
-          'Append',
+          t('append'),
         ),
         h(
           'button',
@@ -429,12 +448,12 @@ export function renderCompose(root) {
             title: 'Ctrl+Enter',
             on: { click: () => void deliver('copy') },
           },
-          'Copy',
+          t('copy'),
         ),
         site.origin
           ? h(
               'span',
-              { class: 'compose__target', title: 'Insert and Append go to this tab' },
+              { class: 'compose__target', title: t('targetHint') },
               `→ ${hostOf(site.origin)}`,
             )
           : null,
@@ -442,7 +461,7 @@ export function renderCompose(root) {
         h(
           'button',
           { class: 'btn btn--sm', type: 'button', on: { click: () => void saveAsPrompt() } },
-          'Save as prompt',
+          t('saveAsPrompt'),
         ),
       ),
     ),
@@ -479,10 +498,10 @@ function blockRow(b, index, c, updatePreview) {
     rows: '2',
     value: b.text,
     placeholder: options.length
-      ? `Pick a ${slot.label.toLowerCase()} prompt or write your own…`
-      : `Describe the ${slot.label.toLowerCase()}…`,
+      ? t('pickSlotPrompt', slotLabel(slot.id).toLowerCase())
+      : t('describeSlot', slotLabel(slot.id).toLowerCase()),
     dataset: { focusKey: `${b.id}:text` },
-    'aria-label': `${slot.label} text`,
+    'aria-label': t('slotText', slotLabel(slot.id)),
     on: {
       input: (e) => {
         // In-place edit: update the model + preview without re-rendering (keeps typing smooth).
@@ -529,17 +548,13 @@ function blockRow(b, index, c, updatePreview) {
     h(
       'div',
       { class: 'compose__head' },
-      h(
-        'span',
-        { class: 'compose__grip', 'aria-hidden': 'true', title: 'Drag to reorder (or Alt+↑/↓)' },
-        '⋮⋮',
-      ),
+      h('span', { class: 'compose__grip', 'aria-hidden': 'true', title: t('dragToReorder') }, '⋮⋮'),
       h('span', { class: 'compose__n' }, String(index + 1)),
       h(
         'select',
         {
           class: 'compose__slot',
-          'aria-label': 'Block type',
+          'aria-label': t('blockType'),
           dataset: { focusKey: `${b.id}:slot` },
           on: {
             change: (e) =>
@@ -549,14 +564,14 @@ function blockRow(b, index, c, updatePreview) {
             keydown: onKey,
           },
         },
-        SLOTS.map((s) => h('option', { value: s.id, selected: s.id === b.slot }, s.label)),
+        SLOTS.map((s) => h('option', { value: s.id, selected: s.id === b.slot }, slotLabel(s.id))),
       ),
       options.length
         ? h(
             'select',
             {
               class: 'compose__pick',
-              'aria-label': `${slot.label} prompt`,
+              'aria-label': t('slotPrompt', slotLabel(slot.id)),
               dataset: { focusKey: `${b.id}:pick` },
               on: {
                 change: (e) => {
@@ -572,8 +587,8 @@ function blockRow(b, index, c, updatePreview) {
               'option',
               { value: '' },
               b.promptId && !options.some((p) => p.id === b.promptId)
-                ? 'Custom (source deleted)'
-                : 'Custom text',
+                ? t('customSourceDeleted')
+                : t('customText'),
             ),
             options.map((p) =>
               h('option', { value: p.id, selected: p.id === b.promptId }, p.title),
@@ -586,8 +601,10 @@ function blockRow(b, index, c, updatePreview) {
           type: 'button',
           class: 'icon-btn',
           'aria-pressed': String(b.muted),
-          title: b.muted ? 'Unmute block' : 'Mute block (keep it, leave it out of the shot)',
-          'aria-label': b.muted ? `Unmute ${slot.label}` : `Mute ${slot.label}`,
+          title: b.muted ? t('unmuteBlock') : t('muteBlockHint'),
+          'aria-label': b.muted
+            ? t('unmuteNamed', slotLabel(slot.id))
+            : t('muteNamed', slotLabel(slot.id)),
           dataset: { focusKey: `${b.id}:mute` },
           on: {
             click: () => setComposition(updateBlock(c, b.id, { muted: !b.muted })),
@@ -601,8 +618,8 @@ function blockRow(b, index, c, updatePreview) {
         {
           type: 'button',
           class: 'icon-btn icon-btn--danger',
-          title: 'Remove block',
-          'aria-label': `Remove ${slot.label} block`,
+          title: t('removeBlock'),
+          'aria-label': t('removeNamedBlock', slotLabel(slot.id)),
           on: { click: () => setComposition(removeBlock(c, b.id)) },
         },
         '✕',
@@ -637,13 +654,14 @@ function highlightVariables(text) {
  */
 export async function deliver(mode) {
   const out = composeSequence(seq());
-  if (!out.text) return toast('The shot is empty — pick or write a block first.', 'error');
+  if (!out.text) return toast(t('shotEmptyDeliver'), 'error');
   let text = out.text;
   if (out.variables.length > 0) {
     const filled = await fillVariables(
       /** @type {any} */ ({
         id: 'composer',
-        title: suggestedTitle || (seq().shots.length > 1 ? 'Composed sequence' : 'Composed shot'),
+        title:
+          suggestedTitle || (seq().shots.length > 1 ? t('composedSequence') : t('composedShot')),
         text,
       }),
       mode,
@@ -661,7 +679,7 @@ export async function deliver(mode) {
 async function saveAsPrompt() {
   const sq = seq();
   const out = composeSequence(sq);
-  if (!out.text) return toast('The shot is empty — nothing to save.', 'error');
+  if (!out.text) return toast(t('shotEmptySave'), 'error');
   const draft = await promptEditor({
     initial: {
       title: suggestedTitle,
@@ -676,7 +694,7 @@ async function saveAsPrompt() {
     p.id === id ? { ...p, composition: structuredClone(storedComposition(sq)) } : p,
   );
   await save({ prompts });
-  toast(`Saved “${draft.title.trim()}”. Reopen it here with 🎛 on its card.`);
+  toast(t('composedSaved', draft.title.trim()));
 }
 
 /* ------------------------------------------------------------------ */
@@ -703,7 +721,7 @@ function shotStrip(sq, current) {
     { class: 'shots' },
     h(
       'div',
-      { class: 'shots__list', role: 'tablist', 'aria-label': 'Shots' },
+      { class: 'shots__list', role: 'tablist', 'aria-label': t('shots') },
       sq.shots.flatMap((s, i) => [
         i > 0
           ? h(
@@ -711,7 +729,7 @@ function shotStrip(sq, current) {
               {
                 class: 'shots__cut',
                 'aria-hidden': 'true',
-                title: CUTS.find((x) => x.id === sq.shots[i - 1].cut)?.label,
+                title: cutLabel(sq.shots[i - 1].cut),
               },
               cutGlyph(sq.shots[i - 1].cut),
             )
@@ -722,14 +740,12 @@ function shotStrip(sq, current) {
             type: 'button',
             class: `shots__tab${used.has(s.id) ? '' : ' shots__tab--empty'}`,
             role: 'tab',
-            'aria-label': `Shot ${i + 1}, ${s.duration} seconds${
-              i > 0
-                ? `, after a ${(CUTS.find((x) => x.id === sq.shots[i - 1].cut)?.label ?? 'cut').toLowerCase()}`
-                : ''
-            }${used.has(s.id) ? '' : ', empty'}`,
+            'aria-label': `${t('shotTabName', i + 1, s.duration)}${
+              i > 0 ? t('shotTabAfter', cutLabel(sq.shots[i - 1].cut).toLowerCase()) : ''
+            }${used.has(s.id) ? '' : t('shotTabEmpty')}`,
             'aria-selected': String(s.id === current.id),
             tabindex: s.id === current.id ? '0' : '-1',
-            title: used.has(s.id) ? `Shot ${i + 1}` : `Shot ${i + 1} (empty — left out)`,
+            title: used.has(s.id) ? t('shotN', i + 1) : t('shotNEmpty', i + 1),
             dataset: { focusKey: `shot:${s.id}` },
             on: {
               click: () => {
@@ -765,7 +781,7 @@ function shotStrip(sq, current) {
           {
             type: 'button',
             class: 'shots__add',
-            title: 'Add an empty shot after this one',
+            title: t('addShotHint'),
             on: {
               click: () => {
                 const id = newId();
@@ -776,7 +792,7 @@ function shotStrip(sq, current) {
               },
             },
           },
-          '+ Shot',
+          t('addShot'),
         )
       : null,
   );
@@ -791,13 +807,13 @@ function composeSequenceIds(sq) {
 function cutGlyph(cut) {
   return (
     {
-      cut: 'cut',
-      match: 'match',
-      smash: 'smash',
-      whip: 'whip',
-      dissolve: 'dissolve',
+      cut: t('cutShort_cut'),
+      match: t('cutShort_match'),
+      smash: t('cutShort_smash'),
+      whip: t('cutShort_whip'),
+      dissolve: t('cutShort_dissolve'),
       continuous: '∞',
-    }[cut] ?? 'cut'
+    }[cut] ?? t('cutShort_cut')
   );
 }
 
@@ -815,7 +831,7 @@ function shotControls(sq, current) {
     h(
       'label',
       { class: 'shot-controls__field' },
-      h('span', null, 'Duration'),
+      h('span', null, t('duration')),
       h('input', {
         type: 'number',
         class: 'input shot-controls__num',
@@ -838,7 +854,7 @@ function shotControls(sq, current) {
       ? h(
           'label',
           { class: 'shot-controls__field' },
-          h('span', null, `Into shot ${index + 2}`),
+          h('span', null, t('intoShot', index + 2)),
           h(
             'select',
             {
@@ -854,7 +870,7 @@ function shotControls(sq, current) {
               },
             },
             CUTS.map((cut) =>
-              h('option', { value: cut.id, selected: cut.id === current.cut }, cut.label),
+              h('option', { value: cut.id, selected: cut.id === current.cut }, cutLabel(cut.id)),
             ),
           ),
         )
@@ -866,7 +882,7 @@ function shotControls(sq, current) {
           {
             type: 'button',
             class: 'btn btn--ghost btn--sm',
-            title: 'Coverage: the same setup again, right after this shot',
+            title: t('duplicateShotHint'),
             on: {
               click: () => {
                 const next = duplicateShot(seq(), current.id, newId);
@@ -875,7 +891,7 @@ function shotControls(sq, current) {
               },
             },
           },
-          'Duplicate',
+          t('duplicate'),
         )
       : null,
     sq.shots.length > 1
@@ -884,7 +900,7 @@ function shotControls(sq, current) {
           {
             type: 'button',
             class: 'btn btn--ghost btn--sm',
-            title: 'Remove this shot',
+            title: t('removeShotHint'),
             on: {
               click: () => {
                 activeId = sq.shots[index === 0 ? 1 : index - 1].id;
@@ -892,7 +908,7 @@ function shotControls(sq, current) {
               },
             },
           },
-          'Remove shot',
+          t('removeShot'),
         )
       : null,
   );

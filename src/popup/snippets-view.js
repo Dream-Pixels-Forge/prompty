@@ -2,6 +2,7 @@
  * Snippets tab (SPEC Δ5c/Δ5d): clipboard history, newest first. Search, insert/
  * append into the page, copy, save as prompt, delete, clear all.
  */
+import { t } from '../lib/i18n.js';
 import { deliverText } from './actions.js';
 import { h, mount } from './dom.js';
 import { filterPrompts } from './logic.js';
@@ -25,8 +26,8 @@ export function renderSnippets(root, query, host) {
   const header = h(
     'div',
     { class: 'view__head' },
-    h('h1', { class: 'view__title' }, 'Snippets'),
-    h('span', { class: 'muted' }, `${state.snippets.length} of 50 kept`),
+    h('h1', { class: 'view__title' }, t('navSnippets')),
+    h('span', { class: 'muted' }, t('snippetsKept', state.snippets.length, 50)),
     h('span', { class: 'spacer' }),
     state.snippets.length > 0
       ? h(
@@ -36,19 +37,15 @@ export function renderSnippets(root, query, host) {
             type: 'button',
             on: {
               click: async () => {
-                const ok = await confirmDialog(
-                  'Clear all snippets?',
-                  'Your saved prompts are not affected.',
-                  {
-                    confirmLabel: 'Clear',
-                    danger: true,
-                  },
-                );
+                const ok = await confirmDialog(t('clearSnippetsTitle'), t('clearSnippetsBody'), {
+                  confirmLabel: t('clear'),
+                  danger: true,
+                });
                 if (ok) await save({ snippets: [] });
               },
             },
           },
-          'Clear all',
+          t('clearAll'),
         )
       : null,
   );
@@ -60,13 +57,7 @@ export function renderSnippets(root, query, host) {
       h(
         'div',
         { class: 'empty' },
-        h(
-          'p',
-          null,
-          query.trim()
-            ? `No snippets match “${query.trim()}”.`
-            : 'Text you copy with Prompty lands here, newest first.',
-        ),
+        h('p', null, query.trim() ? t('noSnippetsMatch', query.trim()) : t('snippetsEmpty')),
       ),
     );
     return;
@@ -91,7 +82,7 @@ function row(snippet, host) {
   const origin =
     snippet.sourceOrigin && snippet.sourceOrigin !== 'prompty'
       ? snippet.sourceOrigin
-      : 'Copied in Prompty';
+      : t('copiedInPrompty');
   /** @param {'insert'|'append'} mode */
   const put = async (mode) => {
     if (await deliverText(snippet.text, mode)) window.close();
@@ -112,12 +103,12 @@ function row(snippet, host) {
           type: 'button',
           on: { click: () => void put('insert') },
         },
-        'Insert',
+        t('insert'),
       ),
       h(
         'button',
         { class: 'btn btn--sm', type: 'button', on: { click: () => void put('append') } },
-        'Append',
+        t('append'),
       ),
       h(
         'button',
@@ -126,7 +117,7 @@ function row(snippet, host) {
           type: 'button',
           on: { click: () => void deliverText(snippet.text, 'copy') },
         },
-        'Copy',
+        t('copy'),
       ),
       h(
         'button',
@@ -135,19 +126,19 @@ function row(snippet, host) {
           type: 'button',
           on: { click: () => void host.newPrompt({ text: snippet.text }) },
         },
-        'Save as prompt',
+        t('saveAsPrompt'),
       ),
       h(
         'button',
         {
           class: 'icon-btn icon-btn--danger',
           type: 'button',
-          title: 'Delete snippet',
-          'aria-label': 'Delete snippet',
+          title: t('deleteSnippet'),
+          'aria-label': t('deleteSnippet'),
           on: {
             click: async () => {
               await save({ snippets: state.snippets.filter((s) => s.id !== snippet.id) });
-              toast('Snippet deleted.');
+              toast(t('snippetDeleted'));
             },
           },
         },

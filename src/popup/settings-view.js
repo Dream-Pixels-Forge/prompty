@@ -2,6 +2,7 @@
  * Settings screen: general prefs, quick insert (G1), disabled sites (Δ2),
  * site recipes (G3 custom recipe editor), backup (export/import), about.
  */
+import { t, tn } from '../lib/i18n.js';
 import browser from '../lib/browser.js';
 import { DEFAULT_SETTINGS } from '../lib/storage.js';
 import { h, mount } from './dom.js';
@@ -37,29 +38,25 @@ export function renderSettings(root) {
 
   mount(
     root,
-    h('div', { class: 'view__head' }, h('h1', { class: 'view__title' }, 'Settings')),
+    h('div', { class: 'view__head' }, h('h1', { class: 'view__title' }, t('navSettings'))),
     h(
       'div',
       { class: 'settings' },
       section(
-        'General',
+        t('setGeneral'),
         null,
-        selectRow('Open the popup on', 'defaultView', [
-          ['all', 'All prompts'],
-          ['favorites', 'Favorites'],
-          ['recent', 'Recently used'],
+        selectRow(t('setOpenOn'), 'defaultView', [
+          ['all', t('navAll')],
+          ['favorites', t('navFavorites')],
+          ['recent', t('navRecent')],
         ]),
-        toggleRow('Compact cards', 'compactMode', 'Hide previews to fit more prompts.'),
-        toggleRow(
-          'Floating widget on pages',
-          'showFloatingWidget',
-          'The draggable Prompty bubble. Alt+Shift+W hides it for the current tab.',
-        ),
+        toggleRow(t('setCompact'), 'compactMode', t('setCompactHint')),
+        toggleRow(t('setWidget'), 'showFloatingWidget', t('setWidgetHint')),
       ),
       section(
-        'Quick insert',
-        'Type the trigger character in any text field to open a prompt picker at the caret.',
-        toggleRow('Enable quick insert', 'quickTriggerEnabled'),
+        t('setQuickInsert'),
+        t('setQuickInsertDesc'),
+        toggleRow(t('setQuickInsertEnable'), 'quickTriggerEnabled'),
         triggerRow(s),
       ),
       memorySection(),
@@ -68,13 +65,9 @@ export function renderSettings(root) {
       vaultSection(section, () => renderSettings(root)),
       backupSection(),
       section(
-        'About',
+        t('setAbout'),
         null,
-        h(
-          'p',
-          { class: 'muted' },
-          `Prompty ${browser.runtime.getManifest().version}. Everything stays in this browser: no account, no server, no telemetry.`,
-        ),
+        h('p', { class: 'muted' }, t('setAboutText', browser.runtime.getManifest().version)),
       ),
     ),
   );
@@ -159,18 +152,18 @@ function triggerRow(s) {
     class: 'input input--char',
     maxlength: '1',
     value: s.quickTrigger,
-    'aria-label': 'Trigger character',
+    'aria-label': t('setTrigger'),
     disabled: !s.quickTriggerEnabled,
   });
   input.addEventListener('change', () => {
     const value = input.value;
     if (value.length !== 1 || value.trim() === '') {
-      toast('Use exactly one visible character, like ! or ;', 'error');
+      toast(t('setTriggerInvalid'), 'error');
       input.value = state.settings.quickTrigger;
       return;
     }
     void save({ settings: { quickTrigger: value } });
-    toast(`Quick insert now opens with “${value}”.`);
+    toast(t('setTriggerSaved', value));
   });
   return h(
     'label',
@@ -178,8 +171,12 @@ function triggerRow(s) {
     h(
       'span',
       { class: 'setting__text' },
-      h('span', null, 'Trigger character'),
-      h('span', { class: 'muted setting__hint' }, `Default ${DEFAULT_SETTINGS.quickTrigger}`),
+      h('span', null, t('setTrigger')),
+      h(
+        'span',
+        { class: 'muted setting__hint' },
+        t('setTriggerDefault', DEFAULT_SETTINGS.quickTrigger),
+      ),
     ),
     input,
   );
@@ -192,17 +189,15 @@ function triggerRow(s) {
 function memorySection() {
   const count = Object.keys(state.variableMemory).length;
   return section(
-    'Fill-in memory',
-    'Variable fields start with what you used last time. Stored only in this browser.',
+    t('setMemory'),
+    t('setMemoryDesc'),
     h(
       'div',
       { class: 'setting' },
       h(
         'span',
         { class: 'setting__text' },
-        count === 0
-          ? 'Nothing remembered yet.'
-          : `${count} value${count === 1 ? '' : 's'} remembered`,
+        count === 0 ? t('setMemoryNone') : tn('setMemoryCount', count),
       ),
       h(
         'button',
@@ -213,11 +208,11 @@ function memorySection() {
           on: {
             click: async () => {
               await save({ variableMemory: {} });
-              toast('Remembered values cleared.');
+              toast(t('setMemoryCleared'));
             },
           },
         },
-        'Forget remembered values',
+        t('setMemoryForget'),
       ),
     ),
   );
@@ -233,12 +228,12 @@ function sitesSection(s) {
     type: 'text',
     class: 'input',
     placeholder: 'example.com',
-    'aria-label': 'Site to disable',
+    'aria-label': t('setSiteToDisable'),
   });
   const add = () => {
     const origin = normalizeSiteInput(input.value);
-    if (!origin) return toast('Enter a website like example.com.', 'error');
-    if (s.disabledSites.includes(origin)) return toast(`${origin} is already off.`);
+    if (!origin) return toast(t('setSiteInvalid'), 'error');
+    if (s.disabledSites.includes(origin)) return toast(t('setSiteAlreadyOff', origin));
     void save({ settings: { disabledSites: [...s.disabledSites, origin] } });
   };
   input.addEventListener('keydown', (e) => {
@@ -248,10 +243,10 @@ function sitesSection(s) {
     }
   });
   return section(
-    'Turned off on these sites',
-    'The pill, floating widget and quick insert stay hidden here. You can also turn a site off from the pill menu.',
+    t('setSitesOff'),
+    t('setSitesOffDesc'),
     s.disabledSites.length === 0
-      ? h('p', { class: 'muted' }, 'None. Prompty runs everywhere.')
+      ? h('p', { class: 'muted' }, t('setSitesNone'))
       : h(
           'ul',
           { class: 'list' },
@@ -272,7 +267,7 @@ function sitesSection(s) {
                       }),
                   },
                 },
-                'Turn back on',
+                t('setTurnBackOn'),
               ),
             ),
           ),
@@ -281,7 +276,7 @@ function sitesSection(s) {
       'div',
       { class: 'inline-form' },
       input,
-      h('button', { class: 'btn', type: 'button', on: { click: add } }, 'Turn off'),
+      h('button', { class: 'btn', type: 'button', on: { click: add } }, t('turnOff')),
     ),
   );
 }
@@ -294,11 +289,11 @@ function sitesSection(s) {
 function recipesSection(s) {
   const enabled = new Set(s.enabledRecipes);
   return section(
-    'Site recipes',
-    'Recipes tell Prompty where the prompt box and Generate button are on specific AI sites. Your recipes take priority over built-ins.',
-    h('h3', { class: 'settings__sub' }, 'Your recipes'),
+    t('setRecipes'),
+    t('setRecipesDesc'),
+    h('h3', { class: 'settings__sub' }, t('setYourRecipes')),
     s.siteRecipes.length === 0
-      ? h('p', { class: 'muted' }, 'None yet.')
+      ? h('p', { class: 'muted' }, t('noneYet'))
       : h(
           'ul',
           { class: 'list' },
@@ -316,7 +311,7 @@ function recipesSection(s) {
                 type: 'checkbox',
                 class: 'switch',
                 checked: enabled.has(r.originPattern),
-                'aria-label': `Use recipe for ${r.originPattern}`,
+                'aria-label': t('setUseRecipe', r.originPattern),
                 on: {
                   change: () =>
                     void save({ settings: toggleRecipe(state.settings, r.originPattern) }),
@@ -329,14 +324,14 @@ function recipesSection(s) {
                   type: 'button',
                   on: { click: () => void editRecipe(r) },
                 },
-                'Edit',
+                t('edit'),
               ),
               h(
                 'button',
                 {
                   class: 'icon-btn icon-btn--danger',
                   type: 'button',
-                  'aria-label': `Delete recipe ${r.originPattern}`,
+                  'aria-label': t('setDeleteRecipe', r.originPattern),
                   on: {
                     click: () =>
                       void save({ settings: removeRecipe(state.settings, r.originPattern) }),
@@ -350,9 +345,9 @@ function recipesSection(s) {
     h(
       'button',
       { class: 'btn', type: 'button', on: { click: () => void editRecipe() } },
-      '+ Add recipe (JSON)',
+      t('setAddRecipe'),
     ),
-    h('h3', { class: 'settings__sub' }, 'Built in'),
+    h('h3', { class: 'settings__sub' }, t('setBuiltIn')),
     h(
       'ul',
       { class: 'list' },
@@ -373,7 +368,7 @@ function recipesSection(s) {
               type: 'button',
               on: { click: () => void editRecipe(r, true) },
             },
-            'Customize',
+            t('setCustomize'),
           ),
         ),
       ),
@@ -403,15 +398,20 @@ async function editRecipe(recipe, fromBuiltin = false) {
   });
   const errors = h('ul', { class: 'field__error' });
   const result = await openModal({
-    title: recipe && !fromBuiltin ? 'Edit recipe' : 'New recipe',
+    title: recipe && !fromBuiltin ? t('setEditRecipe') : t('setNewRecipe'),
     wide: true,
     body: h(
       'div',
       { class: 'stack' },
-      h('label', { class: 'field' }, h('span', { class: 'field__label' }, 'Recipe JSON'), text),
+      h(
+        'label',
+        { class: 'field' },
+        h('span', { class: 'field__label' }, t('setRecipeJson')),
+        text,
+      ),
       errors,
     ),
-    submitLabel: 'Save recipe',
+    submitLabel: t('setSaveRecipe'),
     onSubmit: () => {
       const check = validateRecipeInput(text.value);
       mount(
@@ -430,7 +430,7 @@ async function editRecipe(recipe, fromBuiltin = false) {
     next = upsertRecipe({ ...state.settings, ...next }, result);
   }
   await save({ settings: next });
-  toast(`Recipe for ${result.originPattern} saved and on.`);
+  toast(t('setRecipeSaved', result.originPattern));
 }
 
 /* ------------------------------------------------------------------ */
@@ -447,32 +447,24 @@ function backupSection() {
     if (!parsed.ok) return toast(parsed.error, 'error');
     const incoming = parsed.data.prompts?.length ?? 0;
     const mode = await openModal({
-      title: `Import ${incoming} prompt${incoming === 1 ? '' : 's'}?`,
-      body: h(
-        'p',
-        { class: 'muted' },
-        'Merge adds new prompts and updates ones with the same id. Replace swaps your whole library and settings for the file.',
-      ),
-      submitLabel: 'Merge',
-      extra: [{ label: 'Replace everything', value: 'replace' }],
+      title: t('setImportTitle', tn('nPrompts', incoming)),
+      body: h('p', { class: 'muted' }, t('setImportBody')),
+      submitLabel: t('merge'),
+      extra: [{ label: t('replaceEverything'), value: 'replace' }],
       onSubmit: () => 'merge',
     });
     if (!mode) return;
     if (mode === 'replace') {
-      const sure = await confirmDialog(
-        'Replace your library?',
-        'Your current prompts and categories will be gone.',
-        {
-          confirmLabel: 'Replace',
-          danger: true,
-        },
-      );
+      const sure = await confirmDialog(t('replaceLibraryTitle'), t('replaceLibraryBody'), {
+        confirmLabel: t('replace'),
+        danger: true,
+      });
       if (!sure) return;
     }
     const next = applyImportData(parsed.data, state, mode === 'replace' ? 'replace' : 'merge');
     // Merge keeps your settings; replace adopts the file's (whitelisted) settings.
     await save(mode === 'replace' ? next : { prompts: next.prompts, categories: next.categories });
-    toast(`Imported. Library now has ${next.prompts.length} prompts.`);
+    toast(t('importedLibrary', tn('nPrompts', next.prompts.length)));
   });
   const migrateFile = h('input', {
     type: 'file',
@@ -485,22 +477,22 @@ function backupSection() {
     if (chosen) await migrateFrom(chosen);
   });
   return section(
-    'Backup',
-    'Export your prompts, categories and settings as a JSON file, or bring them back from one. Moving from another tool, or got a shared .prompty pack? Import a pack, a Higgsfield Prompt Saver export, a CSV, a text or Markdown file, or a JSON list (or drop the file on the popup): duplicates are skipped and categories matched by name.',
+    t('setBackup'),
+    t('setBackupDesc'),
     h(
       'div',
       { class: 'inline-form' },
-      h('button', { class: 'btn', type: 'button', on: { click: exportLibrary } }, 'Export JSON'),
+      h('button', { class: 'btn', type: 'button', on: { click: exportLibrary } }, t('exportJson')),
       h(
         'button',
         { class: 'btn', type: 'button', on: { click: () => file.click() } },
-        'Import JSON…',
+        t('importJson'),
       ),
       file,
       h(
         'button',
         { class: 'btn', type: 'button', on: { click: () => migrateFile.click() } },
-        'Import from another tool…',
+        t('importOtherTool'),
       ),
       migrateFile,
     ),

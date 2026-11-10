@@ -3,6 +3,7 @@
  * insert/append into the page (PROMPTY_INSERT, SPEC Δ7), copy (Δ5a), and
  * usage tracking. Variable prompts go through the fill-in modal first.
  */
+import { t } from '../lib/i18n.js';
 import browser from '../lib/browser.js';
 import { MSG_INSERT_PROMPT } from '../lib/message.js';
 import { appendSnippet } from '../lib/storage.js';
@@ -61,11 +62,11 @@ export async function deliverText(text, mode) {
     response = null;
   }
   if (!response) {
-    toast("Can't reach this page (browser pages block extensions). Use Copy instead.", 'error');
+    toast(t('cantReachPage'), 'error');
     return false;
   }
   if (!response.success) {
-    toast(`${response.error ?? 'Insert failed'}. Click a text field on the page first.`, 'error');
+    toast(t('insertFailed', response.error ?? t('insertFailedDefault')), 'error');
     return false;
   }
   return true;
@@ -90,10 +91,10 @@ export async function copyText(text) {
     area.remove();
   }
   if (!ok) {
-    toast('Copy failed: clipboard unavailable.', 'error');
+    toast(t('copyFailed'), 'error');
     return false;
   }
   await save({ snippets: appendSnippet(state.snippets, { text, sourceOrigin: 'prompty' }) });
-  toast('Copied to clipboard.');
+  toast(t('copied'));
   return true;
 }

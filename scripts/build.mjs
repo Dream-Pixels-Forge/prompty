@@ -14,7 +14,7 @@
  *   MV3 service-worker feature flag, so addons-linter (the engine web-ext ones)
  *   is invoked directly for the Chromium target.
  */
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +42,25 @@ const GECKO_SETTINGS = {
 
 /** @type {Record<string, unknown>} */
 const base = JSON.parse(await readFile(path.join(SRC, 'manifest.base.json'), 'utf8'));
+
+/**
+ * Locale catalogs as browser.i18n messages. `$` not followed by a digit is a
+ * literal dollar and must be doubled in messages.json.
+ * @type {[string, Record<string, { message: string }>][]}
+ */
+const locales = [];
+for (const file of (await readdir(path.join(SRC, 'locales')))
+  .filter((f) => f.endsWith('.js'))
+  .sort()) {
+  const { default: catalog } = await import(path.join(SRC, 'locales', file));
+  /** @type {Record<string, { message: string }>} */
+  const messages = {};
+  for (const [key, text] of Object.entries(catalog)) {
+    if (!/^[A-Za-z0-9_]+$/.test(key)) throw new Error(`locales/${file}: bad key "${key}"`);
+    messages[key] = { message: String(text).replace(/\$(?!\d)/g, '$$$$') };
+  }
+  locales.push([file.replace(/\.js$/, ''), messages]);
+}
 
 /** @type {BuildTarget[]} */
 const targets = [
@@ -83,8 +102,19 @@ for (const target of targets) {
     'utf8',
   );
 
-  // Shared assets: background entry, lib ES modules, content script, popup, icons, assets (recipes.json).
-  for (const asset of ['background.js', 'lib', 'content', 'popup', 'icons', 'assets']) {
+  // G8b: src/locales/<lang>.js → _locales/<lang>/messages.json (browser.i18n format).
+  for (const [lang, messages] of locales) {
+    const dir = path.join(outDir, '_locales', lang);
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, 'messages.json'),
+      `${JSON.stringify(messages, null, 2)}\n`,
+      'utf8',
+    );
+  }
+
+  // Shared assets: background entry, lib ES modules, content script, popup, icons, assets (recipes.json), locales.
+  for (const asset of ['background.js', 'lib', 'content', 'popup', 'icons', 'assets', 'locales']) {
     await cp(path.join(SRC, asset), path.join(outDir, asset), { recursive: true });
   }
 

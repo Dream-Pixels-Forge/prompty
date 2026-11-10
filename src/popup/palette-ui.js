@@ -3,6 +3,7 @@
  * ./palette.js; this is the DOM layer. Prompts route through the shared
  * actions (variables → fill-in modal → PROMPTY_INSERT / clipboard).
  */
+import { t, tn } from '../lib/i18n.js';
 import { buildExport } from './logic.js';
 import { usePrompt, deliverText } from './actions.js';
 import { h, highlighted, mount } from './dom.js';
@@ -48,21 +49,21 @@ export function openPalette(host) {
     'aria-autocomplete': 'list',
     autocomplete: 'off',
     spellcheck: 'false',
-    placeholder: 'Search prompts, snippets, commands…',
+    placeholder: t('paletteSearch'),
   });
   const list = h('ul', { id: 'palette-results', class: 'palette__list', role: 'listbox' });
   const panel = h(
     'div',
-    { class: 'palette', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Command palette' },
+    { class: 'palette', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('commandPalette') },
     h('div', { class: 'palette__head' }, input, h('kbd', null, 'Esc')),
     list,
     h(
       'div',
       { class: 'palette__foot' },
-      h('span', null, h('kbd', null, '↵'), ' insert'),
-      h('span', null, h('kbd', null, '⇧↵'), ' append'),
-      h('span', null, h('kbd', null, 'Ctrl↵'), ' copy'),
-      h('span', null, h('kbd', null, 'Alt↵'), ' save snippet'),
+      h('span', null, h('kbd', null, '↵'), ` ${t('kbdInsert')}`),
+      h('span', null, h('kbd', null, '⇧↵'), ` ${t('kbdAppend')}`),
+      h('span', null, h('kbd', null, 'Ctrl↵'), ` ${t('kbdCopy')}`),
+      h('span', null, h('kbd', null, 'Alt↵'), ` ${t('kbdSaveSnippet')}`),
     ),
   );
   const overlay = h(
@@ -92,7 +93,7 @@ export function openPalette(host) {
     if (items.length === 0) {
       mount(
         list,
-        h('li', { class: 'empty' }, input.value.trim() ? 'No matches' : 'Your library is empty'),
+        h('li', { class: 'empty' }, input.value.trim() ? t('noMatches') : t('libraryEmpty')),
       );
       input.removeAttribute('aria-activedescendant');
       return;
@@ -132,7 +133,7 @@ export function openPalette(host) {
     const item = items[selected];
     const action = resolveAction(item, requested);
     if (!item || !action || busy) {
-      if (item && requested === 'promote') toast('Only snippets can be saved as prompts.', 'error');
+      if (item && requested === 'promote') toast(t('onlySnippetsPromote'), 'error');
       return;
     }
     busy = true;
@@ -144,7 +145,7 @@ export function openPalette(host) {
           host.goCategory(effect.categoryId);
         else if (effect.type === 'setting' && typeof effect.key === 'string') {
           await save({ settings: { [effect.key]: effect.value } });
-          toast(`${item.command.label}: done.`);
+          toast(t('commandDone', item.command.label));
         } else if (effect.type === 'export') host.exportLibrary();
         else if (effect.type === 'compose') host.goCompose();
         else if (effect.type === 'history' && typeof effect.promptId === 'string')
@@ -159,7 +160,7 @@ export function openPalette(host) {
         });
         if (draft && draft !== OPEN_HISTORY) {
           await save({ prompts: upsertPrompt(state.prompts, draft, { id: crypto.randomUUID() }) });
-          toast(`Saved “${draft.title.trim()}”.`);
+          toast(t('savedNamed', draft.title.trim()));
         }
         return;
       }
@@ -236,11 +237,9 @@ export function openPalette(host) {
 export async function exportLibrary(subset) {
   // G10: an export is plain JSON, outside the vault's protection.
   if (state.vault === 'unlocked') {
-    const ok = await confirmDialog(
-      'Export unencrypted?',
-      'Vault is on, but the exported file is plain JSON that anyone with the file can read.',
-      { confirmLabel: 'Export anyway' },
-    );
+    const ok = await confirmDialog(t('exportUnencryptedTitle'), t('exportUnencryptedBody'), {
+      confirmLabel: t('exportAnyway'),
+    });
     if (!ok) return;
   }
   const part =
@@ -267,5 +266,5 @@ export async function exportLibrary(subset) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   const n = full.prompts.length;
-  toast(`Exported ${n} prompt${n === 1 ? '' : 's'}.`);
+  toast(t('exportedN', tn('nPrompts', n)));
 }

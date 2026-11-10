@@ -222,6 +222,8 @@ describe('lintSequence', () => {
     expect(lintSequence(seqOf(scene, 'seedance'))).toEqual([
       {
         level: 'info',
+        key: 'lintSeedanceDuration',
+        args: [12],
         text: 'Set the duration to 12 s on the generation page. Seedance takes it from the settings, not the prompt.',
       },
     ]);

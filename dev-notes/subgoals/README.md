@@ -18,12 +18,24 @@ Everything stays 100% local: no network, no telemetry, `storage.local` only (GOA
 | 8   | [G9b — Shot sequences](G9b-shot-sequences.md)         | Directors think in cuts, not single shots     | M–L    | G9               |
 | 9   | [G9c — Model dialects](G9c-model-dialects.md)         | Each video model reads cuts differently       | M      | G9b              |
 
+### Wave 2 (after v0.3.0)
+
+| #   | Subgoal                                           | Why now                                            | Effort | Depends on |
+| --- | ------------------------------------------------- | -------------------------------------------------- | ------ | ---------- |
+| 10  | [G11 — Migration Suite](G11-migration-suite.md)   | Lets existing users (upstream, CSV, notes) move in | M      | —          |
+| 11  | [G13 — Share packs](G13-share-packs.md)           | Creators can share kits; reuses the G11 report     | M      | G11        |
+| 12  | [G7 — Usage insights](G7-usage-insights.md)       | Curate a 50+ prompt library                        | S–M    | —          |
+| 13  | [G8 — A11y + i18n](G8-a11y-i18n.md)               | Store reach, screen readers, French first          | M      | —          |
+| 14  | [G10 — Vault Mode](G10-vault-mode.md)             | Private prompts encrypted at rest                  | L      | —          |
+| 15  | [G12 — IndexedDB engine](G12-indexeddb-engine.md) | 5k+ prompt libraries stay instant                  | L      | —          |
+
 S1–S3 fix what a user sees on day one; do them first. G5/G6/G4 are independent and can
 run in parallel. G9 works without G6 but is far better with enum variables.
 
 ## Status
 
 - [x] S1 · [x] S2 · [x] S3 · [x] G5 · [x] G6 · [x] G4 · [x] G9 · [x] G9b · [x] G9c
+- Wave 2: [x] G11 (real upstream sample pending) · [ ] G13 · [ ] G7 · [ ] G8 · [ ] G10 · [ ] G12
 
 ## Rules for every subgoal
 

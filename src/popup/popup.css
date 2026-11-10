@@ -1382,6 +1382,22 @@ span.field__error {
   white-space: nowrap;
 }
 
+/* G11: migration report */
+.migrate {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.migrate__bucket ul {
+  margin: 3px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+}
+.migrate__bucket strong {
+  font-size: 12.5px;
+}
+
 /* G4: multi-select + bulk bar */
 .card:focus-visible {
   outline: 2px solid var(--accent);

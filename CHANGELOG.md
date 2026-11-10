@@ -3,6 +3,19 @@
 All notable changes to Prompty. Versions follow [Semantic Versioning](https://semver.org/);
 before 1.0, minor versions may change stored data shapes, and every such change migrates silently.
 
+## [Unreleased]
+
+### Added
+
+- **Import from another tool** (G11): Settings → Backup → "Import from another tool…" reads a
+  Prompty or Higgsfield Prompt Saver export, a CSV (quotes, `,`/`;`/tab), a text or Markdown file
+  (`# headings` become categories, bullets become prompts) or a JSON list.
+  - A report lists what will be added, merged (tags and favorite) or skipped, with a reason for each
+    skip, before anything is written.
+  - Duplicates are found by normalized text, so re-importing a file adds nothing.
+  - Categories are matched by name.
+  - The import can be undone for 10 s.
+
 ## [0.3.0] — 2026-11-10 · "Director's cut"
 
 Prompty grows from a prompt library into a shot-design tool: compose a shot from film-grammar

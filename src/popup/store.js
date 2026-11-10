@@ -21,6 +21,8 @@ export const state = {
   /** @type {Category[]} */ categories: [],
   /** @type {Settings} */ settings: { ...DEFAULT_SETTINGS },
   /** @type {Snippet[]} */ snippets: [],
+  /** Prompts created after this moment get a "New" chip (previous popup open). */
+  newSince: Infinity,
 };
 
 /** @type {Set<() => void>} */
@@ -42,6 +44,10 @@ export async function load() {
   } catch {
     // seeding is best-effort; an empty library still renders
   }
+  // "New" = created since the popup was last opened (first open: nothing is new).
+  const seen = await browser.storage.local.get(['popupSeenAt']);
+  state.newSince = typeof seen.popupSeenAt === 'number' ? seen.popupSeenAt : Infinity;
+  await browser.storage.local.set({ popupSeenAt: Date.now() });
   await reload();
 }
 

@@ -1,5 +1,7 @@
 ## Goal: S1 — "Save Selection as Prompt" actually saves
 
+> **Status: done.** Also fixed the in-page bugs it uncovered (see PROGRESS.md).
+
 ### Objective
 
 Right-clicking selected text → **Prompty: Save Selection as Prompt**, or pressing **Alt+Shift+S**,
@@ -19,26 +21,26 @@ Today both paths are dead ends:
 
 ### Deliverables
 
-- [ ] `src/lib/capture.js` (pure, tested): `promptFromSelection({ text, pageTitle, url, id, now })`
+- [x] `src/lib/capture.js` (pure, tested): `promptFromSelection({ text, pageTitle, url, id, now })`
       → normalized `Prompt` — title = page title (≤ 80 chars) or the selection's first line,
       tag = site hostname, `categoryId: null`; returns `null` for blank selections.
-- [ ] `background.js`: one `saveSelection(tab, selectionText?)` used by both
+- [x] `background.js`: one `saveSelection(tab, selectionText?)` used by both
       `contextMenus.onClicked` and the `save-selection` command.
   - Text source order: `info.selectionText` (works on PDFs and pages without the content
     script) → content-script `MSG_SAVE_SELECTION` response.
   - Duplicate guard: same text as the most recent saved prompt within 10 s → "Already saved".
   - Writes via `readAll`/`writeAll`; also records the snippet (existing behavior kept).
-- [ ] Feedback: content toast "Saved “{title}” to Prompty" (✗ variant on failure); if the tab has
+- [x] Feedback: content toast "Saved “{title}” to Prompty" (✗ variant on failure); if the tab has
       no content script (e.g. `chrome://`, PDF viewer), fall back to `browser.notifications`.
-- [ ] Popup: the new prompt appears via live sync; mark it with a "New" chip until first open.
+- [x] Popup: the new prompt appears via live sync; mark it with a "New" chip until first open.
 
 ### Definition of Done
 
-- [ ] Context menu and Alt+Shift+S both create exactly one prompt per action.
-- [ ] Works on a normal page, an SPA input selection, and a PDF (via `info.selectionText`).
-- [ ] Unit tests: `promptFromSelection` (blank, long title, no title, multi-line, hostname tag);
+- [x] Context menu and Alt+Shift+S both create exactly one prompt per action.
+- [x] Works on a normal page, an SPA input selection, and a PDF (via `info.selectionText`).
+- [x] Unit tests: `promptFromSelection` (blank, long title, no title, multi-line, hostname tag);
       duplicate guard.
-- [ ] Gates green; Firefox lint 0/0/0.
+- [x] Gates green; Firefox lint 0/0/0.
 
 ### Verification Steps
 

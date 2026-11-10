@@ -943,7 +943,11 @@
   function buildUi() {
     host = document.createElement('div');
     host.id = HOST_ID;
+    // `all: initial` MUST come first: it resets every property, so anything
+    // set before it (fixed position, zero size, pointer-events) is lost and the
+    // host would sit in the page flow and catch clicks meant for the site.
     applyStyles(host, {
+      all: 'initial',
       position: 'fixed',
       left: '0',
       top: '0',
@@ -951,9 +955,14 @@
       height: '0',
       zIndex: '2147483647',
       pointerEvents: 'none',
-      all: 'initial',
     });
     const shadow = host.attachShadow({ mode: 'open' });
+    // Our panels set `display` inline, which beats the UA `[hidden]` rule — so a
+    // "hidden" full-screen backdrop would still cover the page. An !important
+    // author rule wins over non-important inline styles and restores `hidden`.
+    const baseStyle = document.createElement('style');
+    baseStyle.textContent = '[hidden] { display: none !important; }';
+    shadow.appendChild(baseStyle);
     document.documentElement.appendChild(host);
 
     // Pill
@@ -1057,7 +1066,8 @@
     paletteSearch.placeholder = 'Search prompts…';
     applyStyles(paletteSearch, STYLES.paletteSearch);
     paletteSearch.addEventListener('input', () => filterPalette());
-    paletteSearch.addEventListener('keydown', (ev) => handlePaletteKeydown(ev));
+    // Keys reach handlePaletteKeydown through the document capture listener
+    // (onKeyDown); a second listener here moved the selection two rows per press.
     palette.appendChild(paletteSearch);
 
     paletteList = elInShadow('div');
@@ -1578,15 +1588,21 @@
         top: -9999px;
         left: -9999px;
       `;
-      mirror.textContent = prefix + '\u200B'; // zero-width space at caret
+      // Measure a marker at the caret relative to the mirror, *while attached*
+      // (a detached element reports a zero rect), then map onto the field.
+      mirror.textContent = prefix;
+      const marker = document.createElement('span');
+      marker.textContent = '\u200B'; // zero-width space at caret
+      mirror.appendChild(marker);
       document.body.appendChild(mirror);
-      const rect = mirror.getBoundingClientRect();
+      const mirrorRect = mirror.getBoundingClientRect();
+      const markerRect = marker.getBoundingClientRect();
       const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
       document.body.removeChild(mirror);
       const elRect = el.getBoundingClientRect();
       return {
-        x: rect.left - mirror.getBoundingClientRect().left + elRect.left,
-        y: rect.top - mirror.getBoundingClientRect().top + elRect.top,
+        x: elRect.left + (markerRect.left - mirrorRect.left) - (el.scrollLeft || 0),
+        y: elRect.top + (markerRect.top - mirrorRect.top) - (el.scrollTop || 0),
         height: lineHeight,
       };
     }
@@ -1622,8 +1638,8 @@
     // Load prompts from storage
     loadPromptsForPalette().then(() => {
       filterPalette();
+      palette.hidden = false; // unhide first so positionPalette measures the real size
       positionPalette();
-      palette.hidden = false;
       paletteSearch.focus({ preventScroll: true });
       paletteSearch.value = '';
     });
@@ -1891,6 +1907,10 @@
    */
   function handlePaletteKeydown(ev) {
     if (!paletteVisible) return;
+    // The variable form handles its own Enter/Escape; don't treat them as list keys.
+    if (paletteVariablePrompt) return;
+    // Rendered rows (not just matches) — the list may hold an empty-state row.
+    const count = paletteList ? paletteList.children.length : 0;
 
     switch (ev.key) {
       case 'ArrowDown':
@@ -2075,6 +2095,12 @@
     if (!paletteVariablePrompt || !paletteVariableInputs || !paletteTarget) return;
     const values = {};
     for (const [name, input] of Object.entries(paletteVariableInputs)) {
+      // SPEC §1: every value is required — never insert a prompt with holes.
+      if (input.value.trim() === '') {
+        input.focus();
+        showToast({ message: `Fill in ${humanizeVarInline(name)}`, isError: true });
+        return;
+      }
       values[name] = input.value;
     }
     const resolved = resolveVariablesInline(String(paletteVariablePrompt.text ?? ''), values);
@@ -2504,7 +2530,6 @@
     const message = typeof payload.message === 'string' ? payload.message : '';
     const icon = payload.isError ? '✗' : typeof payload.icon === 'string' && payload.icon !== '' ? payload.icon : '✓';
     toastEl.textContent = `${icon} ${message}`;
-    toastSlotNumber += 1;
     toastEl.hidden = false;
     if (toastTimer) window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => {
@@ -2719,7 +2744,6 @@
     messageListener = null;
     if (host && host.parentNode) host.parentNode.removeChild(host);
     host = null;
-    cssStateEl = null;
     lastPageEditable = null;
     pillAnchor = null;
     pillVisible = false;

@@ -52,8 +52,23 @@
 - **background.js imports were commented out** (unclosed `/**` header): every background message,
   command and `mergeSettings` call threw `ReferenceError`. Fixed; ESLint `no-undef` now guards the file.
 - **Seed presets never ran** (`seedPresets()` had no caller). Background now seeds on every start (idempotent).
-- **Context-menu "Save Selection" has no `onClicked` listener**, and save-selection only records a
-  snippet, never a prompt. Open.
+- **Context-menu "Save Selection" had no `onClicked` listener**, and save-selection only recorded a
+  snippet. ✅ Fixed in S1.
+
+### Audit findings (S1, 2026-11-10) — in-page bugs that were live on every site
+- **Prompty's invisible UI swallowed every click on every page.** The shadow host applied
+  `all: initial` last (wiping `position: fixed`, 0×0 size, `pointer-events: none`), and `hidden`
+  panels stayed in layout because inline `display` beats the UA `[hidden]` rule — so the hidden
+  save-modal backdrop covered the viewport. ✅ `all` first + `[hidden]{display:none!important}` in
+  the shadow root; guarded by `tests/content-host.test.mjs`.
+- **No page toast ever showed** (`showToast` incremented an undeclared `toastSlotNumber`). ✅ Fixed.
+- **`!` palette rendered ~10,000px off-screen** (caret measured on a detached mirror). ✅ Marker span
+  measured while attached; palette unhidden before positioning.
+- **`!` palette arrow keys threw** (undefined `count`) and, once fixed, **moved two rows per press**
+  (duplicate keydown listener). ✅ Fixed.
+- **Enter in the `!` variable form inserted blanks** (list handler ran first; no required check).
+  ✅ Form owns its keys; every value required (SPEC §1).
+- ESLint `no-undef` now also guards `src/content/assist.js` (it is `@ts-nocheck`).
 
 ### v0.3 progress
 | Goal | Status |

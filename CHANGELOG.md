@@ -7,6 +7,11 @@ before 1.0, minor versions may change stored data shapes, and every such change 
 
 ### Added
 
+- **Share packs** (G13): select prompts and choose **Pack…** to save a `.prompty` file. It holds
+  the prompts, their categories and Composer blocks, with a name, author and description; your use
+  counts, favorites and history stay with you. Drop a pack (or any importable file) on the popup
+  to see a preview card and the import report. Broken, oversized or future-version packs are
+  refused with a message.
 - **Import from another tool** (G11): Settings → Backup → "Import from another tool…" reads a
   Prompty or Higgsfield Prompt Saver export, a CSV (quotes, `,`/`;`/tab), a text or Markdown file
   (`# headings` become categories, bullets become prompts) or a JSON list.

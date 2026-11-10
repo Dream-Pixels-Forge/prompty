@@ -17,6 +17,7 @@ import { openModal } from './modals.js';
  * @property {() => void} favorite
  * @property {() => void} copy
  * @property {() => void} exportSelected
+ * @property {() => void} pack
  * @property {() => void} remove
  * @property {() => void} selectAll
  * @property {() => void} clear
@@ -76,6 +77,7 @@ export function renderBulkBar(el, { count, visible, allFavorite }, on) {
     }),
     btn('Copy', on.copy, { title: 'Copy all texts, one blank line apart' }),
     btn('Export', on.exportSelected, { title: 'Download the selection as JSON' }),
+    btn('Pack…', on.pack, { title: 'Share the selection as a .prompty pack' }),
     btn('Delete', on.remove, { cls: 'btn--danger', title: 'Delete (Del) — undo for 10 s' }),
     h(
       'button',
@@ -209,4 +211,55 @@ export function setDragGhost(e, count) {
   document.body.append(ghost);
   e.dataTransfer.setDragImage(ghost, 12, 12);
   setTimeout(() => ghost.remove(), 0);
+}
+
+/**
+ * Name the pack (author and description optional).
+ * @param {number} count
+ * @param {string} [suggested]
+ * @returns {Promise<{ name: string, author: string, description: string } | null>}
+ */
+export async function packDialog(count, suggested = '') {
+  const name = /** @type {HTMLInputElement} */ (
+    h('input', { type: 'text', value: suggested, maxlength: '80', placeholder: 'Neon noir kit' })
+  );
+  const author = /** @type {HTMLInputElement} */ (
+    h('input', { type: 'text', maxlength: '80', placeholder: 'Optional' })
+  );
+  const description = /** @type {HTMLTextAreaElement} */ (
+    h('textarea', { rows: '3', maxlength: '500', placeholder: 'Optional: what this pack is for' })
+  );
+  const error = h('span', { class: 'field__error', role: 'alert' });
+  /**
+   * @param {string} label
+   * @param {HTMLElement} control
+   * @param {HTMLElement} [extra]
+   */
+  const field = (label, control, extra) =>
+    h('label', { class: 'field' }, h('span', { class: 'field__label' }, label), control, extra);
+  const result = await openModal({
+    title: `Share ${promptsLabel(count)} as a pack`,
+    body: h(
+      'div',
+      null,
+      field('Pack name', name, error),
+      field('Author', author),
+      field('Description', description),
+      h(
+        'p',
+        { class: 'muted' },
+        'The pack holds the prompts, their categories and Composer blocks. Your use counts, favorites and edit history stay with you.',
+      ),
+    ),
+    submitLabel: 'Download .prompty',
+    onSubmit: () => {
+      if (!name.value.trim()) {
+        error.textContent = 'Give the pack a name.';
+        name.focus();
+        return null;
+      }
+      return { name: name.value, author: author.value, description: description.value };
+    },
+  });
+  return result ?? null;
 }

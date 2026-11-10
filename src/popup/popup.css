@@ -1398,6 +1398,44 @@ span.field__error {
   font-size: 12.5px;
 }
 
+/* G13: packs */
+.pack-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+.pack-card__icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.pack-card__name {
+  font-size: 13.5px;
+}
+.pack-card__desc {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+body.dropping::after {
+  content: 'Drop to import: a .prompty pack, export, CSV, text or JSON';
+  position: fixed;
+  inset: 10px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  color: var(--accent-text);
+  font-weight: 700;
+  font-size: 15px;
+  pointer-events: none;
+  z-index: 50;
+}
+
 /* G4: multi-select + bulk bar */
 .card:focus-visible {
   outline: 2px solid var(--accent);

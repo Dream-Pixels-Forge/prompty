@@ -6,6 +6,7 @@
  * a reason for every skip. Nothing is written here; the caller saves.
  */
 import { shortTitle } from './capture.js';
+import { looksLikePack, parsePack } from './pack.js';
 import { normalizeCategory, normalizePrompt } from './storage.js';
 
 /**
@@ -21,7 +22,7 @@ import { normalizeCategory, normalizePrompt } from './storage.js';
  * @property {boolean} isFavorite
  * @property {Partial<Prompt>} [meta] extra fields kept from an export (counts, dates, history)
  *
- * @typedef {'envelope'|'json-list'|'csv'|'txt'|'unknown'} Format
+ * @typedef {'pack'|'envelope'|'json-list'|'csv'|'txt'|'unknown'} Format
  *
  * @typedef {object} Report
  * @property {string[]} added titles
@@ -50,9 +51,11 @@ export function detectFormat(fileName, text) {
   const body = stripBom(text).trim();
   if (ext === 'csv' || ext === 'tsv') return { format: 'csv' };
   if (ext === 'txt' || ext === 'md' || ext === 'markdown') return { format: 'txt' };
+  if (ext === 'prompty') return { format: 'pack' };
   if (ext === 'json' || body.startsWith('{') || body.startsWith('[')) {
     try {
       const data = JSON.parse(body);
+      if (looksLikePack(data)) return { format: 'pack' };
       if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray(data.prompts))
         return { format: 'envelope', data };
       if (Array.isArray(data)) return { format: 'json-list', data };
@@ -327,10 +330,15 @@ function cleanTags(tags) {
  * Any supported file → candidates.
  * @param {string} fileName
  * @param {string} text
- * @returns {{ format: Format, candidates: Candidate[] }}
+ * @returns {{ format: Format, candidates: Candidate[], pack?: import('./pack.js').Pack, error?: string }}
  */
 export function readFile(fileName, text) {
   const { format, data } = detectFormat(fileName, text);
+  if (format === 'pack') {
+    const parsed = parsePack(text);
+    if (!parsed.ok) return { format, candidates: [], error: parsed.error };
+    return { format, candidates: envelopeCandidates(parsed.pack), pack: parsed.pack };
+  }
   if (format === 'envelope')
     return { format, candidates: envelopeCandidates(/** @type {any} */ (data)) };
   if (format === 'json-list')

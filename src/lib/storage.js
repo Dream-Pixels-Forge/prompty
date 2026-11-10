@@ -6,7 +6,7 @@
  * - prototype-pollution safe: own-property checks only, no spread of untrusted keys
  */
 import browser from './browser.js';
-import { normalizeComposition } from './composition.js';
+import { normalizeStoredComposition } from './sequence.js';
 
 /**
  * @typedef {object} Prompt
@@ -22,7 +22,7 @@ import { normalizeComposition } from './composition.js';
  * @property {string|null} quality
  * @property {number|null} lastUsedAt
  * @property {PromptVersion[]} [versions] previous title/text, newest first (G5; omitted when none)
- * @property {import('./composition.js').Composition} [composition] blocks it was composed from (G9; omitted when none)
+ * @property {import('./composition.js').Composition|import('./sequence.js').Sequence} [composition] blocks (G9) or shots (G9b) it was composed from; omitted when none
  */
 
 /**
@@ -128,10 +128,10 @@ export function normalizePrompt(raw) {
 
 /**
  * @param {unknown} value
- * @returns {{ composition?: import('./composition.js').Composition }}
+ * @returns {{ composition?: import('./composition.js').Composition|import('./sequence.js').Sequence }}
  */
 function compositionOf(value) {
-  const composition = normalizeComposition(value);
+  const composition = normalizeStoredComposition(value);
   return composition ? { composition } : {};
 }
 

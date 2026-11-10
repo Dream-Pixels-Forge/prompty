@@ -214,3 +214,20 @@ describe('body text matching', () => {
     expect(items.map((i) => i.id)).toEqual(['w', 'long']);
   });
 });
+
+describe('history commands (G5)', () => {
+  it('adds one "History: title" command per prompt with versions', () => {
+    const withHistory = prompt({
+      id: 'h',
+      title: 'Dolly Zoom',
+      versions: [{ text: 'old', title: 'Dolly Zoom', editedAt: 1 }],
+    });
+    const cmds = buildCommands({ categories, prompts: [withHistory, prompt({ id: 'none' })] });
+    const history = cmds.filter((c) => c.effect.type === 'history');
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ label: 'History: Dolly Zoom', hint: '1 version' });
+    expect(history[0].effect.promptId).toBe('h');
+    const [top] = rankPalette({ commands: cmds }, 'history dolly', { now: NOW });
+    expect(top.command?.effect.type).toBe('history');
+  });
+});

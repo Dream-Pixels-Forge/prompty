@@ -3,10 +3,11 @@
  * window.prompt/confirm (SPEC §1 quirk fix). Each dialog resolves a promise;
  * Esc or the backdrop cancels (null), Ctrl/Cmd+Enter submits.
  */
+import { diffWords, sides } from '../lib/diff.js';
 import { extractVariables, humanizeVar, resolveVariables } from '../lib/variables.js';
 import { h, mount } from './dom.js';
 import { MAX_TITLE, orderedCategories, parseTags, validatePromptDraft } from './library.js';
-import { CATEGORY_COLORS, CATEGORY_EMOJIS } from './logic.js';
+import { CATEGORY_COLORS, CATEGORY_EMOJIS, relativeTime } from './logic.js';
 
 /**
  * @typedef {import('../lib/storage.js').Prompt} Prompt
@@ -259,9 +260,12 @@ export function fillVariables(prompt, mode) {
 /* Prompt editor                                                       */
 /* ------------------------------------------------------------------ */
 
+/** Returned by {@link promptEditor} when the user asks for the version history. */
+export const OPEN_HISTORY = 'open-history';
+
 /**
  * @param {{ prompt?: Prompt, initial?: Partial<PromptDraft>, categories: Category[] }} opts
- * @returns {Promise<PromptDraft|null>}
+ * @returns {Promise<PromptDraft|typeof OPEN_HISTORY|null>}
  */
 export function promptEditor({ prompt, initial = {}, categories }) {
   const start = { ...prompt, ...initial };
@@ -322,6 +326,10 @@ export function promptEditor({ prompt, initial = {}, categories }) {
       h('label', { class: 'check' }, favorite, ' Favorite'),
     ),
     submitLabel: prompt ? 'Save' : 'Add prompt',
+    // G5: jump to the version history (discards unsaved edits, like Cancel).
+    extra: prompt?.versions?.length
+      ? [{ label: `History (${prompt.versions.length})`, value: /** @type {any} */ (OPEN_HISTORY) }]
+      : [],
     onSubmit: () => {
       const draft = {
         title: title.value,
@@ -438,5 +446,117 @@ export function categoryEditor(category, place) {
         ...(position ? { position: Number(position.value) } : {}),
       };
     },
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Version history (G5)                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @param {import('../lib/diff.js').DiffOp[]} ops
+ * @returns {HTMLElement}
+ */
+function diffColumn(ops) {
+  return h(
+    'p',
+    { class: 'diff' },
+    ops.map((o) =>
+      o.op === 'same'
+        ? o.text
+        : h(o.op === 'add' ? 'ins' : 'del', { class: `diff__${o.op}` }, o.text),
+    ),
+  );
+}
+
+/**
+ * Version list + side-by-side compare (selected version → current).
+ * Resolves to the index of the version to restore, or null.
+ * @param {Prompt} prompt
+ * @returns {Promise<number|null>}
+ */
+export function historyModal(prompt) {
+  const versions = prompt.versions ?? [];
+  let selected = 0;
+  const list = h('ol', { class: 'history__list', role: 'listbox', 'aria-label': 'Versions' });
+  const compare = h('div', { class: 'history__compare' });
+  const render = () => {
+    mount(
+      list,
+      h(
+        'li',
+        { class: 'history__item history__item--current', 'aria-disabled': 'true' },
+        h('strong', null, 'Current'),
+        h('span', { class: 'muted' }, prompt.title),
+      ),
+      versions.map((v, i) =>
+        h(
+          'li',
+          {
+            class: 'history__item',
+            role: 'option',
+            tabindex: '0',
+            'aria-selected': String(i === selected),
+            on: {
+              click: () => ((selected = i), render()),
+              keydown: (e) => {
+                const k = /** @type {KeyboardEvent} */ (e).key;
+                if (k === 'ArrowDown' || k === 'ArrowUp') {
+                  e.preventDefault();
+                  selected = Math.max(
+                    0,
+                    Math.min(versions.length - 1, selected + (k === 'ArrowDown' ? 1 : -1)),
+                  );
+                  render();
+                  /** @type {HTMLElement|null} */ (
+                    list.querySelector('[aria-selected="true"]')
+                  )?.focus();
+                }
+              },
+            },
+          },
+          h('strong', null, `v${versions.length - i} · ${relativeTime(v.editedAt)}`),
+          h('span', { class: 'muted' }, v.text.replace(/\s+/g, ' ').slice(0, 60)),
+        ),
+      ),
+    );
+    const v = versions[selected];
+    const { before, after } = sides(diffWords(v.text, prompt.text));
+    mount(
+      compare,
+      v.title && v.title !== prompt.title
+        ? h(
+            'p',
+            { class: 'history__title muted' },
+            'Title: ',
+            h('del', { class: 'diff__del' }, v.title),
+            ' → ',
+            h('ins', { class: 'diff__add' }, prompt.title),
+          )
+        : null,
+      h(
+        'div',
+        { class: 'history__cols' },
+        h(
+          'section',
+          null,
+          h(
+            'span',
+            { class: 'field__label' },
+            `v${versions.length - selected} · ${relativeTime(v.editedAt)}`,
+          ),
+          diffColumn(before),
+        ),
+        h('section', null, h('span', { class: 'field__label' }, 'Current'), diffColumn(after)),
+      ),
+    );
+  };
+  render();
+  return openModal({
+    title: `History · ${prompt.title}`,
+    wide: true,
+    body: h('div', { class: 'history' }, list, compare),
+    submitLabel: 'Restore this version',
+    onSubmit: () => selected,
   });
 }

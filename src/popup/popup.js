@@ -13,13 +13,21 @@ import {
   orderedCategories,
   removePrompt,
   restorePrompt,
+  restoreVersion,
   toggleFavorite,
   upsertCategory,
   upsertPrompt,
   viewPrompts,
 } from './library.js';
 import { SORT_OPTIONS, chipsFor, relativeTime } from './logic.js';
-import { categoryEditor, confirmDialog, promptEditor, toast } from './modals.js';
+import {
+  OPEN_HISTORY,
+  categoryEditor,
+  confirmDialog,
+  historyModal,
+  promptEditor,
+  toast,
+} from './modals.js';
 import { exportLibrary, openPalette } from './palette-ui.js';
 import { renderSettings } from './settings-view.js';
 import { renderSnippets } from './snippets-view.js';
@@ -397,6 +405,13 @@ function card(prompt) {
         'Copy',
       ),
       h('span', { class: 'spacer' }),
+      prompt.versions?.length
+        ? iconButton(
+            '🕘',
+            `History of ${prompt.title} (${prompt.versions.length})`,
+            () => void showHistory(prompt.id),
+          )
+        : null,
       iconButton('✎', `Edit ${prompt.title}`, () => void editPrompt(prompt)),
       iconButton(
         '🗑',
@@ -418,7 +433,8 @@ export async function newPrompt(initial = {}) {
     initial: { categoryId: route.view === 'category' ? route.categoryId : null, ...initial },
     categories: state.categories,
   });
-  if (!draft) return false;
+  // A new prompt has no history, so the editor can't hand off to it here.
+  if (!draft || draft === OPEN_HISTORY) return false;
   await save({ prompts: upsertPrompt(state.prompts, draft, { id: crypto.randomUUID() }) });
   toast(`Added “${draft.title.trim()}”.`);
   return true;
@@ -427,7 +443,19 @@ export async function newPrompt(initial = {}) {
 /** @param {Prompt} prompt */
 async function editPrompt(prompt) {
   const draft = await promptEditor({ prompt, categories: state.categories });
+  if (draft === OPEN_HISTORY) return showHistory(prompt.id);
   if (draft) await save({ prompts: upsertPrompt(state.prompts, draft, { id: prompt.id }) });
+}
+
+/** @param {string} id — G5 version history; restore is itself undoable. */
+async function showHistory(id) {
+  const prompt = state.prompts.find((p) => p.id === id);
+  if (!prompt?.versions?.length) return toast('No earlier versions yet.');
+  const index = await historyModal(prompt);
+  if (index === null) return;
+  const when = relativeTime(prompt.versions[index].editedAt);
+  await save({ prompts: restoreVersion(state.prompts, id, index) });
+  toast(`Restored the version from ${when}. Your previous text is in History.`);
 }
 
 /** @param {Prompt} prompt — immediate delete with a 10s undo (no confirm friction). */
@@ -474,6 +502,8 @@ $('add-category').addEventListener('click', () => void addCategory());
 const paletteHost = {
   /** @param {string} id */
   goCategory: (id) => go('category', id),
+  /** @param {string} id */
+  showHistory: (id) => void showHistory(id),
   exportLibrary,
 };
 $('open-palette').addEventListener('click', () => openPalette(paletteHost));

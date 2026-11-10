@@ -8,7 +8,10 @@ import {
   mergeSettings,
   normalizeCategory,
   normalizePrompt,
+  readAll,
   replaceAll,
+  writeAll,
+  MAX_VERSIONS,
 } from '../src/lib/storage.js';
 
 /**
@@ -98,13 +101,61 @@ describe('normalizeCategory', () => {
 
 describe('mergeById (MERGE import mode)', () => {
   /** @type {Prompt} */
-  const a = { id: 'a', title: 'A', text: '', createdAt: 1, useCount: 0, isFavorite: false, categoryId: null, tags: [], aspectRatio: null, quality: null, lastUsedAt: null };
+  const a = {
+    id: 'a',
+    title: 'A',
+    text: '',
+    createdAt: 1,
+    useCount: 0,
+    isFavorite: false,
+    categoryId: null,
+    tags: [],
+    aspectRatio: null,
+    quality: null,
+    lastUsedAt: null,
+  };
   /** @type {Prompt} */
-  const b = { id: 'b', title: 'B', text: '', createdAt: 1, useCount: 0, isFavorite: false, categoryId: null, tags: [], aspectRatio: null, quality: null, lastUsedAt: null };
+  const b = {
+    id: 'b',
+    title: 'B',
+    text: '',
+    createdAt: 1,
+    useCount: 0,
+    isFavorite: false,
+    categoryId: null,
+    tags: [],
+    aspectRatio: null,
+    quality: null,
+    lastUsedAt: null,
+  };
   /** @type {Prompt} */
-  const b2 = { id: 'b', title: 'B-imported', text: '', createdAt: 1, useCount: 0, isFavorite: false, categoryId: null, tags: [], aspectRatio: null, quality: null, lastUsedAt: null };
+  const b2 = {
+    id: 'b',
+    title: 'B-imported',
+    text: '',
+    createdAt: 1,
+    useCount: 0,
+    isFavorite: false,
+    categoryId: null,
+    tags: [],
+    aspectRatio: null,
+    quality: null,
+    lastUsedAt: null,
+  };
   /** @type {Prompt} */
-  const c = { id: 'c', title: 'C', text: '', createdAt: 1, useCount: 0, isFavorite: false, categoryId: null, tags: [], aspectRatio: null, quality: null, lastUsedAt: null };
+  const c = {
+    id: 'c',
+    title: 'C',
+    text: '',
+    createdAt: 1,
+    useCount: 0,
+    isFavorite: false,
+    categoryId: null,
+    tags: [],
+    aspectRatio: null,
+    quality: null,
+    lastUsedAt: null,
+  };
 
   it('unions arrays, incoming wins on id collision', () => {
     const merged = mergeById([a, b], [b2, c]);
@@ -173,9 +224,10 @@ describe('mergeSettings (whitelist only — SECURITY.md)', () => {
   });
 
   it('never adopts non-whitelisted keys (no generic deep merge)', () => {
-    const patch = /**
-     * @type {Record<string, unknown> & { evil?: boolean, nested?: object }}
-     */ ({ evil: true, nested: { pollution: 'attempt' } });
+    const patch =
+      /**
+       * @type {Record<string, unknown> & { evil?: boolean, nested?: object }}
+       */ ({ evil: true, nested: { pollution: 'attempt' } });
     // Prototype-pollution-style attack: only affects patch's own prototype.
     Object.setPrototypeOf(patch, { polluted: 'yes' });
     /** @type {Settings} */
@@ -269,5 +321,53 @@ describe('mergeSettings — quick trigger (G1 keys used by the content script)',
   it('preserves quick-trigger keys across unrelated updates', () => {
     const base = mergeSettings(DEFAULT_SETTINGS, { quickTrigger: ';' });
     expect(mergeSettings(base, { compactMode: true }).quickTrigger).toBe(';');
+  });
+});
+
+describe('prompt versions (G5)', () => {
+  const v = (/** @type {number} */ n) => ({ text: `t${n}`, title: `T${n}`, editedAt: n });
+
+  it('keeps valid versions, drops malformed entries, and caps at MAX_VERSIONS (newest first)', () => {
+    const many = Array.from({ length: MAX_VERSIONS + 5 }, (_, i) => v(100 - i));
+    const p = /** @type {Prompt} */ (
+      normalizePrompt({ title: 'X', text: 'Y', versions: [null, 'x', { text: 3 }, ...many] })
+    );
+    expect(MAX_VERSIONS).toBe(20);
+    expect(p.versions).toHaveLength(MAX_VERSIONS);
+    expect(p.versions?.[0]).toEqual(v(100));
+  });
+
+  it('coerces a missing version title to "" and omits the field when nothing is valid', () => {
+    const p = /** @type {Prompt} */ (
+      normalizePrompt({ title: 'X', text: 'Y', versions: [{ text: 'old', editedAt: 5 }] })
+    );
+    expect(p.versions).toEqual([{ text: 'old', title: '', editedAt: 5 }]);
+    expect(
+      'versions' in
+        /** @type {Prompt} */ (normalizePrompt({ title: 'X', text: 'Y', versions: [] })),
+    ).toBe(false);
+    expect('versions' in /** @type {Prompt} */ (normalizePrompt({ title: 'X', text: 'Y' }))).toBe(
+      false,
+    );
+  });
+
+  it('survives a readAll → writeAll round-trip (the background save path)', async () => {
+    /** @type {Record<string, unknown>} */
+    const data = {
+      prompts: [{ id: 'p', title: 'X', text: 'Y', versions: [v(2), v(1)] }],
+    };
+    const area = {
+      async get(/** @type {string[]} */ keys) {
+        return Object.fromEntries(
+          keys.filter((k) => k in data).map((k) => [k, structuredClone(data[k])]),
+        );
+      },
+      async set(/** @type {Record<string, unknown>} */ patch) {
+        Object.assign(data, structuredClone(patch));
+      },
+    };
+    const lib = await readAll(area);
+    await writeAll(area, { prompts: lib.prompts });
+    expect(/** @type {Prompt[]} */ (data.prompts)[0].versions).toEqual([v(2), v(1)]);
   });
 });

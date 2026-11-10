@@ -63,7 +63,10 @@
 | Seed v3 cinematic pack | ✅ +10 categories, +44 prompts; upgrades add only what a newer seed version introduced (deleted starters stay deleted), join prompts to existing categories by name, never duplicate a category |
 | Popup screens (SPEC §1 parity) | ✅ 780×580 shell; sidebar views + categories CRUD/reorder (18 colors × 24 emoji); cards with favorite, ⚡vars, chips, stats, insert/append/copy/edit/delete (10s undo); search (`/`), sort; prompt editor; variable fill-in modal; snippets tab; settings (general, quick insert, disabled sites, recipes, import/export); live sync; light/dark |
 
-### Next wave: v0.3 "Differentiators" (ROADMAP.md)
+### Next wave — see [`subgoals/`](subgoals/README.md)
+Order: S1 Save Selection → S2 in-page rebrand → S3 toolbar glyph → G5 history → G6 variables 2.0 → G4 bulk ops → G9 Composer.
+
+### v0.3 "Differentiators" backlog (ROADMAP.md)
 Priority order per ROADMAP:
 1. **G2** Ctrl+K command palette in popup
 2. **G5** Prompt version history + diff + revert

@@ -1,5 +1,7 @@
 # ROADMAP — Next-Level Subgoals for Prompty
 
+> Active, code-pinned subgoals live in [`subgoals/`](subgoals/README.md). This file keeps the full backlog.
+
 Status marker: v0.1 = the clone+global build (issues #1–#4, in flight).
 Everything below raises the bar beyond parity. Format per goal-writer.
 All features stay **100% local** (no servers, no telemetry) — security baseline non-negotiable.

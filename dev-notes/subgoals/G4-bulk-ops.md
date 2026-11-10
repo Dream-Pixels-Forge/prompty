@@ -1,5 +1,16 @@
 ## Goal: G4 — Multi-select and bulk operations
 
+> **Status: done.** Notes from the PR:
+>
+> - Reducer names are explicit (`selectOnly`, `toggleSelection`, `rangeSelection`,
+>   `selectAllVisible`, `clearSelection`, `pruneSelection`) because `library.js` is a shared module.
+>   `rangeSelection` keeps its anchor, so Shift+arrows grow _and_ shrink one range.
+> - Arrow keys follow the grid: ←/→ step one card, ↑/↓ one row. Enter on a focused card inserts
+>   (Shift+Enter appends). Ctrl/Cmd-click on a card body also toggles.
+> - "Export selected" writes no `settings`; importing a file without `settings` now keeps the
+>   importer's current settings (before, it reset them to defaults).
+> - Bulk Copy joins raw texts with a blank line; `{variables}` stay as tokens (no multi-prompt fill-in).
+
 ### Objective
 
 Select many prompts at once (click checkbox, Shift-click range, Ctrl/Cmd+A in the grid) and act on all
@@ -14,23 +25,23 @@ edit dialogs. Detailed in ROADMAP G4.
 
 ### Deliverables
 
-- [ ] Pure selection reducer in `src/popup/library.js`: `select`, `toggle`, `range(anchor, id, visibleIds)`,
+- [x] Pure selection reducer in `src/popup/library.js`: `select`, `toggle`, `range(anchor, id, visibleIds)`,
       `all(visibleIds)`, `clear`; selection drops ids no longer visible after a filter change.
-- [ ] Pure bulk transforms: `bulkMove(prompts, ids, categoryId)`, `bulkTag(prompts, ids, add[], remove[])`,
+- [x] Pure bulk transforms: `bulkMove(prompts, ids, categoryId)`, `bulkTag(prompts, ids, add[], remove[])`,
       `bulkFavorite`, `removeMany` → `{ prompts, removed: [{ prompt, index }] }`, `restoreMany`.
-- [ ] Card checkbox (visible on hover/focus and whenever a selection exists) + selected styling (orange edge).
-- [ ] Contextual bulk bar replacing the toolbar while selecting: count · Move · Tag · ★ · Copy ·
+- [x] Card checkbox (visible on hover/focus and whenever a selection exists) + selected styling (orange edge).
+- [x] Contextual bulk bar replacing the toolbar while selecting: count · Move · Tag · ★ · Copy ·
       Export · Delete · ✕ clear. Esc clears.
-- [ ] Drag selected cards onto a sidebar category row → move. Use a distinct drag type
+- [x] Drag selected cards onto a sidebar category row → move. Use a distinct drag type
       (`application/x-prompty-prompts`) so it never collides with category reordering (`text/plain`).
-- [ ] Undo toast for bulk delete restores every prompt at its original index.
+- [x] Undo toast for bulk delete restores every prompt at its original index.
 
 ### Definition of Done
 
-- [ ] Keyboard-only: Space toggles focused card, Shift+↑/↓ extends, Ctrl/Cmd+A selects visible,
+- [x] Keyboard-only: Space toggles focused card, Shift+↑/↓ extends, Ctrl/Cmd+A selects visible,
       Delete opens undoable delete, Esc clears.
-- [ ] Reducer + transform tests; undo restores order exactly.
-- [ ] Gates green; e2e: select 3 → move to "Lighting" → tag "client-x" → delete → undo.
+- [x] Reducer + transform tests; undo restores order exactly.
+- [x] Gates green; e2e: select 3 → move to "Lighting" → tag "client-x" → delete → undo.
 
 ### Verification Steps
 

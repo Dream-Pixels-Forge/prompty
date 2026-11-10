@@ -147,9 +147,7 @@ export function sortPrompts(prompts, sortBy) {
       ordered.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
       break;
     case 'mostUsed':
-      ordered.sort(
-        (a, b) => (b.useCount ?? 0) - (a.useCount ?? 0) || recency(b) - recency(a),
-      );
+      ordered.sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0) || recency(b) - recency(a));
       break;
     case 'recent':
     default:
@@ -295,7 +293,7 @@ export function applyImportData(data, library, mode) {
     return {
       prompts: incoming.prompts,
       categories: incoming.categories,
-      settings: mergeSettings(DEFAULT_SETTINGS, isRecord(dataRecord.settings) ? dataRecord.settings : null),
+      settings: importedSettings(dataRecord, library),
     };
   }
 
@@ -304,8 +302,20 @@ export function applyImportData(data, library, mode) {
   return {
     prompts: mergeById(existingPrompts, incoming.prompts),
     categories: mergeById(existingCategories, incoming.categories),
-    settings: mergeSettings(DEFAULT_SETTINGS, isRecord(dataRecord.settings) ? dataRecord.settings : null),
+    settings: importedSettings(dataRecord, library),
   };
+}
+
+/**
+ * A file with settings adopts them (over SPEC defaults). A file without a
+ * `settings` key — e.g. a G4 "export selected" — leaves the current ones alone.
+ * @param {Record<string, unknown>} dataRecord
+ * @param {{ settings?: unknown }|null|undefined} library
+ * @returns {Settings}
+ */
+function importedSettings(dataRecord, library) {
+  if (isRecord(dataRecord.settings)) return mergeSettings(DEFAULT_SETTINGS, dataRecord.settings);
+  return mergeSettings(DEFAULT_SETTINGS, isRecord(library?.settings) ? library.settings : null);
 }
 
 /* ------------------------------------------------------------------ */
@@ -352,10 +362,13 @@ function stringOrBlank(value) {
  * @returns {Recipe[]}
  */
 export function filterRecipes(recipes, query) {
-  const needle = String(query ?? '').trim().toLowerCase();
+  const needle = String(query ?? '')
+    .trim()
+    .toLowerCase();
   if (needle === '') return Array.isArray(recipes) ? recipes : [];
   return (Array.isArray(recipes) ? recipes : []).filter((recipe) => {
-    const pattern = typeof recipe.originPattern === 'string' ? recipe.originPattern.toLowerCase() : '';
+    const pattern =
+      typeof recipe.originPattern === 'string' ? recipe.originPattern.toLowerCase() : '';
     const notes = typeof recipe.notes === 'string' ? recipe.notes.toLowerCase() : '';
     return pattern.includes(needle) || notes.includes(needle);
   });

@@ -85,3 +85,17 @@ export function localizeDom(root) {
     }
   }
 }
+
+/**
+ * G8c: the variable grammar's validation messages stay English inside the
+ * shared grammar block (it is copied verbatim into the content script); this
+ * maps them to the UI language where they are shown.
+ * @param {string} problem
+ */
+export function localizeVarProblem(problem) {
+  if (problem === 'Fill in this field') return t('varFillIn');
+  if (problem === 'Pick one of the options') return t('varPickOption');
+  const m = /^Enter a whole number from (-?\d+) to (-?\d+)$/.exec(problem);
+  if (m) return t('varWholeNumber', m[1], m[2]);
+  return problem;
+}

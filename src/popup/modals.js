@@ -3,7 +3,7 @@
  * window.prompt/confirm (SPEC §1 quirk fix). Each dialog resolves a promise;
  * Esc or the backdrop cancels (null), Ctrl/Cmd+Enter submits.
  */
-import { t, tn } from '../lib/i18n.js';
+import { localizeVarProblem, t, tn } from '../lib/i18n.js';
 import { diffWords, sides } from '../lib/diff.js';
 import {
   checkVariableValue,
@@ -431,7 +431,7 @@ export function fillVariables(prompt, mode, memory = {}) {
       let first = null;
       for (const spec of specs) {
         const problem = checkVariableValue(spec, fields[spec.name].get());
-        fields[spec.name].error.textContent = problem;
+        fields[spec.name].error.textContent = localizeVarProblem(problem);
         if (problem && !first) first = spec.name;
       }
       if (first) {

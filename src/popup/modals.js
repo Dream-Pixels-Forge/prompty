@@ -4,7 +4,15 @@
  * Esc or the backdrop cancels (null), Ctrl/Cmd+Enter submits.
  */
 import { diffWords, sides } from '../lib/diff.js';
-import { extractVariables, humanizeVar, resolveVariables } from '../lib/variables.js';
+import {
+  checkVariableValue,
+  describeVariable,
+  humanizeVar,
+  parseVariables,
+  randomInRange,
+  recallValue,
+  resolveVariables,
+} from '../lib/variables.js';
 import { h, mount } from './dom.js';
 import { MAX_TITLE, orderedCategories, parseTags, validatePromptDraft } from './library.js';
 import { CATEGORY_COLORS, CATEGORY_EMOJIS, relativeTime } from './logic.js';
@@ -189,71 +197,227 @@ function field(label, control, error) {
 /* Variable fill-in (SPEC §1: all values required, live preview)       */
 /* ------------------------------------------------------------------ */
 
+/** Choices with at most this many options render as one-tap chips; more → a select. */
+const CHIP_LIMIT = 6;
+
 /**
+ * Fill-in form (SPEC §1 + G6): text fields, choice chips/select, number +
+ * 🎲 for ranges. Prefill: remembered value that still fits → default → empty.
  * @param {Prompt} prompt
  * @param {'insert'|'append'|'copy'} mode
- * @returns {Promise<string|null>} resolved text, or null if cancelled
+ * @param {unknown} [memory] variableMemory from storage
+ * @returns {Promise<{ text: string, values: Record<string, string> } | null>} null if cancelled
  */
-export function fillVariables(prompt, mode) {
-  const names = extractVariables(prompt.text);
-  /** @type {Record<string, HTMLInputElement>} */
-  const inputs = {};
+export function fillVariables(prompt, mode, memory = {}) {
+  const specs = parseVariables(prompt.text);
+  /** @type {Record<string, { get: () => string, focus: () => void, error: HTMLElement }>} */
+  const fields = {};
   const preview = h('p', { class: 'preview' });
-  const error = h('p', { class: 'field__error' });
   const values = () => {
     /** @type {Record<string, string>} */
     const out = {};
-    for (const name of names) if (inputs[name].value.trim() !== '') out[name] = inputs[name].value;
+    for (const spec of specs) {
+      const v = fields[spec.name].get().trim();
+      if (v !== '') out[spec.name] = v;
+    }
     return out;
   };
   const update = () => {
     preview.textContent = resolveVariables(prompt.text, values());
   };
-  const fields = names.map((name) => {
-    inputs[name] = h('input', {
-      type: 'text',
-      name,
-      autocomplete: 'off',
-      on: {
-        input: update,
-        keydown: (e) => {
-          // Enter moves to the next field; on the last one it submits.
-          const ke = /** @type {KeyboardEvent} */ (e);
-          if (ke.key !== 'Enter' || ke.ctrlKey || ke.metaKey) return;
-          const i = names.indexOf(name);
-          if (i < names.length - 1) {
-            ke.preventDefault();
-            inputs[names[i + 1]].focus();
-          }
+  /** Enter moves to the next field; on the last one it submits (Ctrl/Cmd+Enter submits anywhere). */
+  const nextOnEnter = (/** @type {number} */ i) => (/** @type {Event} */ e) => {
+    const ke = /** @type {KeyboardEvent} */ (e);
+    if (ke.key !== 'Enter' || ke.ctrlKey || ke.metaKey || i === specs.length - 1) return;
+    ke.preventDefault();
+    fields[specs[i + 1].name].focus();
+  };
+
+  const rows = specs.map((spec, i) => {
+    const prefill = recallValue(memory, spec);
+    const error = h('span', { class: 'field__error' });
+    const label =
+      spec.kind === 'range'
+        ? `${humanizeVar(spec.name)} (${spec.min}–${spec.max})`
+        : humanizeVar(spec.name);
+
+    if (spec.kind === 'choice' && spec.options.length <= CHIP_LIMIT) {
+      let current = prefill;
+      const group = h('div', { class: 'chips', role: 'radiogroup', 'aria-label': label });
+      const render = () =>
+        mount(
+          group,
+          spec.options.map((option) =>
+            h(
+              'button',
+              {
+                type: 'button',
+                class: 'choice',
+                role: 'radio',
+                'aria-checked': String(option === current),
+                on: {
+                  click: () => {
+                    current = option;
+                    error.textContent = '';
+                    render();
+                    update();
+                    /** @type {HTMLElement|null} */ (
+                      group.querySelector('[aria-checked="true"]')
+                    )?.focus();
+                  },
+                  keydown: (e) => {
+                    const ke = /** @type {KeyboardEvent} */ (e);
+                    const k = ke.key;
+                    if (k === 'Enter' && !ke.ctrlKey && !ke.metaKey) {
+                      // Like a text field: Enter picks this chip, then moves on (or submits on the last field).
+                      e.preventDefault();
+                      current = option;
+                      error.textContent = '';
+                      render();
+                      update();
+                      if (i < specs.length - 1) fields[specs[i + 1].name].focus();
+                      else
+                        /** @type {HTMLFormElement|null} */ (
+                          group.closest('form')
+                        )?.requestSubmit();
+                      return;
+                    }
+                    if (k !== 'ArrowRight' && k !== 'ArrowLeft') return;
+                    e.preventDefault();
+                    const at = Math.max(0, spec.options.indexOf(current));
+                    const n = spec.options.length;
+                    current = spec.options[(at + (k === 'ArrowRight' ? 1 : n - 1)) % n];
+                    render();
+                    update();
+                    /** @type {HTMLElement|null} */ (
+                      group.querySelector('[aria-checked="true"]')
+                    )?.focus();
+                  },
+                },
+              },
+              option,
+            ),
+          ),
+        );
+      render();
+      fields[spec.name] = {
+        get: () => current,
+        focus: () =>
+          /** @type {HTMLElement|null} */ (
+            group.querySelector('[aria-checked="true"]') || group.querySelector('button')
+          )?.focus(),
+        error,
+      };
+      return h(
+        'div',
+        { class: 'field' },
+        h('span', { class: 'field__label' }, label),
+        group,
+        error,
+      );
+    }
+
+    if (spec.kind === 'choice') {
+      const select = h(
+        'select',
+        { name: spec.name, on: { change: update, keydown: nextOnEnter(i) } },
+        h('option', { value: '' }, 'Choose…'),
+        spec.options.map((o) => h('option', { value: o, selected: o === prefill }, o)),
+      );
+      fields[spec.name] = { get: () => select.value, focus: () => select.focus(), error };
+      return h(
+        'label',
+        { class: 'field' },
+        h('span', { class: 'field__label' }, label),
+        select,
+        error,
+      );
+    }
+
+    if (spec.kind === 'range') {
+      const input = h('input', {
+        type: 'number',
+        name: spec.name,
+        min: String(spec.min),
+        max: String(spec.max),
+        step: '1',
+        value: prefill,
+        placeholder: `${spec.min}–${spec.max}`,
+        on: { input: update, keydown: nextOnEnter(i) },
+      });
+      const dice = h(
+        'button',
+        {
+          type: 'button',
+          class: 'btn dice',
+          title: 'Random',
+          'aria-label': `Random ${humanizeVar(spec.name)}`,
+          on: {
+            click: () => {
+              input.value = String(randomInRange(spec));
+              error.textContent = '';
+              update();
+              input.focus();
+            },
+          },
         },
-      },
+        '🎲',
+      );
+      fields[spec.name] = { get: () => input.value, focus: () => input.focus(), error };
+      return h(
+        'label',
+        { class: 'field' },
+        h('span', { class: 'field__label' }, label),
+        h('div', { class: 'inline-form' }, input, dice),
+        error,
+      );
+    }
+
+    const input = h('input', {
+      type: 'text',
+      name: spec.name,
+      autocomplete: 'off',
+      value: prefill,
+      placeholder: spec.kind === 'text' && spec.default ? spec.default : '',
+      on: { input: update, keydown: nextOnEnter(i) },
     });
-    return field(humanizeVar(name), inputs[name]);
+    fields[spec.name] = { get: () => input.value, focus: () => input.focus(), error };
+    return field(label, input, error);
   });
   update();
+
   const verb = mode === 'copy' ? 'Copy' : mode === 'append' ? 'Append' : 'Insert';
-  return openModal({
+  const pending = openModal({
     title: prompt.title,
     body: h(
       'div',
       { class: 'stack' },
-      fields,
+      rows,
       h('span', { class: 'field__label' }, 'Preview'),
       preview,
-      error,
     ),
     submitLabel: verb,
     onSubmit: () => {
-      const v = values();
-      const missing = names.filter((n) => !(n in v));
-      if (missing.length > 0) {
-        error.textContent = `Fill in: ${missing.map(humanizeVar).join(', ')}`;
-        inputs[missing[0]].focus();
+      let first = null;
+      for (const spec of specs) {
+        const problem = checkVariableValue(spec, fields[spec.name].get());
+        fields[spec.name].error.textContent = problem;
+        if (problem && !first) first = spec.name;
+      }
+      if (first) {
+        fields[first].focus();
         return null;
       }
-      return resolveVariables(prompt.text, v);
+      const v = values();
+      return { text: resolveVariables(prompt.text, v), values: v };
     },
   });
+  // Start where input is needed: the first field without a prefilled value.
+  queueMicrotask(() => {
+    const needs = specs.find((spec) => fields[spec.name].get().trim() === '');
+    if (needs) fields[needs.name].focus();
+  });
+  return pending;
 }
 
 /* ------------------------------------------------------------------ */
@@ -282,11 +446,11 @@ export function promptEditor({ prompt, initial = {}, categories }) {
   });
   const varsHint = h('span', { class: 'field__hint' });
   const updateVars = () => {
-    const vars = extractVariables(text.value);
+    const vars = parseVariables(text.value);
     varsHint.textContent =
       vars.length > 0
-        ? `⚡ ${vars.length} variable${vars.length === 1 ? '' : 's'}: ${vars.join(', ')}`
-        : 'Tip: {subject} becomes a fill-in field.';
+        ? `⚡ ${vars.length} variable${vars.length === 1 ? '' : 's'}: ${vars.map(describeVariable).join(', ')}`
+        : 'Tip: {subject} text · {lens:24mm|50mm} choices · {seed:1-999} range · {mood=calm} default';
   };
   text.addEventListener('input', updateVars);
   updateVars();

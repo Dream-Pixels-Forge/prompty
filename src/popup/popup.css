@@ -1101,3 +1101,31 @@ span.field__error {
   box-shadow: inset 0 -2px 0 var(--accent);
   border-radius: 3px;
 }
+
+/* Variables 2.0 (G6): choice chips + dice */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.choice {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 4px 11px;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.choice:hover {
+  border-color: var(--fg);
+}
+.choice[aria-checked='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.dice {
+  flex: none;
+  padding-inline: 10px;
+}

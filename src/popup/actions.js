@@ -6,7 +6,7 @@
 import browser from '../lib/browser.js';
 import { MSG_INSERT_PROMPT } from '../lib/message.js';
 import { appendSnippet } from '../lib/storage.js';
-import { extractVariables } from '../lib/variables.js';
+import { parseVariables, rememberValues } from '../lib/variables.js';
 import { fillVariables, toast } from './modals.js';
 import { markUsed } from './palette.js';
 import { save, state } from './store.js';
@@ -24,10 +24,12 @@ import { save, state } from './store.js';
  */
 export async function usePrompt(prompt, mode) {
   let text = prompt.text;
-  if (extractVariables(text).length > 0) {
-    const filled = await fillVariables(prompt, mode);
+  if (parseVariables(text).length > 0) {
+    const filled = await fillVariables(prompt, mode, state.variableMemory);
     if (filled === null) return false;
-    text = filled;
+    text = filled.text;
+    // G6: remember what was used, so next time the form is already filled.
+    await save({ variableMemory: rememberValues(state.variableMemory, filled.values) });
   }
   const ok = await deliverText(text, mode);
   if (ok) await save({ prompts: markUsed(state.prompts, prompt.id) });

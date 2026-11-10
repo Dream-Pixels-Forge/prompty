@@ -21,6 +21,8 @@ export const state = {
   /** @type {Category[]} */ categories: [],
   /** @type {Settings} */ settings: { ...DEFAULT_SETTINGS },
   /** @type {Snippet[]} */ snippets: [],
+  /** G6 fill-in memory (`variableMemory` storage key). @type {import('../lib/variables.js').VariableMemory} */
+  variableMemory: {},
   /** Prompts created after this moment get a "New" chip (previous popup open). */
   newSince: Infinity,
 };
@@ -53,24 +55,31 @@ export async function load() {
 
 async function reload() {
   const lib = await readAll();
-  const raw = await browser.storage.local.get(['snippets']);
+  const raw = await browser.storage.local.get(['snippets', 'variableMemory']);
   state.prompts = lib.prompts;
   state.categories = lib.categories;
   state.settings = lib.settings;
   state.snippets = Array.isArray(raw.snippets) ? raw.snippets : [];
+  state.variableMemory =
+    raw.variableMemory &&
+    typeof raw.variableMemory === 'object' &&
+    !Array.isArray(raw.variableMemory)
+      ? raw.variableMemory
+      : {};
   emit();
 }
 
 /**
  * Persist any subset. Settings writes also mirror active user recipes to the
  * top-level `siteRecipes` key that the content script reads.
- * @param {{ prompts?: Prompt[], categories?: Category[], settings?: Partial<Settings>, snippets?: Snippet[] }} patch
+ * @param {{ prompts?: Prompt[], categories?: Category[], settings?: Partial<Settings>, snippets?: Snippet[], variableMemory?: import('../lib/variables.js').VariableMemory }} patch
  */
 export async function save(patch) {
   if (patch.prompts) state.prompts = patch.prompts;
   if (patch.categories) state.categories = patch.categories;
   if (patch.settings) state.settings = { ...state.settings, ...patch.settings };
   if (patch.snippets) state.snippets = patch.snippets;
+  if (patch.variableMemory) state.variableMemory = patch.variableMemory;
   emit();
   await writeAll(undefined, {
     prompts: patch.prompts,
@@ -80,6 +89,7 @@ export async function save(patch) {
   /** @type {Record<string, unknown>} */
   const extra = {};
   if (patch.snippets) extra.snippets = patch.snippets;
+  if (patch.variableMemory) extra.variableMemory = patch.variableMemory;
   if (patch.settings) extra.siteRecipes = activeRecipes(state.settings);
   if (Object.keys(extra).length > 0) await browser.storage.local.set(extra);
 }

@@ -450,6 +450,8 @@ export const DIALECT_HOSTS = /** @type {const} */ ([
   { host: 'dreamina.capcut.com', format: 'seedance' },
   { host: 'jimeng.jianying.com', format: 'seedance' },
   { host: 'console.byteplus.com', format: 'seedance' },
+  { host: 'meta.ai', format: 'muse' }, // Meta's Muse Video (confirmed by the project owner)
+  { host: 'www.meta.ai', format: 'muse' },
 ]);
 export const MAX_REMEMBERED_SITES = 50;
 

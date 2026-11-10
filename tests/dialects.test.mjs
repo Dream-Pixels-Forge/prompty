@@ -248,6 +248,8 @@ describe('site suggestions', () => {
     expect(
       suggestFormat('https://dreamina.capcut.com', { 'https://dreamina.capcut.com': 'script' }),
     ).toBe('script');
+    expect(suggestFormat('https://www.meta.ai', {})).toBe('muse');
+    expect(suggestFormat('https://meta.ai', {})).toBe('muse');
     expect(suggestFormat('https://example.com', {})).toBeNull();
     expect(suggestFormat('chrome://extensions', {})).toBeNull();
     expect(suggestFormat('', null)).toBeNull();

@@ -4,8 +4,8 @@
 >
 > - Dialects are extra `FORMATS` (group `model`), so storage, drafts and saved prompts needed no
 >   new shape. A one-shot sequence still writes plain G9 text in every format.
-> - Built-in detection covers only Seedance hosts. Muse has no host that is confirmed for it, so
->   Muse gets no built-in detection: pick it once on a site and the site remembers it.
+> - Built-in detection: Dreamina, Jimeng and the BytePlus console → Seedance; meta.ai → Muse (host
+>   confirmed by the project owner). Any other site learns the dialect once you pick it there.
 > - The shared-variable line reuses the first full token (`{lens:35mm|85mm}`), so a bare `{lens}`
 >   never turns a choice variable back into free text.
 > - In e2e the popup runs as a tab, so `tabs.query` is stubbed to report a Dreamina URL; insert
@@ -47,7 +47,7 @@ _wording_, not the delivery.
     - One take: the cuts are ignored.
   - `suggestFormat(origin, remembered)` and `rememberFormat(map, origin, format)` (at most 50
     sites). Built-in hosts: only ones confirmed for a dialect (Dreamina, Jimeng and BytePlus
-    console → Seedance).
+    console → Seedance; meta.ai → Muse).
 - [x] Compose view:
   - a "Write for" select with two groups, "Any model" and "Model dialect"
   - a suggestion chip ("On dreamina.capcut.com: write for Seedance 2.5")

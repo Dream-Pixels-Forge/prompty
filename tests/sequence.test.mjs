@@ -302,6 +302,7 @@ describe('starter sequence', () => {
     const out = composeSequence(s);
     expect(out.duration).toBe(12);
     expect(out.variables.filter((v) => v.name === 'hero')).toHaveLength(1);
+    expect(out.variables.map((v) => v.name)).not.toContain('subject');
     expect(out.text).toMatch(/^Shot 1 \(0–4s\): a single raindrop/);
     expect(fromSequenceTemplate('nope', seed.prompts, newId)).toBeNull();
   });

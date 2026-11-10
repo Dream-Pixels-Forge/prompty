@@ -8,7 +8,9 @@ plain `<textarea>` on the web.
 **100% local.** No servers, no accounts, no telemetry, zero network requests.
 Everything lives in `browser.storage.local`.
 
-## Features (v0.2)
+## Features (v0.3)
+
+What's new in each version: [`CHANGELOG.md`](CHANGELOG.md).
 
 - **Prompt library popup** — browse by view or category, search (`/`), sort, star, and insert, append, copy, edit or delete (with undo) prompts; manage categories (drag to reorder).
 - **Cinematic starter library** — 52 prompts in 16 categories: Characters, Landscapes, Objects, Styles, Abstract, Camera Angles, Camera Movement, Lighting, Lens & Optics, Locations, Color Grading, Composition, Mood & Atmosphere, VFX & Transitions, Posters and Logos. Every prompt has `{variables}` to fill in.
@@ -60,14 +62,15 @@ CI also attaches both archives to every run as the `prompty-packages` artifact.
 
 ## Scripts
 
-| Command                  | What it does                                                                       |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| `pnpm type-check`        | `tsc --noEmit` over JS with JSDoc types                                            |
-| `pnpm lint`              | ESLint, zero warnings allowed                                                      |
-| `pnpm test`              | Vitest unit tests                                                                  |
-| `pnpm build`             | Emit `dist/chrome` + `dist/firefox` from `src/manifest.base.json`                  |
-| `pnpm package`           | Build, then zip both targets                                                       |
-| `node scripts/icons.mjs` | Re-render the 16/32 px toolbar glyph from `src/icons/glyph.svg` (needs Playwright) |
+| Command                              | What it does                                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `pnpm type-check`                    | `tsc --noEmit` over JS with JSDoc types                                                            |
+| `pnpm lint`                          | ESLint, zero warnings allowed                                                                      |
+| `pnpm test`                          | Vitest unit tests                                                                                  |
+| `pnpm build`                         | Emit `dist/chrome` + `dist/firefox` from `src/manifest.base.json`                                  |
+| `pnpm package`                       | Build, then zip both targets                                                                       |
+| `node scripts/icons.mjs`             | Re-render the 16/32 px toolbar glyph from `src/icons/glyph.svg` (needs Playwright)                 |
+| `node scripts/store-screenshots.mjs` | After `pnpm build`: regenerate the store screenshots and promo tile in `store/` (needs Playwright) |
 
 CI (`.github/workflows/pr-validation.yml`) runs all gates plus `web-ext lint`
 (Firefox) and `addons-linter` (Chrome) on every PR and every push to `main`.
@@ -79,17 +82,23 @@ src/
   background.js        service worker (Chrome) / event page (Firefox)
   content/assist.js    pill, floating widget, ! palette, insert handlers
   popup/               library UI
-  lib/                 pure ES modules: storage, variables, search, recipes, sites, text, message
+  lib/                 pure ES modules: storage, variables, composition, sequence, diff,
+                       capture, presets, search, recipes, sites, text, message
   assets/recipes.json  seeded site recipes
 scripts/               build + package
 tests/                 vitest suites
-dev-notes/             GOAL, SPEC, SECURITY, ROADMAP, PROGRESS
+dev-notes/             GOAL, SPEC, SECURITY, ROADMAP, PROGRESS, subgoals/
+store/                 store screenshots, promo tile, listing copy
 ```
 
 ## Roadmap
 
-v0.3 "Differentiators" is next: Ctrl+K command palette, prompt version history,
-bulk ops, Variables 2.0, and more. See [`dev-notes/ROADMAP.md`](dev-notes/ROADMAP.md).
+v0.3 shipped the Ctrl+K palette, version history, bulk operations, Variables 2.0
+and the Composer (shots, sequences, model dialects). Still open on the roadmap:
+usage insights (G7), theming/a11y/i18n (G8), Vault Mode (G10), the Migration Suite
+(G11), an IndexedDB engine for very large libraries (G12) and `.prompty` share packs
+(G13). See [`dev-notes/ROADMAP.md`](dev-notes/ROADMAP.md) and the shipped subgoal specs
+in [`dev-notes/subgoals/`](dev-notes/subgoals/README.md).
 
 ## License & attribution
 

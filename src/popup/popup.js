@@ -112,10 +112,34 @@ function renderSidebar() {
   mount(
     categoriesEl,
     cats.length === 0 ? h('p', { class: 'nav__empty' }, 'No categories yet') : null,
-    cats.map((cat, i) =>
+    cats.map((cat) =>
       h(
         'div',
-        { class: 'nav__row' },
+        {
+          class: 'nav__row',
+          draggable: 'true',
+          dataset: { id: cat.id },
+          on: {
+            dragstart: (e) => {
+              dragId = cat.id;
+              /** @type {DragEvent} */ (e).dataTransfer?.setData('text/plain', cat.id);
+            },
+            dragover: (e) => {
+              if (!dragId || dragId === cat.id) return;
+              e.preventDefault();
+              /** @type {HTMLElement} */ (e.currentTarget).classList.add('nav__row--drop');
+            },
+            dragleave: (e) =>
+              /** @type {HTMLElement} */ (e.currentTarget).classList.remove('nav__row--drop'),
+            drop: (e) => {
+              e.preventDefault();
+              /** @type {HTMLElement} */ (e.currentTarget).classList.remove('nav__row--drop');
+              if (dragId) dropCategory(dragId, cat.id);
+              dragId = null;
+            },
+            dragend: () => (dragId = null),
+          },
+        },
         h(
           'button',
           {
@@ -132,16 +156,27 @@ function renderSidebar() {
         h(
           'span',
           { class: 'nav__tools' },
-          i > 0 ? iconButton('↑', `Move ${cat.name} up`, () => reorderCategory(cat.id, -1)) : null,
-          i < cats.length - 1
-            ? iconButton('↓', `Move ${cat.name} down`, () => reorderCategory(cat.id, 1))
-            : null,
           iconButton('✎', `Edit ${cat.name}`, () => void editCategory(cat)),
-          iconButton('✕', `Delete ${cat.name}`, () => void removeCategory(cat)),
+          iconButton('✕', `Delete ${cat.name}`, () => void removeCategory(cat), 'icon-btn--danger'),
         ),
       ),
     ),
   );
+}
+
+/** Category being dragged in the sidebar. @type {string|null} */
+let dragId = null;
+
+/**
+ * Drop `fromId` onto `toId`'s slot.
+ * @param {string} fromId
+ * @param {string} toId
+ */
+function dropCategory(fromId, toId) {
+  const list = orderedCategories(state.categories);
+  const from = list.findIndex((c) => c.id === fromId);
+  const to = list.findIndex((c) => c.id === toId);
+  if (from !== -1 && to !== -1 && from !== to) reorderCategory(fromId, to - from);
 }
 
 /**
@@ -183,8 +218,15 @@ async function addCategory() {
 
 /** @param {Category} cat */
 async function editCategory(cat) {
-  const draft = await categoryEditor(cat);
-  if (draft) await save({ categories: upsertCategory(state.categories, draft, { id: cat.id }) });
+  const list = orderedCategories(state.categories);
+  const position = list.findIndex((c) => c.id === cat.id);
+  const draft = await categoryEditor(cat, { position, total: list.length });
+  if (!draft) return;
+  let categories = upsertCategory(state.categories, draft, { id: cat.id });
+  if (draft.position !== undefined && draft.position !== position) {
+    categories = moveCategory(categories, cat.id, draft.position - position);
+  }
+  await save({ categories });
 }
 
 /** @param {Category} cat */
@@ -280,12 +322,23 @@ function card(prompt) {
   return h(
     'article',
     { class: 'card', dataset: { id: prompt.id } },
+    // Category eyebrow — redundant inside that category's own view.
+    category && route.view !== 'category'
+      ? h(
+          'button',
+          {
+            type: 'button',
+            class: 'card__eyebrow',
+            title: `Open ${category.name}`,
+            on: { click: () => go('category', category.id) },
+          },
+          h('span', { class: 'dot', style: { background: category.color }, 'aria-hidden': 'true' }),
+          `${category.icon} ${category.name}`,
+        )
+      : null,
     h(
       'header',
       { class: 'card__head' },
-      category
-        ? h('span', { class: 'dot', style: { background: category.color }, title: category.name })
-        : null,
       h('h2', { class: 'card__title', title: prompt.title }, prompt.title || 'Untitled'),
       h(
         'button',

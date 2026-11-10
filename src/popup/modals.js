@@ -346,9 +346,10 @@ export function promptEditor({ prompt, initial = {}, categories }) {
 
 /**
  * @param {Category} [category]
- * @returns {Promise<{ name: string, color: string, icon: string } | null>}
+ * @param {{ position: number, total: number }} [place] editing only: current 0-based slot
+ * @returns {Promise<{ name: string, color: string, icon: string, position?: number } | null>}
  */
-export function categoryEditor(category) {
+export function categoryEditor(category, place) {
   let color = category?.color ?? CATEGORY_COLORS[0];
   let icon = category?.icon ?? CATEGORY_EMOJIS[0];
   const name = h('input', {
@@ -397,12 +398,29 @@ export function categoryEditor(category) {
     );
   };
   render();
+  // Keyboard-accessible reorder (drag-and-drop in the sidebar does the same).
+  const position = place
+    ? h(
+        'select',
+        null,
+        Array.from({ length: place.total }, (_, i) =>
+          h(
+            'option',
+            { value: String(i), selected: i === place.position },
+            `${i + 1} of ${place.total}`,
+          ),
+        ),
+      )
+    : null;
   return openModal({
     title: category ? 'Edit category' : 'New category',
+    wide: true,
     body: h(
       'div',
       { class: 'stack' },
-      field('Name', name, error),
+      position
+        ? h('div', { class: 'row' }, field('Name', name, error), field('Position', position))
+        : field('Name', name, error),
       field('Color', colors),
       field('Icon', icons),
     ),
@@ -413,7 +431,12 @@ export function categoryEditor(category) {
         name.focus();
         return null;
       }
-      return { name: name.value.trim(), color, icon };
+      return {
+        name: name.value.trim(),
+        color,
+        icon,
+        ...(position ? { position: Number(position.value) } : {}),
+      };
     },
   });
 }

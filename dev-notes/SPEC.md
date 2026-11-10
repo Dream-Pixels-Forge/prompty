@@ -10,10 +10,10 @@ Basis: REA analysis `ev_84b4661a…` of Higgsfield Prompt Saver v1.0.0 (MIT) + f
 | Storage | `storage.local` keys: `prompts[]`, `categories[]`, `settings{}`; prompt fields: `id,title,text,createdAt,useCount,isFavorite,categoryId,tags[],aspectRatio,quality,lastUsedAt`; category fields: `id,name,color,icon,order`; settings defaults `{defaultView:"all",sortBy:"recent",compactMode:false,autoUnlimited:false}` |
 | Insert mechanics | Native prototype value setter + `input`,`change` bubbled events (React-proof). For selects: native setter + `change`. Contenteditable: textContent/DOM approach with `input` event. |
 | Template variables | Regex `/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g`, unique-in-order dedupe, fill-in modal with preview pills; all values required; unresolved tokens stay literal |
-| Popup | 780×580; sidebar (All/Favorites/Recently/Settings + categories CRUD with 18-color × 24-emoji pickers); grid cards (favorite star, 2-line preview, category dot, `⚡ N vars` badge, 2 tag chips, useCount, relative date); search (title/text/tags, Ctrl/⌘K focus); sorts `recent/created/name/mostUsed`; compact mode; live sync via `storage.onChanged` |
+| Popup | 780×580; sidebar (All/Favorites/Recently/Settings + categories CRUD with 18-color × 36-emoji pickers (24 original + 12 film-craft)); grid cards (favorite star, 2-line preview, category dot, `⚡ N vars` badge, 2 tag chips, useCount, relative date); search (title/text/tags, Ctrl/⌘K focus); sorts `recent/created/name/mostUsed`; compact mode; live sync via `storage.onChanged` |
 | Cards actions | Insert / Append (join `", "`) / Edit / Delete + favorite star toggle |
 | Export/Import | JSON `{version,exportedAt,prompts,categories,settings}`; import = REPLACE (OK) or MERGE by id (Cancel) |
-| Seeded data | 8 generic presets (subset of original 30 — global tool, not HF-specific) + 6 categories |
+| Seeded data | v2: 8 generic presets + 6 categories. v3 cinematic pack: +10 categories (Camera Movement, Lighting, Lens & Optics, Locations, Color Grading, Composition, Mood & Atmosphere, VFX & Transitions, Posters, Logos) and 44 prompts. Upgrades add only what a newer seed version introduced. |
 | Toasts | Bottom-right page toast; popup toasts for errors/success |
 | Quirks fixed | no `window.prompt()` for titles (styled modal listeners instead); crypto-based `crypto.randomUUID()`; message handlers always respond (no hanging channel); failure toasts get ✗ icon; no dead dropdown CSS |
 

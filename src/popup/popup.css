@@ -1,14 +1,14 @@
 /*
  * Dream Pixels Forge palette: black + white structure, one orange accent.
- * Swap --accent to change the brand orange everywhere.
+ * Orange sampled from the mascot icon (#FF6A00). Swap --accent to retune everywhere.
  *   --accent       fills (buttons, bars, switches, focus)  — black text on it: 6.7:1
  *   --accent-text  orange used as text/icons on the page background (AA on both themes)
  */
 :root {
-  --accent: #ff5a1f;
-  --accent-hover: #ff6f3c;
-  --accent-ink: #0a0a0a;
-  --accent-text: #c2410c;
+  --accent: #ff6a00;
+  --accent-hover: #ff7f24;
+  --accent-ink: #0e0e10;
+  --accent-text: #b84c00; /* 5.2:1 on white; also used for focus rings and stars (≥3:1 UI) */
   --accent-soft: #fff1eb;
 
   --bg: #ffffff;
@@ -21,7 +21,7 @@
   --line-strong: #cfcfcf;
   --invert-bg: #0a0a0a;
   --invert-fg: #ffffff;
-  --invert-accent: #ff5a1f; /* orange text on --invert-bg (black): 6.7:1 */
+  --invert-accent: #ff6a00; /* on --invert-bg (black): 6.7:1 */
   --danger: #d92d20;
   --danger-soft: #fdeceb;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.04);
@@ -33,19 +33,19 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --accent-text: #ff7a45;
+    --accent-text: #ff8a33;
     --accent-soft: #2b1208;
-    --bg: #0a0a0a;
-    --sidebar: #0f0f0f;
-    --surface: #141414;
-    --sunken: #1c1c1c;
+    --bg: #0e0e10;
+    --sidebar: #121214;
+    --surface: #17171a;
+    --sunken: #1f1f23;
     --fg: #f5f5f5;
     --muted: #9a9a9a;
     --line: #242424;
     --line-strong: #383838;
     --invert-bg: #f5f5f5;
     --invert-fg: #0a0a0a;
-    --invert-accent: #c2410c; /* on near-white: 5.0:1 */
+    --invert-accent: #b84c00; /* on near-white: 4.8:1 */
     --danger: #ff6b5e;
     --danger-soft: #2e1210;
     --shadow: none;
@@ -76,7 +76,7 @@ textarea {
   color: inherit;
 }
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
 }
 kbd {
@@ -127,16 +127,10 @@ kbd {
   gap: 9px;
   padding: 2px 6px 16px;
 }
-.brand__mark {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 14px;
-  font-weight: 800;
+.brand__logo {
+  width: 30px;
+  height: 30px;
+  flex: none;
 }
 .brand__text {
   display: grid;
@@ -428,7 +422,7 @@ kbd {
   padding: 2px;
 }
 .star--on {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .card__text {
   margin: 0;
@@ -720,7 +714,7 @@ kbd {
 }
 .row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
 }
 .field {
@@ -936,7 +930,10 @@ span.field__error {
   letter-spacing: -0.01em;
 }
 .star:hover {
-  color: var(--accent);
+  color: var(--accent-text);
+}
+.switch:checked::after {
+  background: var(--accent-ink);
 }
 #new-prompt {
   padding-inline: 14px;
@@ -944,4 +941,63 @@ span.field__error {
 ::selection {
   background: var(--accent);
   color: var(--accent-ink);
+}
+
+/* Category eyebrow on cards: small caps label, links to the category. */
+.card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  max-width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card__eyebrow:hover {
+  color: var(--fg);
+}
+.card__eyebrow .dot {
+  width: 6px;
+  height: 6px;
+}
+.grid--compact .card__eyebrow {
+  display: none;
+}
+
+/* Sidebar holds 16+ categories: tighter rows, scroll with soft edge fades. */
+.nav--categories {
+  gap: 0;
+  padding-bottom: 8px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 8px,
+    #000 calc(100% - 16px),
+    transparent 100%
+  );
+}
+.nav--categories .nav__item {
+  padding: 4px 8px;
+  font-size: 12.5px;
+}
+.nav--categories {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-width: 0;
 }

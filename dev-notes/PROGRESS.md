@@ -59,6 +59,8 @@
 | Goal | Status |
 |------|--------|
 | G2 Ctrl+K command palette (`src/popup/palette.js` + `palette-ui.js` overlay) | ✅ prompts/snippets/commands ranked; insert/append/copy/promote keyboard-only; variable fill-in; jump-to-category/compact/widget/export commands |
+| Brand + mascot | ✅ Dream Pixels Forge palette (black/white, orange #FF6A00 sampled from the icon); mascot icon at 16/32/48/128 with transparent corners; mascot in popup header |
+| Seed v3 cinematic pack | ✅ +10 categories, +44 prompts; upgrades add only what a newer seed version introduced (deleted starters stay deleted), join prompts to existing categories by name, never duplicate a category |
 | Popup screens (SPEC §1 parity) | ✅ 780×580 shell; sidebar views + categories CRUD/reorder (18 colors × 24 emoji); cards with favorite, ⚡vars, chips, stats, insert/append/copy/edit/delete (10s undo); search (`/`), sort; prompt editor; variable fill-in modal; snippets tab; settings (general, quick insert, disabled sites, recipes, import/export); live sync; light/dark |
 
 ### Next wave: v0.3 "Differentiators" (ROADMAP.md)

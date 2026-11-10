@@ -10,7 +10,8 @@ Everything lives in `browser.storage.local`.
 
 ## Features (v0.2)
 
-- **Prompt library popup** — browse by view or category, search (`/`), sort, star, and insert, append, copy, edit or delete (with undo) prompts; manage categories; 8 seed prompts.
+- **Prompt library popup** — browse by view or category, search (`/`), sort, star, and insert, append, copy, edit or delete (with undo) prompts; manage categories (drag to reorder).
+- **Cinematic starter library** — 52 prompts in 16 categories: Characters, Landscapes, Objects, Styles, Abstract, Camera Angles, Camera Movement, Lighting, Lens & Optics, Locations, Color Grading, Composition, Mood & Atmosphere, VFX & Transitions, Posters and Logos. Every prompt has `{variables}` to fill in.
 - **Command palette (`Ctrl/Cmd+K`)** — one keyboard-only list of prompts, snippets and commands.
 - **Settings** — default view, compact cards, floating widget, quick-insert trigger, sites to skip, custom site recipes, JSON import/export.
 - **Template variables** — `{subject}`-style tokens open a fill-in form with live preview.

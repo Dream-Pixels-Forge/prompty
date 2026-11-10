@@ -1,7 +1,9 @@
 /**
  * G9 — Compose view: build a shot from film-grammar blocks.
+ * G9b — …and a sequence of shots: a strip of shots, each with its duration
+ * and the cut out of it, written as one multi-shot prompt.
  *
- * The composition lives in memory while the popup is open (the source of
+ * The sequence lives in memory while the popup is open (the source of
  * truth, so storage live-sync never reverts what you're typing) and is saved
  * to `composerDraft` so closing the popup doesn't lose it. Delivery reuses
  * the shared fill-in form and insert/copy pipeline (actions.js).
@@ -16,12 +18,30 @@ import {
   emptyComposition,
   fromTemplate,
   moveBlock,
-  normalizeComposition,
   pickPrompt,
   promptsForSlot,
   removeBlock,
   updateBlock,
 } from '../lib/composition.js';
+import {
+  CUTS,
+  FORMATS,
+  MAX_DURATION,
+  MAX_SHOTS,
+  MIN_DURATION,
+  SEQUENCE_TEMPLATES,
+  addShot,
+  composeSequence,
+  duplicateShot,
+  emptySequence,
+  fromSequenceTemplate,
+  moveShot,
+  removeShot,
+  sequenceFrom,
+  setShotComposition,
+  storedComposition,
+  updateShot,
+} from '../lib/sequence.js';
 import { rememberValues } from '../lib/variables.js';
 import { deliverText } from './actions.js';
 import { h, mount } from './dom.js';
@@ -32,13 +52,39 @@ import { save, state } from './store.js';
 /**
  * @typedef {import('../lib/composition.js').Composition} Composition
  * @typedef {import('../lib/composition.js').Block} Block
+ * @typedef {import('../lib/sequence.js').Sequence} Sequence
+ * @typedef {import('../lib/sequence.js').Shot} Shot
  */
 
 const DRAFT_KEY = 'composerDraft';
 const newId = () => crypto.randomUUID();
 
-/** @type {Composition|null} */
-let composition = null;
+/** @type {Sequence|null} */
+let sequence = null;
+/** The shot being edited. */
+let activeId = '';
+
+const freshSequence = () => emptySequence(emptyComposition(newId), newId());
+
+/** @returns {Sequence} */
+function seq() {
+  if (!sequence) sequence = freshSequence();
+  if (!sequence.shots.some((s) => s.id === activeId)) activeId = sequence.shots[0].id;
+  return sequence;
+}
+
+/** The active shot. @returns {Shot} */
+function shot() {
+  const s = seq();
+  return /** @type {Shot} */ (s.shots.find((x) => x.id === activeId));
+}
+
+/** @param {Sequence} next */
+function setSequence(next) {
+  sequence = next;
+  persist();
+  if (rootEl) renderCompose(rootEl);
+}
 /** Title to suggest when saving (template name or the reopened prompt's title). */
 let suggestedTitle = '';
 let draftTimer = 0;
@@ -49,27 +95,26 @@ let rootEl = null;
 function persist() {
   clearTimeout(draftTimer);
   draftTimer = window.setTimeout(() => {
-    if (composition) void browser.storage.local.set({ [DRAFT_KEY]: composition });
+    if (sequence) void browser.storage.local.set({ [DRAFT_KEY]: sequence });
   }, 400);
 }
 window.addEventListener('pagehide', () => {
-  if (composition) void browser.storage.local.set({ [DRAFT_KEY]: composition });
+  if (sequence) void browser.storage.local.set({ [DRAFT_KEY]: sequence });
 });
 
-/** @param {Composition} next */
+/** Replace the active shot's blocks. @param {Composition} next */
 function setComposition(next) {
-  composition = next;
-  persist();
-  if (rootEl) renderCompose(rootEl);
+  setSequence(setShotComposition(seq(), shot().id, next));
 }
 
 /**
- * Open an existing composition (e.g. a saved prompt's) in the Composer.
- * @param {Composition} c
+ * Open a saved prompt's composition (G9 shot or G9b sequence) in the Composer.
+ * @param {unknown} c
  * @param {string} [title]
  */
 export function openComposition(c, title = '') {
-  composition = normalizeComposition(c) ?? emptyComposition(newId);
+  sequence = sequenceFrom(c, newId) ?? freshSequence();
+  activeId = sequence.shots[0].id;
   suggestedTitle = title;
   persist();
 }
@@ -79,20 +124,24 @@ export function openComposition(c, title = '') {
  */
 export function renderCompose(root) {
   rootEl = root;
-  if (!composition) {
-    // First open this session: restore the saved draft, then render.
-    composition = emptyComposition(newId);
+  if (!sequence) {
+    // First open this session: restore the saved draft (G9 drafts open as one shot), then render.
+    sequence = freshSequence();
     void browser.storage.local
       .get([DRAFT_KEY])
       .then((/** @type {Record<string, unknown>} */ raw) => {
-        const draft = normalizeComposition(raw?.[DRAFT_KEY]);
+        const draft = sequenceFrom(raw?.[DRAFT_KEY], newId);
         if (draft && rootEl === root) {
-          composition = draft;
+          sequence = draft;
+          activeId = draft.shots[0].id;
           renderCompose(root);
         }
       });
   }
-  const c = composition;
+  const sq = seq();
+  const current = shot();
+  const c = current.composition;
+  const multi = sq.shots.length > 1;
 
   // Keep focus and caret across re-renders.
   const active = /** @type {HTMLElement|null} */ (document.activeElement);
@@ -103,14 +152,20 @@ export function renderCompose(root) {
   const preview = h('p', { class: 'compose__preview', 'aria-live': 'polite' });
   const stats = h('span', { class: 'muted' });
   const updatePreview = () => {
-    const shot = compose(/** @type {Composition} */ (composition));
+    const out = composeSequence(seq());
     mount(
       preview,
-      shot.text
-        ? highlightVariables(shot.text)
+      out.text
+        ? highlightVariables(out.text)
         : h('span', { class: 'muted' }, 'Pick or write a few blocks — the shot assembles here.'),
     );
-    stats.textContent = `${shot.used} block${shot.used === 1 ? '' : 's'} · ${shot.variables.length} variable${shot.variables.length === 1 ? '' : 's'}`;
+    const vars = `${out.variables.length} variable${out.variables.length === 1 ? '' : 's'}`;
+    if (seq().shots.length > 1) {
+      stats.textContent = `${out.used} shot${out.used === 1 ? '' : 's'} · ${out.duration}s · ${vars}`;
+    } else {
+      const blocks = compose(shot().composition).used;
+      stats.textContent = `${blocks} block${blocks === 1 ? '' : 's'} · ${vars}`;
+    }
   };
 
   mount(
@@ -118,7 +173,7 @@ export function renderCompose(root) {
     h(
       'div',
       { class: 'view__head' },
-      h('h1', { class: 'view__title' }, '✦ Compose a shot'),
+      h('h1', { class: 'view__title' }, multi ? '✦ Compose a sequence' : '✦ Compose a shot'),
       h('span', { class: 'spacer' }),
       h(
         'div',
@@ -146,7 +201,7 @@ export function renderCompose(root) {
           on: {
             click: () => {
               suggestedTitle = '';
-              setComposition(emptyComposition(newId));
+              setSequence(freshSequence());
             },
           },
         },
@@ -176,10 +231,38 @@ export function renderCompose(root) {
           t.name,
         ),
       ),
+      SEQUENCE_TEMPLATES.map((t) =>
+        h(
+          'button',
+          {
+            class: 'choice choice--seq',
+            type: 'button',
+            title: 'A whole sequence: replaces every shot',
+            on: {
+              click: () => {
+                const next = fromSequenceTemplate(t.id, state.prompts, newId);
+                if (!next) return;
+                suggestedTitle = t.name;
+                activeId = next.shots[0].id;
+                setSequence(next);
+                toast(`“${t.name}” loaded: ${next.shots.length} shots. {hero} is shared by all.`);
+              },
+            },
+          },
+          `🎬 ${t.name}`,
+        ),
+      ),
     ),
+    shotStrip(sq, current),
+    shotControls(sq, current),
     h(
       'ol',
-      { class: 'compose__blocks', 'aria-label': 'Shot blocks, in order' },
+      {
+        class: 'compose__blocks',
+        'aria-label': multi
+          ? `Shot ${sq.shots.indexOf(current) + 1} blocks, in order`
+          : 'Shot blocks, in order',
+      },
       c.blocks.map((b, i) => blockRow(b, i, c, updatePreview)),
     ),
     h(
@@ -208,7 +291,27 @@ export function renderCompose(root) {
       h(
         'div',
         { class: 'view__head' },
-        h('span', { class: 'field__label' }, 'Shot'),
+        h('span', { class: 'field__label' }, multi ? 'Sequence' : 'Shot'),
+        multi
+          ? h(
+              'div',
+              { class: 'seg', role: 'radiogroup', 'aria-label': 'Write the sequence as' },
+              FORMATS.map((f) =>
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    class: 'seg__btn',
+                    role: 'radio',
+                    'aria-checked': String(sq.format === f.id),
+                    title: f.hint,
+                    on: { click: () => setSequence({ ...seq(), format: f.id }) },
+                  },
+                  f.label,
+                ),
+              ),
+            )
+          : null,
         h('span', { class: 'spacer' }),
         stats,
       ),
@@ -288,9 +391,13 @@ function blockRow(b, index, c, updatePreview) {
     on: {
       input: (e) => {
         // In-place edit: update the model + preview without re-rendering (keeps typing smooth).
-        composition = updateBlock(/** @type {Composition} */ (composition), b.id, {
-          text: /** @type {HTMLTextAreaElement} */ (e.target).value,
-        });
+        sequence = setShotComposition(
+          seq(),
+          shot().id,
+          updateBlock(shot().composition, b.id, {
+            text: /** @type {HTMLTextAreaElement} */ (e.target).value,
+          }),
+        );
         persist();
         updatePreview();
       },
@@ -317,7 +424,7 @@ function blockRow(b, index, c, updatePreview) {
           const from = /** @type {DragEvent} */ (e).dataTransfer?.getData(
             'application/x-prompty-block',
           );
-          const cur = /** @type {Composition} */ (composition);
+          const cur = shot().composition;
           const a = cur.blocks.findIndex((x) => x.id === from);
           if (a !== -1 && a !== index)
             setComposition(moveBlock(cur, /** @type {string} */ (from), index - a));
@@ -434,12 +541,16 @@ function highlightVariables(text) {
  * @param {'insert'|'append'|'copy'} mode
  */
 export async function deliver(mode) {
-  const shot = compose(/** @type {Composition} */ (composition));
-  if (!shot.text) return toast('The shot is empty — pick or write a block first.', 'error');
-  let text = shot.text;
-  if (shot.variables.length > 0) {
+  const out = composeSequence(seq());
+  if (!out.text) return toast('The shot is empty — pick or write a block first.', 'error');
+  let text = out.text;
+  if (out.variables.length > 0) {
     const filled = await fillVariables(
-      /** @type {any} */ ({ id: 'composer', title: suggestedTitle || 'Composed shot', text }),
+      /** @type {any} */ ({
+        id: 'composer',
+        title: suggestedTitle || (seq().shots.length > 1 ? 'Composed sequence' : 'Composed shot'),
+        text,
+      }),
       mode,
       state.variableMemory,
     );
@@ -451,22 +562,232 @@ export async function deliver(mode) {
   if (ok && mode !== 'copy') window.close();
 }
 
-/** Save the assembled shot (variables kept as variables) with its blocks, so it can be reopened here. */
+/** Save the assembled shot/sequence (variables kept as variables) with its blocks, so it can be reopened here. */
 async function saveAsPrompt() {
-  const c = /** @type {Composition} */ (composition);
-  const shot = compose(c);
-  if (!shot.text) return toast('The shot is empty — nothing to save.', 'error');
+  const sq = seq();
+  const out = composeSequence(sq);
+  if (!out.text) return toast('The shot is empty — nothing to save.', 'error');
   const draft = await promptEditor({
-    initial: { title: suggestedTitle, text: shot.text, tags: ['composed'] },
+    initial: {
+      title: suggestedTitle,
+      text: out.text,
+      tags: sq.shots.length > 1 ? ['composed', 'sequence'] : ['composed'],
+    },
     categories: state.categories,
   });
   if (!draft || draft === OPEN_HISTORY) return;
   const id = newId();
   const prompts = upsertPrompt(state.prompts, draft, { id }).map((p) =>
-    p.id === id ? { ...p, composition: structuredClone(c) } : p,
+    p.id === id ? { ...p, composition: structuredClone(storedComposition(sq)) } : p,
   );
   await save({ prompts });
   toast(`Saved “${draft.title.trim()}”. Reopen it here with 🎛 on its card.`);
+}
+
+/* ------------------------------------------------------------------ */
+/* G9b: shot strip + per-shot controls                                 */
+/* ------------------------------------------------------------------ */
+
+/** @param {string} id */
+function focusShotTab(id) {
+  /** @type {HTMLElement|null|undefined} */ (
+    rootEl?.querySelector(`[data-focus-key="shot:${CSS.escape(id)}"]`)
+  )?.focus();
+}
+
+/**
+ * Tabs for the shots, with the cut between each pair. ←/→ move between
+ * shots; Alt+←/→ moves the active shot earlier/later.
+ * @param {Sequence} sq
+ * @param {Shot} current
+ */
+function shotStrip(sq, current) {
+  const used = new Set(composeSequenceIds(sq));
+  return h(
+    'div',
+    { class: 'shots', role: 'tablist', 'aria-label': 'Shots' },
+    sq.shots.flatMap((s, i) => [
+      i > 0
+        ? h(
+            'span',
+            { class: 'shots__cut', title: CUTS.find((x) => x.id === sq.shots[i - 1].cut)?.label },
+            cutGlyph(sq.shots[i - 1].cut),
+          )
+        : null,
+      h(
+        'button',
+        {
+          type: 'button',
+          class: `shots__tab${used.has(s.id) ? '' : ' shots__tab--empty'}`,
+          role: 'tab',
+          'aria-selected': String(s.id === current.id),
+          tabindex: s.id === current.id ? '0' : '-1',
+          title: used.has(s.id) ? `Shot ${i + 1}` : `Shot ${i + 1} (empty — left out)`,
+          dataset: { focusKey: `shot:${s.id}` },
+          on: {
+            click: () => {
+              activeId = s.id;
+              if (rootEl) renderCompose(rootEl);
+              focusShotTab(s.id);
+            },
+            keydown: (e) => {
+              const ke = /** @type {KeyboardEvent} */ (e);
+              if (ke.key !== 'ArrowLeft' && ke.key !== 'ArrowRight') return;
+              e.preventDefault();
+              const delta = ke.key === 'ArrowLeft' ? -1 : 1;
+              if (ke.altKey) {
+                setSequence(moveShot(seq(), s.id, delta));
+              } else {
+                const list = seq().shots;
+                const next = list[Math.max(0, Math.min(list.length - 1, i + delta))];
+                activeId = next.id;
+                if (rootEl) renderCompose(rootEl);
+              }
+              focusShotTab(activeId);
+            },
+          },
+        },
+        h('strong', null, String(i + 1)),
+        h('span', { class: 'shots__dur' }, `${s.duration}s`),
+      ),
+    ]),
+    sq.shots.length < MAX_SHOTS
+      ? h(
+          'button',
+          {
+            type: 'button',
+            class: 'shots__add',
+            title: 'Add an empty shot after this one',
+            on: {
+              click: () => {
+                const id = newId();
+                const next = addShot(seq(), current.id, id, emptyComposition(newId));
+                activeId = id; // after seq(): it resets an id that doesn't exist yet
+                setSequence(next);
+                focusShotTab(id);
+              },
+            },
+          },
+          '+ Shot',
+        )
+      : null,
+  );
+}
+
+/** Ids of shots that contribute text. @param {Sequence} sq */
+function composeSequenceIds(sq) {
+  return sq.shots.filter((s) => compose(s.composition).text).map((s) => s.id);
+}
+
+/** Short label shown between two shot tabs. @param {string} cut */
+function cutGlyph(cut) {
+  return (
+    {
+      cut: 'cut',
+      match: 'match',
+      smash: 'smash',
+      whip: 'whip',
+      dissolve: 'dissolve',
+      continuous: '∞',
+    }[cut] ?? 'cut'
+  );
+}
+
+/**
+ * Duration, the cut out of this shot, Duplicate, Remove.
+ * @param {Sequence} sq
+ * @param {Shot} current
+ */
+function shotControls(sq, current) {
+  const index = sq.shots.indexOf(current);
+  const last = index === sq.shots.length - 1;
+  return h(
+    'div',
+    { class: 'shot-controls' },
+    h(
+      'label',
+      { class: 'shot-controls__field' },
+      h('span', null, 'Duration'),
+      h('input', {
+        type: 'number',
+        class: 'input shot-controls__num',
+        min: String(MIN_DURATION),
+        max: String(MAX_DURATION),
+        value: String(current.duration),
+        dataset: { focusKey: `${current.id}:duration` },
+        on: {
+          change: (e) =>
+            setSequence(
+              updateShot(seq(), current.id, {
+                duration: /** @type {HTMLInputElement} */ (e.target).value,
+              }),
+            ),
+        },
+      }),
+      h('span', { class: 'muted' }, 's'),
+    ),
+    !last
+      ? h(
+          'label',
+          { class: 'shot-controls__field' },
+          h('span', null, `Into shot ${index + 2}`),
+          h(
+            'select',
+            {
+              class: 'select',
+              dataset: { focusKey: `${current.id}:cut` },
+              on: {
+                change: (e) =>
+                  setSequence(
+                    updateShot(seq(), current.id, {
+                      cut: /** @type {HTMLSelectElement} */ (e.target).value,
+                    }),
+                  ),
+              },
+            },
+            CUTS.map((cut) =>
+              h('option', { value: cut.id, selected: cut.id === current.cut }, cut.label),
+            ),
+          ),
+        )
+      : null,
+    h('span', { class: 'spacer' }),
+    sq.shots.length < MAX_SHOTS
+      ? h(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn--ghost btn--sm',
+            title: 'Coverage: the same setup again, right after this shot',
+            on: {
+              click: () => {
+                const next = duplicateShot(seq(), current.id, newId);
+                activeId = next.shots[index + 1].id;
+                setSequence(next);
+              },
+            },
+          },
+          'Duplicate',
+        )
+      : null,
+    sq.shots.length > 1
+      ? h(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn--ghost btn--sm',
+            title: 'Remove this shot',
+            on: {
+              click: () => {
+                activeId = sq.shots[index === 0 ? 1 : index - 1].id;
+                setSequence(removeShot(seq(), current.id));
+              },
+            },
+          },
+          'Remove shot',
+        )
+      : null,
+  );
 }
 
 /** Ctrl/Cmd+Enter copies the shot while the Compose view is open. */

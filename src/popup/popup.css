@@ -1274,6 +1274,12 @@ span.field__error {
   gap: 4px;
   margin-bottom: 6px;
 }
+.shots__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
 .shots__tab {
   display: inline-flex;
   align-items: baseline;
@@ -1686,4 +1692,16 @@ body.dropping::after {
   color: var(--accent-ink);
   font-weight: 700;
   font-size: 12px;
+}
+
+/* G8a: respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

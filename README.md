@@ -65,15 +65,16 @@ CI also attaches both archives to every run as the `prompty-packages` artifact.
 
 ## Scripts
 
-| Command                              | What it does                                                                                       |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `pnpm type-check`                    | `tsc --noEmit` over JS with JSDoc types                                                            |
-| `pnpm lint`                          | ESLint, zero warnings allowed                                                                      |
-| `pnpm test`                          | Vitest unit tests                                                                                  |
-| `pnpm build`                         | Emit `dist/chrome` + `dist/firefox` from `src/manifest.base.json`                                  |
-| `pnpm package`                       | Build, then zip both targets                                                                       |
-| `node scripts/icons.mjs`             | Re-render the 16/32 px toolbar glyph from `src/icons/glyph.svg` (needs Playwright)                 |
-| `node scripts/store-screenshots.mjs` | After `pnpm build`: regenerate the store screenshots and promo tile in `store/` (needs Playwright) |
+| Command                                     | What it does                                                                                                   |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `pnpm type-check`                           | `tsc --noEmit` over JS with JSDoc types                                                                        |
+| `pnpm lint`                                 | ESLint, zero warnings allowed                                                                                  |
+| `pnpm test`                                 | Vitest unit tests                                                                                              |
+| `pnpm build`                                | Emit `dist/chrome` + `dist/firefox` from `src/manifest.base.json`                                              |
+| `pnpm package`                              | Build, then zip both targets                                                                                   |
+| `node scripts/icons.mjs`                    | Re-render the 16/32 px toolbar glyph from `src/icons/glyph.svg` (needs Playwright)                             |
+| `node scripts/a11y-audit.mjs [light\|dark]` | After `pnpm build`: axe-core audit of every popup view; exits 1 on any violation (needs Playwright + axe-core) |
+| `node scripts/store-screenshots.mjs`        | After `pnpm build`: regenerate the store screenshots and promo tile in `store/` (needs Playwright)             |
 
 CI (`.github/workflows/pr-validation.yml`) runs all gates plus `web-ext lint`
 (Firefox) and `addons-linter` (Chrome) on every PR and every push to `main`.

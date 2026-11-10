@@ -5,6 +5,18 @@ before 1.0, minor versions may change stored data shapes, and every such change 
 
 ## [Unreleased]
 
+### Accessibility
+
+- An axe-core audit of every popup view in light and dark mode now finds nothing (G8a):
+  - the Composer shot tabs have proper names and structure
+  - scrollable areas are keyboard-reachable
+  - the sidebar landmarks are labelled
+  - dialogs have a valid role and a name
+- Screen readers no longer re-read the whole grid on every change, or the preview on every
+  keystroke.
+- Dialogs and the palette keep Tab focus inside.
+- Reduced-motion preferences are respected.
+
 ### Added
 
 - **Insights** (G7): a new view with stat tiles, most-used prompts, uses by category, prompts

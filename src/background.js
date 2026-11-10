@@ -5,6 +5,8 @@
  */
 import browser from './lib/browser.js';
 import { seedPresets } from './lib/presets.js';
+import { secureArea } from './lib/secure.js';
+import { VaultLockedError } from './lib/secure-store.js';
 import { planSave } from './lib/capture.js';
 import {
   appendSnippet,
@@ -112,7 +114,7 @@ async function saveSelection(tab, selectionText) {
   }
 
   try {
-    const lib = await readAll();
+    const lib = await readAll(secureArea());
     const plan = planSave({
       prompts: lib.prompts,
       text,
@@ -128,9 +130,9 @@ async function saveSelection(tab, selectionText) {
       await notify(tab, 'Already saved to Prompty.', false, reachable);
       return { success: true, status: 'duplicate' };
     }
-    await writeAll(undefined, { prompts: [...lib.prompts, plan.prompt] });
+    await writeAll(secureArea(), { prompts: [...lib.prompts, plan.prompt] });
     // Keep the clipboard-snippet record the old path produced (Δ5c).
-    const raw = await browser.storage.local.get(['snippets']);
+    const raw = await secureArea().get(['snippets']);
     const origin = (() => {
       try {
         return new URL(tab?.url ?? '').origin;
@@ -138,7 +140,7 @@ async function saveSelection(tab, selectionText) {
         return '';
       }
     })();
-    await browser.storage.local.set({
+    await secureArea().set({
       snippets: appendSnippet(Array.isArray(raw.snippets) ? raw.snippets : [], {
         text: plan.prompt.text,
         sourceOrigin: origin,
@@ -147,7 +149,15 @@ async function saveSelection(tab, selectionText) {
     await notify(tab, `Saved “${plan.prompt.title}” to Prompty`, false, reachable);
     return { success: true, status: 'saved', id: plan.prompt.id, title: plan.prompt.title };
   } catch (error) {
-    await notify(tab, 'Could not save to Prompty.', true, reachable);
+    const locked = error instanceof VaultLockedError;
+    await notify(
+      tab,
+      locked
+        ? 'Vault locked — open Prompty to unlock, then save again.'
+        : 'Could not save to Prompty.',
+      true,
+      reachable,
+    );
     return {
       success: false,
       status: 'error',
@@ -182,6 +192,41 @@ function onMessage(message, sender, sendResponse) {
   }
 
   switch (message.type) {
+    // G10: content scripts read/write prompts + fill-in memory through here while the
+    // vault is on, so the key never reaches a web page. Own extension only, two keys only.
+    case 'PROMPTY_VAULT_GET':
+    case 'PROMPTY_VAULT_SET': {
+      if (sender?.id !== browser.runtime.id) {
+        respond({ ok: false, error: 'forbidden' });
+        return true;
+      }
+      const allowed = ['prompts', 'variableMemory'];
+      void (async () => {
+        try {
+          if (message.type === 'PROMPTY_VAULT_GET') {
+            const keys = (Array.isArray(message.keys) ? message.keys : []).filter((k) =>
+              allowed.includes(k),
+            );
+            respond({ ok: true, data: await secureArea().get(keys) });
+          } else {
+            const items = message.items && typeof message.items === 'object' ? message.items : {};
+            /** @type {Record<string, unknown>} */
+            const safe = {};
+            for (const k of allowed) if (k in items) safe[k] = items[k];
+            if (Array.isArray(safe.prompts)) {
+              // Same normalization as every other write path.
+              await writeAll(secureArea(), { prompts: safe.prompts });
+              delete safe.prompts;
+            }
+            if (Object.keys(safe).length) await secureArea().set(safe);
+            respond({ ok: true });
+          }
+        } catch (error) {
+          respond({ ok: false, locked: error instanceof VaultLockedError });
+        }
+      })();
+      return true;
+    }
     case MSG_OPEN_POPUP: {
       // Content script asks background to open the popup (content scripts can't)
       void (async () => {
@@ -281,7 +326,8 @@ browser.runtime.onStartup.addListener(() => {
 // Seed the 8 starter prompts whenever the background starts. Idempotent
 // (no-op once seeded; repairs v1→v2), so it is safe on every wake-up and does
 // not depend on onInstalled firing.
-void seedPresets().catch(() => {});
+// With the vault on and locked this throws (VaultLockedError) and seeding waits for the popup.
+void seedPresets(secureArea()).catch(() => {});
 
 browser.runtime.onMessage.addListener(onMessage);
 browser.commands.onCommand.addListener(onCommand);

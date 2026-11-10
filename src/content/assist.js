@@ -1381,11 +1381,67 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     registerGlobalListeners();
   }
 
+  /* ------------------------------------------------------------------ */
+  /* G10 Vault: secret keys go through the background while the vault is on */
+  /* ------------------------------------------------------------------ */
+
+  /** Keys the content script needs that are encrypted when the vault is on. */
+  const VAULT_SECRET_KEYS = ['prompts', 'variableMemory'];
+  /** True after the background reported the vault as locked. */
+  let vaultLocked = false;
+  const VAULT_LOCKED_MESSAGE = 'Vault locked — open Prompty to unlock';
+
+  /**
+   * storage.local look-alike: plain keys read/write directly; with the vault
+   * on, prompts/variableMemory are decrypted/encrypted by the background
+   * (the key never reaches the page). Locked reads omit the secret keys;
+   * locked writes throw.
+   * @returns {{ get: (keys: string[]) => Promise<any>, set: (items: Record<string, any>) => Promise<void> } | null}
+   */
+  function pageStore() {
+    const local = api.storage && api.storage.local;
+    if (!local) return null;
+    const isOn = async () => {
+      const meta = await local.get(['vault']);
+      return !!(meta && meta.vault);
+    };
+    return {
+      async get(keys) {
+        const list = Array.isArray(keys) ? keys : [keys];
+        const secret = list.filter((k) => VAULT_SECRET_KEYS.includes(k));
+        if (secret.length === 0 || !(await isOn())) {
+          vaultLocked = false;
+          return local.get(list);
+        }
+        const plain = list.filter((k) => !VAULT_SECRET_KEYS.includes(k));
+        const out = plain.length ? await local.get(plain) : {};
+        const res = await api.runtime.sendMessage({ type: 'PROMPTY_VAULT_GET', keys: secret });
+        vaultLocked = !!(res && res.locked);
+        if (res && res.ok && res.data && typeof res.data === 'object') Object.assign(out, res.data);
+        return out;
+      },
+      async set(items) {
+        const secret = {};
+        const plain = {};
+        for (const [k, v] of Object.entries(items)) (VAULT_SECRET_KEYS.includes(k) ? secret : plain)[k] = v;
+        if (Object.keys(plain).length) await local.set(plain);
+        if (Object.keys(secret).length === 0) return;
+        if (!(await isOn())) {
+          await local.set(secret);
+          return;
+        }
+        const res = await api.runtime.sendMessage({ type: 'PROMPTY_VAULT_SET', items: secret });
+        vaultLocked = !!(res && res.locked);
+        if (!res || !res.ok) throw new Error(vaultLocked ? VAULT_LOCKED_MESSAGE : 'Could not save');
+      },
+    };
+  }
+
   /**
    * Read settings + position + prompts from storage and apply.
    */
   async function bootstrapState() {
-    const store = api.storage && api.storage.local;
+    const store = pageStore();
     if (!store) return;
     const posKey = `widgetPositions:${pageOrigin}`;
     const data = await store.get(['settings', posKey, 'prompts', 'siteRecipes']);
@@ -1433,7 +1489,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    * content script ever changes.
    */
   async function disableOnThisSite() {
-    const store = api.storage && api.storage.local;
+    const store = pageStore();
     if (!store) return;
     const origin = getOrigin(location.href);
     if (origin === '') return;
@@ -1588,7 +1644,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    * Uses matched site recipe to capture aspectRatio/quality from page selects.
    */
   async function confirmSave() {
-    const store = api.storage && api.storage.local;
+    const store = pageStore();
     const text = saveModalPendingText;
     const title = String(saveTitleInput.value || '').trim() || truncatedTitle(text, 40) || 'Untitled prompt';
     closeSaveModal();
@@ -1623,7 +1679,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
       renderList();
       showToast({ message: 'Prompt saved', icon: '✓' });
     } catch {
-      showToast({ message: 'Could not save prompt', isError: true });
+      showToast({ message: vaultLocked ? VAULT_LOCKED_MESSAGE : 'Could not save prompt', isError: true });
     }
   }
 
@@ -1917,11 +1973,12 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    * Load prompts from storage for the palette.
    */
   async function loadPromptsForPalette() {
-    const store = api.storage && api.storage.local;
+    const store = pageStore();
     if (!store) return;
     try {
       const data = await store.get(['prompts']);
       paletteItems = storedPromptList(data?.prompts);
+      if (vaultLocked) showToast({ message: VAULT_LOCKED_MESSAGE, isError: true });
     } catch {
       paletteItems = [];
     }
@@ -2290,7 +2347,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     paletteVariableInputs = {};
     paletteVariableMemory = {};
     try {
-      const data = await api.storage.local.get(['variableMemory']);
+      const data = await pageStore().get(['variableMemory']);
       paletteVariableMemory = data && data.variableMemory ? data.variableMemory : {};
     } catch {
       // memory is a convenience; the form works without it
@@ -2446,7 +2503,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    * @param {Record<string, string>} values
    */
   function rememberVariableValues(values) {
-    const store = api.storage && api.storage.local;
+    const store = pageStore();
     if (!store) return;
     void store
       .get(['variableMemory'])
@@ -2471,7 +2528,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    * @param {string} id
    */
   async function updatePromptLastUsed(id) {
-    const store = api.storage && api.storage.local;
+    const store = pageStore();
     if (!store) return;
     try {
       const data = await store.get(['prompts']);
@@ -2613,7 +2670,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
   function persistWidgetPosition() {
     window.clearTimeout(savePosTimer);
     savePosTimer = window.setTimeout(() => {
-      const store = api.storage && api.storage.local;
+      const store = pageStore();
       if (!store || !widgetBubble) return;
       try {
         void store.set({
@@ -2730,7 +2787,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    * Read the live prompts list from storage.
    */
   async function loadPrompts() {
-    const store = api.storage && api.storage.local;
+    const store = pageStore();
     if (!store) return;
     try {
       const data = await store.get(['prompts']);
@@ -2757,7 +2814,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     }
     if (shown === 0) {
       const empty = elInShadow('div');
-      empty.textContent = query.trim() === '' ? 'No prompts yet' : 'No prompts match';
+      empty.textContent = vaultLocked ? VAULT_LOCKED_MESSAGE : query.trim() === '' ? 'No prompts yet' : 'No prompts match';
       applyStyles(empty, STYLES.emptyList);
       widgetList.appendChild(empty);
     }
@@ -2943,7 +3000,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    * @returns {Promise<void>}
    */
   async function refreshFromStorage() {
-    const store = api.storage && api.storage.local;
+    const store = pageStore();
     if (!store) return;
     try {
       const data = await store.get(['settings', 'prompts']);

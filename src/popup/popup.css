@@ -1606,6 +1606,41 @@ body.dropping::after {
   font-weight: 600;
 }
 
+/* G10: vault */
+.vault-lock {
+  background: var(--bg);
+  z-index: 100;
+}
+.vault-lock__card {
+  width: min(380px, calc(100% - 32px));
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+}
+.vault-lock__card .inline-form {
+  width: 100%;
+}
+.vault-lock__card .input {
+  flex: 1;
+}
+.vault-lock__logo {
+  width: 64px;
+  height: 64px;
+}
+.vault-lock__title {
+  margin: 0;
+  font-size: 20px;
+}
+.vault-warn {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--fg);
+  font-size: 12.5px;
+}
+
 /* G4: multi-select + bulk bar */
 .card:focus-visible {
   outline: 2px solid var(--accent);

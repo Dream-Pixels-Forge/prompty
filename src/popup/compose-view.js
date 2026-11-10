@@ -9,6 +9,7 @@
  * the shared fill-in form and insert/copy pipeline (actions.js).
  */
 import browser from '../lib/browser.js';
+import { secureArea } from '../lib/secure.js';
 import {
   JOINERS,
   SLOTS,
@@ -126,16 +127,28 @@ let draftTimer = 0;
 /** @type {HTMLElement|null} */
 let rootEl = null;
 
-/** Persist the draft soon (debounced) — and right away when the popup goes away. */
+/**
+ * Write the draft now. Vault off: a direct storage.local.set, dispatched
+ * synchronously, so it survives the popup closing. Vault on: it must be
+ * encrypted first (async), which is why persist() writes at once then.
+ */
+function writeDraft() {
+  if (!sequence) return;
+  if (state.vault === 'off' || state.vault === 'unsupported')
+    void browser.storage.local.set({ [DRAFT_KEY]: sequence });
+  else
+    void secureArea()
+      .set({ [DRAFT_KEY]: sequence })
+      .catch(() => {});
+}
+
+/** Persist the draft soon (debounced; immediately while the vault is on) — and on close. */
 function persist() {
   clearTimeout(draftTimer);
-  draftTimer = window.setTimeout(() => {
-    if (sequence) void browser.storage.local.set({ [DRAFT_KEY]: sequence });
-  }, 400);
+  if (state.vault === 'unlocked') return writeDraft();
+  draftTimer = window.setTimeout(writeDraft, 400);
 }
-window.addEventListener('pagehide', () => {
-  if (sequence) void browser.storage.local.set({ [DRAFT_KEY]: sequence });
-});
+window.addEventListener('pagehide', writeDraft);
 
 /** Replace the active shot's blocks. @param {Composition} next */
 function setComposition(next) {
@@ -162,7 +175,7 @@ export function renderCompose(root) {
   if (!sequence) {
     // First open this session: restore the saved draft (G9 drafts open as one shot), then render.
     sequence = freshSequence();
-    void browser.storage.local
+    void secureArea()
       .get([DRAFT_KEY])
       .then((/** @type {Record<string, unknown>} */ raw) => {
         const draft = sequenceFrom(raw?.[DRAFT_KEY], newId);
@@ -171,7 +184,8 @@ export function renderCompose(root) {
           activeId = draft.shots[0].id;
           renderCompose(root);
         }
-      });
+      })
+      .catch(() => {}); // locked vault: start from a fresh draft
   }
   const sq = seq();
   const current = shot();

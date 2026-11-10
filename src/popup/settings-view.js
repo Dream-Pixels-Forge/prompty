@@ -8,6 +8,7 @@ import { h, mount } from './dom.js';
 import { normalizeSiteInput, removeRecipe, toggleRecipe, upsertRecipe } from './library.js';
 import { applyImportData, parseImport, validateRecipeInput } from './logic.js';
 import { IMPORT_ACCEPT, migrateFrom } from './import-ui.js';
+import { vaultSection } from './vault-ui.js';
 import { confirmDialog, openModal, toast } from './modals.js';
 import { exportLibrary } from './palette-ui.js';
 import { save, state } from './store.js';
@@ -64,6 +65,7 @@ export function renderSettings(root) {
       memorySection(),
       sitesSection(s),
       recipesSection(s),
+      vaultSection(section, () => renderSettings(root)),
       backupSection(),
       section(
         'About',

@@ -6,7 +6,7 @@
 import { buildExport } from './logic.js';
 import { usePrompt, deliverText } from './actions.js';
 import { h, highlighted, mount } from './dom.js';
-import { OPEN_HISTORY, promptEditor, toast } from './modals.js';
+import { OPEN_HISTORY, confirmDialog, promptEditor, toast } from './modals.js';
 import { buildCommands, keyIntent, moveSelection, rankPalette, resolveAction } from './palette.js';
 import { upsertPrompt } from './library.js';
 import { save, state } from './store.js';
@@ -233,7 +233,16 @@ export function openPalette(host) {
  * Settings' "Export JSON" passes its click event here, hence the guard.
  * @param {unknown} [subset]
  */
-export function exportLibrary(subset) {
+export async function exportLibrary(subset) {
+  // G10: an export is plain JSON, outside the vault's protection.
+  if (state.vault === 'unlocked') {
+    const ok = await confirmDialog(
+      'Export unencrypted?',
+      'Vault is on, but the exported file is plain JSON that anyone with the file can read.',
+      { confirmLabel: 'Export anyway' },
+    );
+    if (!ok) return;
+  }
   const part =
     subset && typeof subset === 'object' && Array.isArray(/** @type {any} */ (subset).prompts)
       ? /** @type {{ prompts: import('../lib/storage.js').Prompt[], categories: import('../lib/storage.js').Category[] }} */ (

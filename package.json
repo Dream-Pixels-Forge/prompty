@@ -1,6 +1,6 @@
 {
   "name": "prompty",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Save, organize, and paste prompts on any site",

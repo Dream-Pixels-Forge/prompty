@@ -836,7 +836,7 @@ document.addEventListener('keydown', (e) => {
   if (document.querySelector('.backdrop')) return; // a modal or the palette owns the keyboard
   const typing =
     e.target instanceof HTMLElement &&
-    e.target.closest('input, textarea, select, [contenteditable]');
+    e.target.closest('input:not([type=checkbox]), textarea, select, [contenteditable]');
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault();
     openPalette(paletteHost);

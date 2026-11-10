@@ -555,6 +555,11 @@ export function fromSequenceTemplate(id, prompts, newId) {
   /** @type {Shot[]} */
   const shots = t.shots.map((s) => {
     let c = fromTemplate(s.template, prompts, () => newId()) ?? blankComposition();
+    // The starter prompts say {subject}; in this scene the subject is {hero}, so it's asked once.
+    c = {
+      ...c,
+      blocks: c.blocks.map((b) => ({ ...b, text: b.text.replace(/\{subject(?=[}:=])/g, '{hero') })),
+    };
     const blockId = newId();
     c = updateBlock(addBlock(c, 'subject', blockId), blockId, { text: s.subject });
     return { id: newId(), duration: s.duration, cut: s.cut, composition: c };

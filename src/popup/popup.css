@@ -1641,6 +1641,13 @@ body.dropping::after {
   font-size: 12.5px;
 }
 
+/* G12: incremental grid */
+.grid__more {
+  text-align: center;
+  padding: 14px 0 4px;
+  font-size: 12px;
+}
+
 /* G4: multi-select + bulk bar */
 .card:focus-visible {
   outline: 2px solid var(--accent);

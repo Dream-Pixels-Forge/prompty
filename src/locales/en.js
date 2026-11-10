@@ -498,4 +498,5 @@ export default {
   varFillIn: 'Fill in this field',
   varPickOption: 'Pick one of the options',
   varWholeNumber: 'Enter a whole number from $1 to $2',
+  showingNofM: 'Showing $1 of $2 — scroll for more',
 };

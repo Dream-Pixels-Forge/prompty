@@ -69,16 +69,17 @@ GitHub Release assets when cutting a version.
 
 ## Scripts
 
-| Command                                     | What it does                                                                                                   |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `pnpm type-check`                           | `tsc --noEmit` over JS with JSDoc types                                                                        |
-| `pnpm lint`                                 | ESLint, zero warnings allowed                                                                                  |
-| `pnpm test`                                 | Vitest unit tests                                                                                              |
-| `pnpm build`                                | Emit `dist/chrome` + `dist/firefox` from `src/manifest.base.json`                                              |
-| `pnpm package`                              | Build, then zip both targets                                                                                   |
-| `node scripts/icons.mjs`                    | Re-render the 16/32 px toolbar glyph from `src/icons/glyph.svg` (needs Playwright)                             |
-| `node scripts/a11y-audit.mjs [light\|dark]` | After `pnpm build`: axe-core audit of every popup view; exits 1 on any violation (needs Playwright + axe-core) |
-| `node scripts/store-screenshots.mjs`        | After `pnpm build`: regenerate the store screenshots and promo tile in `store/` (needs Playwright)             |
+| Command                                     | What it does                                                                                                       |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `pnpm type-check`                           | `tsc --noEmit` over JS with JSDoc types                                                                            |
+| `pnpm lint`                                 | ESLint, zero warnings allowed                                                                                      |
+| `pnpm test`                                 | Vitest unit tests                                                                                                  |
+| `pnpm build`                                | Emit `dist/chrome` + `dist/firefox` from `src/manifest.base.json`                                                  |
+| `pnpm package`                              | Build, then zip both targets                                                                                       |
+| `node scripts/icons.mjs`                    | Re-render the 16/32 px toolbar glyph from `src/icons/glyph.svg` (needs Playwright)                                 |
+| `node scripts/bench-library.mjs [count]`    | After `pnpm build`: seed N prompts (default 5,000) and time first card, search, star and Ctrl+K (needs Playwright) |
+| `node scripts/a11y-audit.mjs [light\|dark]` | After `pnpm build`: axe-core audit of every popup view; exits 1 on any violation (needs Playwright + axe-core)     |
+| `node scripts/store-screenshots.mjs`        | After `pnpm build`: regenerate the store screenshots and promo tile in `store/` (needs Playwright)                 |
 
 CI (`.github/workflows/pr-validation.yml`) runs all gates plus `web-ext lint`
 (Firefox) and `addons-linter` (Chrome) on every PR and every push to `main`.
@@ -104,8 +105,8 @@ store/                 store screenshots, promo tile, listing copy
 v0.3 shipped the Ctrl+K palette, version history, bulk operations, Variables 2.0
 and the Composer (shots, sequences, model dialects). Still open on the roadmap:
 usage insights (G7), theming/a11y/i18n (G8), Vault Mode (G10), the Migration Suite
-(G11), an IndexedDB engine for very large libraries (G12) and `.prompty` share packs
-(G13). See [`dev-notes/ROADMAP.md`](dev-notes/ROADMAP.md) and the shipped subgoal specs
+(G11), large-library performance (G12) and `.prompty` share packs (G13) — all since
+shipped, see [`CHANGELOG.md`](CHANGELOG.md). See [`dev-notes/ROADMAP.md`](dev-notes/ROADMAP.md) and the shipped subgoal specs
 in [`dev-notes/subgoals/`](dev-notes/subgoals/README.md).
 
 ## License & attribution

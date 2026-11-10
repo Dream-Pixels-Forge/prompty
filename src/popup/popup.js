@@ -322,6 +322,45 @@ function reorderCategory(id, delta) {
 /* Prompt grid                                                         */
 /* ------------------------------------------------------------------ */
 
+/* G12: big libraries draw incrementally. The list is filtered and sorted in full
+ * (cheap: 5k prompts in a few ms), but only the first `shown` cards are built;
+ * more are appended when the end of the grid scrolls into view. Re-renders of
+ * the same list keep `shown` and the scroll position, so starring a card in a
+ * 5,000-prompt library rebuilds ~60 cards, not 5,000. */
+const PAGE = 60;
+let shownKey = '';
+let shown = PAGE;
+/** @type {IntersectionObserver|null} */
+let moreObserver = null;
+/** @type {{ grid: HTMLElement, more: HTMLElement|null, prompts: Prompt[] }|null} */
+let drawn = null;
+
+const listKey = () =>
+  [
+    route.view,
+    route.categoryId,
+    searchEl.value,
+    state.settings.sortBy,
+    state.settings.compactMode,
+  ].join('|');
+
+/** Append cards until at least `count` are drawn (or the list ends). @param {number} count */
+function drawUpTo(count) {
+  if (!drawn) return;
+  const { grid, prompts } = drawn;
+  const target = Math.min(prompts.length, count);
+  if (target <= shown) return;
+  grid.append(...prompts.slice(shown, target).map(card));
+  shown = target;
+  if (drawn.more) {
+    if (shown >= prompts.length) {
+      drawn.more.remove();
+      moreObserver?.disconnect();
+      drawn.more = null;
+    } else drawn.more.textContent = t('showingNofM', shown, prompts.length);
+  }
+}
+
 function renderLibrary() {
   const prompts = viewPrompts(state.prompts, {
     view: route.view,
@@ -372,15 +411,42 @@ function renderLibrary() {
     return;
   }
 
-  mount(
-    viewEl,
-    header,
-    h(
-      'div',
-      { class: `grid${state.settings.compactMode ? ' grid--compact' : ''}` },
-      prompts.map(card),
-    ),
+  const key = listKey();
+  const sameList = key === shownKey;
+  if (!sameList) {
+    shownKey = key;
+    shown = PAGE;
+  }
+  shown = Math.min(Math.max(shown, PAGE), prompts.length);
+  const scroll = viewEl.scrollTop;
+  const grid = h(
+    'div',
+    { class: `grid${state.settings.compactMode ? ' grid--compact' : ''}` },
+    prompts.slice(0, shown).map(card),
   );
+  const more =
+    shown < prompts.length
+      ? h(
+          'p',
+          { class: 'grid__more muted', role: 'status' },
+          t('showingNofM', shown, prompts.length),
+        )
+      : null;
+  mount(viewEl, header, grid, more);
+  // Same list (a star, an edit, a sync): stay put. New list (search, view, sort): start at the top.
+  viewEl.scrollTop = sameList ? scroll : 0;
+  drawn = { grid, more, prompts };
+  moreObserver?.disconnect();
+  moreObserver = null;
+  if (more && typeof IntersectionObserver === 'function') {
+    moreObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((en) => en.isIntersecting)) drawUpTo(shown + PAGE);
+      },
+      { root: viewEl, rootMargin: '400px 0px' },
+    );
+    moreObserver.observe(more);
+  }
 }
 
 /** @param {Prompt} prompt */
@@ -787,11 +853,16 @@ function onGridKey(e, typing) {
     if (prompt) void usePrompt(prompt, e.shiftKey ? 'append' : 'insert');
     return true;
   }
-  const cards = /** @type {HTMLElement[]} */ ([...viewEl.querySelectorAll('.card')]);
+  let cards = /** @type {HTMLElement[]} */ ([...viewEl.querySelectorAll('.card')]);
   const cols = gridColumns(cards);
   const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key];
   if (step === undefined || mod) return false;
   const at = cards.indexOf(cardEl);
+  // G12: moving past the last drawn card draws the next batch first.
+  if (at + step >= cards.length && drawn && shown < drawn.prompts.length) {
+    drawUpTo(at + step + PAGE);
+    cards = /** @type {HTMLElement[]} */ ([...viewEl.querySelectorAll('.card')]);
+  }
   const next = cards[Math.max(0, Math.min(cards.length - 1, at + step))];
   if (!next || next === cardEl) return true;
   const nextId = next.dataset.id ?? '';

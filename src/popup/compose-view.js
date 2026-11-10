@@ -26,6 +26,9 @@ import {
 import {
   CUTS,
   FORMATS,
+  lintSequence,
+  rememberFormat,
+  suggestFormat,
   MAX_DURATION,
   MAX_SHOTS,
   MIN_DURATION,
@@ -57,6 +60,38 @@ import { save, state } from './store.js';
  */
 
 const DRAFT_KEY = 'composerDraft';
+/** G9c: origin → format the user wrote for on that site. */
+const TARGETS_KEY = 'composerTargets';
+
+/** Active tab's web origin ('' when not a web page) and remembered targets, loaded once. */
+const site = { loaded: false, origin: '', remembered: /** @type {unknown} */ ({}) };
+
+/** @param {HTMLElement} root */
+function loadSite(root) {
+  site.loaded = true;
+  void Promise.all([
+    browser.tabs.query({ active: true, currentWindow: true }).catch(() => []),
+    browser.storage.local.get([TARGETS_KEY]).catch(() => ({})),
+  ]).then(([tabs, raw]) => {
+    const url = /** @type {{ url?: string }[]} */ (tabs)[0]?.url ?? '';
+    const origin = /^https?:/.test(url) ? new URL(url).origin : '';
+    site.origin = origin;
+    site.remembered = /** @type {Record<string, unknown>} */ (raw)?.[TARGETS_KEY] ?? {};
+    if (rootEl === root) renderCompose(root);
+  });
+}
+
+/** Pick a format; on a web page, remember it for that site. @param {string} format */
+function setFormat(format) {
+  if (site.origin) {
+    site.remembered = rememberFormat(site.remembered, site.origin, format);
+    void browser.storage.local.set({ [TARGETS_KEY]: site.remembered });
+  }
+  setSequence({ ...seq(), format });
+}
+
+/** @param {string} origin */
+const hostOf = (origin) => origin.replace(/^https?:\/\//, '');
 const newId = () => crypto.randomUUID();
 
 /** @type {Sequence|null} */
@@ -142,6 +177,22 @@ export function renderCompose(root) {
   const current = shot();
   const c = current.composition;
   const multi = sq.shots.length > 1;
+  if (!site.loaded) loadSite(root);
+  const suggested = multi ? suggestFormat(site.origin, site.remembered) : null;
+  const suggestion =
+    suggested && suggested !== sq.format
+      ? h(
+          'button',
+          {
+            type: 'button',
+            class: 'choice choice--seq compose__suggest',
+            title: 'Rewrite the sequence in this format',
+            on: { click: () => setFormat(suggested) },
+          },
+          `On ${hostOf(site.origin)}: write for ${FORMATS.find((f) => f.id === suggested)?.label}`,
+        )
+      : null;
+  const lint = h('ul', { class: 'compose__lint', 'aria-live': 'polite' });
 
   // Keep focus and caret across re-renders.
   const active = /** @type {HTMLElement|null} */ (document.activeElement);
@@ -152,6 +203,12 @@ export function renderCompose(root) {
   const preview = h('p', { class: 'compose__preview', 'aria-live': 'polite' });
   const stats = h('span', { class: 'muted' });
   const updatePreview = () => {
+    mount(
+      lint,
+      lintSequence(seq()).map((l) =>
+        h('li', { class: `compose__lint--${l.level}` }, l.level === 'warn' ? '⚠ ' : 'ℹ ', l.text),
+      ),
+    );
     const out = composeSequence(seq());
     mount(
       preview,
@@ -294,28 +351,40 @@ export function renderCompose(root) {
         h('span', { class: 'field__label' }, multi ? 'Sequence' : 'Shot'),
         multi
           ? h(
-              'div',
-              { class: 'seg', role: 'radiogroup', 'aria-label': 'Write the sequence as' },
-              FORMATS.map((f) =>
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    class: 'seg__btn',
-                    role: 'radio',
-                    'aria-checked': String(sq.format === f.id),
-                    title: f.hint,
-                    on: { click: () => setSequence({ ...seq(), format: f.id }) },
+              'label',
+              { class: 'shot-controls__field' },
+              h('span', null, 'Write for'),
+              h(
+                'select',
+                {
+                  class: 'select compose__format',
+                  dataset: { focusKey: 'format' },
+                  title: FORMATS.find((f) => f.id === sq.format)?.hint,
+                  on: {
+                    change: (e) => setFormat(/** @type {HTMLSelectElement} */ (e.target).value),
                   },
-                  f.label,
+                },
+                [
+                  ['any', 'Any model'],
+                  ['model', 'Model dialect'],
+                ].map(([group, label]) =>
+                  h(
+                    'optgroup',
+                    { label },
+                    FORMATS.filter((f) => f.group === group).map((f) =>
+                      h('option', { value: f.id, selected: f.id === sq.format }, f.label),
+                    ),
+                  ),
                 ),
               ),
             )
           : null,
+        suggestion,
         h('span', { class: 'spacer' }),
         stats,
       ),
       preview,
+      lint,
       h(
         'div',
         { class: 'card__actions' },
@@ -343,6 +412,13 @@ export function renderCompose(root) {
           },
           'Copy',
         ),
+        site.origin
+          ? h(
+              'span',
+              { class: 'compose__target', title: 'Insert and Append go to this tab' },
+              `→ ${hostOf(site.origin)}`,
+            )
+          : null,
         h('span', { class: 'spacer' }),
         h(
           'button',

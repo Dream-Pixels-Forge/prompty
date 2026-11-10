@@ -43,10 +43,32 @@ export const CUTS = /** @type {const} */ ([
 ]);
 export const CUT_IDS = CUTS.map((c) => c.id);
 
+/**
+ * `any`: model-neutral (G9b). `model`: dialects (G9c) — only conventions with
+ * a written source: the Seedance 2.5 prompt guide (BytePlus ModelArk) and the
+ * field-tested Muse Video STOP rule.
+ */
 export const FORMATS = /** @type {const} */ ([
-  { id: 'timecoded', label: 'Timecoded', hint: 'Shot 1 (0–4s): … Hard cut to Shot 2 (4–7s): …' },
-  { id: 'script', label: 'Shot list', hint: 'SHOT 1 — 4s … CUT TO: …' },
-  { id: 'one-take', label: 'One take', hint: 'One continuous take, cuts ignored' },
+  {
+    id: 'timecoded',
+    group: 'any',
+    label: 'Timecoded',
+    hint: 'Shot 1 (0–4s): … Hard cut to Shot 2 (4–7s): …',
+  },
+  { id: 'script', group: 'any', label: 'Shot list', hint: 'SHOT 1 — 4s … CUT TO: …' },
+  { id: 'one-take', group: 'any', label: 'One take', hint: 'One continuous take, cuts ignored' },
+  {
+    id: 'seedance',
+    group: 'model',
+    label: 'Seedance 2.5',
+    hint: '0–4 seconds: … At 4 seconds, hard cut. 4–7 seconds: …',
+  },
+  {
+    id: 'muse',
+    group: 'model',
+    label: 'Muse Video',
+    hint: 'SHOT 1 (0–4 s): … STOP. HARD CUT.',
+  },
 ]);
 export const FORMAT_IDS = FORMATS.map((f) => f.id);
 
@@ -241,6 +263,10 @@ export function composeSequence(seq) {
         return i === 0 ? head : `${cutOf(used[i - 1].shot.cut).script}\n\n${head}`;
       })
       .join('\n\n');
+  } else if (seq.format === 'seedance') {
+    text = seedanceText(seq, used);
+  } else if (seq.format === 'muse') {
+    text = museText(seq, used);
   } else if (seq.format === 'one-take') {
     text = used.length
       ? `One continuous take, ${duration}s, no cuts. ${used
@@ -259,6 +285,221 @@ export function composeSequence(seq) {
       .join('\n');
   }
   return { text, used: used.length, duration, variables: parseVariables(text) };
+}
+
+/* ------------------------------------------------------------------ */
+/* G9c: model dialects                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Seedance: a cut is an event at a time point ("At 4 seconds, …"). */
+const SEEDANCE_CUT = /** @type {Record<string, string>} */ ({
+  cut: 'hard cut',
+  match: 'match cut',
+  smash: 'smash cut',
+  whip: 'the camera whip-pans and completes the transition',
+  dissolve: 'slow dissolve',
+  continuous: 'no cut, the camera keeps moving',
+});
+
+/** Muse holds hard cuts only; a match cut names its cut point. */
+const MUSE_HARD = new Set(['cut', 'match', 'smash']);
+
+/**
+ * Each shared variable written as its first full token in the shots, so a
+ * choice/range/default spec is never shadowed by a bare {name}.
+ * @param {string[]} texts
+ * @param {string[]} names
+ */
+function tokensFor(texts, names) {
+  const all = texts.join('\n');
+  return names.map((name) => {
+    const m = all.match(new RegExp(`\\{${name}(?:[:=][^{}]*)?\\}`));
+    return m ? m[0] : `{${name}}`;
+  });
+}
+
+/** @param {string[]} items */
+const listOf = (items) =>
+  items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+
+/**
+ * @param {Sequence} seq
+ * @param {ReturnType<typeof timeline>} used
+ */
+function seedanceText(seq, used) {
+  const lines = used.map((u, i) => {
+    const range = `${u.start}–${u.end} seconds: ${sentence(u.text)}`;
+    if (i === 0) return range;
+    const cut = SEEDANCE_CUT[used[i - 1].shot.cut] ?? SEEDANCE_CUT.cut;
+    return `At ${u.start} seconds, ${cut}. ${range}`;
+  });
+  const shared = sharedVariables(seq);
+  if (shared.length && lines.length) {
+    const tokens = tokensFor(
+      used.map((u) => u.text),
+      shared,
+    );
+    lines.push(
+      `Keep ${listOf(tokens)} consistent in every shot: same identity, clothing, props and screen direction.`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * @param {Sequence} seq
+ * @param {ReturnType<typeof timeline>} used
+ */
+function museText(seq, used) {
+  if (used.length === 0) return '';
+  const lines = used.map((u, i) => {
+    const last = i === used.length - 1;
+    const head = `SHOT ${u.n} (${u.start}–${u.end} s): ${sentence(u.text)} STOP.`;
+    if (last) return head;
+    return `${head} ${u.shot.cut === 'match' ? 'HARD CUT on a matching shape.' : 'HARD CUT.'}`;
+  });
+  const shared = sharedVariables(seq);
+  if (shared.length) {
+    const tokens = tokensFor(
+      used.map((u) => u.text),
+      shared,
+    );
+    lines.unshift(
+      `The same ${listOf(tokens)} in every shot, exactly as first shown, never redesigned.`,
+    );
+  }
+  if (used.length > 1) lines.push('Hard cuts only, no dissolves, no morphs, no whip transitions.');
+  return lines.join('\n');
+}
+
+/**
+ * Variable names used in two or more shots that have text (continuity).
+ * @param {Sequence} seq
+ * @returns {string[]}
+ */
+export function sharedVariables(seq) {
+  /** @type {Map<string, number>} */
+  const seen = new Map();
+  for (const u of timeline(seq)) {
+    for (const spec of parseVariables(u.text)) seen.set(spec.name, (seen.get(spec.name) ?? 0) + 1);
+  }
+  return [...seen].filter(([, n]) => n >= 2).map(([name]) => name);
+}
+
+/** Muse starts dropping clauses above about this many words (field notes). */
+export const MUSE_WORD_LIMIT = 260;
+
+/**
+ * Warnings and tips for the current format.
+ * @param {Sequence} seq
+ * @returns {{ level: 'warn'|'info', text: string }[]}
+ */
+export function lintSequence(seq) {
+  /** @type {{ level: 'warn'|'info', text: string }[]} */
+  const out = [];
+  const used = timeline(seq);
+  if (seq.shots.length < 2 || used.length === 0) return out;
+  const duration = used[used.length - 1].end;
+  if (seq.format === 'muse') {
+    if (used.length > 4)
+      out.push({
+        level: 'warn',
+        text: `${used.length} shots in one Muse clip: identity drifts with every cut. Keep it to 4, or generate the shots separately.`,
+      });
+    const short = used.filter((u) => u.end - u.start < 2).map((u) => u.n);
+    if (short.length)
+      out.push({
+        level: 'warn',
+        text: `Shot ${listOf(short.map(String))} under 2 s: Muse reads shots of 2 s or more clearly.`,
+      });
+    const soft = used
+      .slice(0, -1)
+      .filter((u) => !MUSE_HARD.has(u.shot.cut))
+      .map((u) => cutOf(u.shot.cut).label.toLowerCase());
+    if (soft.length)
+      out.push({
+        level: 'warn',
+        text: `Muse holds hard cuts only: ${listOf([...new Set(soft)])} will be written as a hard cut.`,
+      });
+    const words = composeSequence(seq).text.split(/\s+/).filter(Boolean).length;
+    if (words > MUSE_WORD_LIMIT)
+      out.push({
+        level: 'warn',
+        text: `${words} words: above about ${MUSE_WORD_LIMIT} Muse starts dropping clauses. Trim the blocks.`,
+      });
+  } else if (seq.format === 'seedance') {
+    out.push({
+      level: 'info',
+      text: `Set the duration to ${duration} s on the generation page. Seedance takes it from the settings, not the prompt.`,
+    });
+  } else if (
+    seq.format === 'one-take' &&
+    used.slice(0, -1).some((u) => u.shot.cut !== 'continuous')
+  ) {
+    out.push({ level: 'info', text: 'One take: the cuts between shots are ignored.' });
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* G9c: which dialect for which site                                   */
+/* ------------------------------------------------------------------ */
+
+/** Hosts confirmed to run a dialect's model. Everything else is learned from the user's choices. */
+export const DIALECT_HOSTS = /** @type {const} */ ([
+  { host: 'dreamina.capcut.com', format: 'seedance' },
+  { host: 'jimeng.jianying.com', format: 'seedance' },
+  { host: 'console.byteplus.com', format: 'seedance' },
+]);
+export const MAX_REMEMBERED_SITES = 50;
+
+/** @param {unknown} origin */
+const isWebOrigin = (origin) => typeof origin === 'string' && /^https?:\/\/[^/]+$/.test(origin);
+
+/**
+ * The format to suggest on a site: what the user picked there last, else a built-in host.
+ * @param {string} origin e.g. "https://dreamina.capcut.com"
+ * @param {unknown} remembered composerTargets from storage
+ * @returns {string|null}
+ */
+export function suggestFormat(origin, remembered) {
+  if (!isWebOrigin(origin)) return null;
+  const map = normalizeTargets(remembered);
+  if (map[origin]) return map[origin];
+  const host = origin.replace(/^https?:\/\//, '');
+  return DIALECT_HOSTS.find((d) => d.host === host)?.format ?? null;
+}
+
+/**
+ * Remember the format picked on a site (most recent last; oldest dropped past the cap).
+ * @param {unknown} remembered
+ * @param {string} origin
+ * @param {string} format
+ * @returns {Record<string, string>}
+ */
+export function rememberFormat(remembered, origin, format) {
+  const map = normalizeTargets(remembered);
+  if (!isWebOrigin(origin) || !FORMAT_IDS.includes(/** @type {any} */ (format))) return map;
+  delete map[origin];
+  map[origin] = format;
+  const keys = Object.keys(map);
+  for (const k of keys.slice(0, Math.max(0, keys.length - MAX_REMEMBERED_SITES))) delete map[k];
+  return map;
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {Record<string, string>}
+ */
+export function normalizeTargets(raw) {
+  /** @type {Record<string, string>} */
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (isWebOrigin(k) && FORMAT_IDS.includes(/** @type {any} */ (v)))
+      out[k] = /** @type {string} */ (v);
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ */

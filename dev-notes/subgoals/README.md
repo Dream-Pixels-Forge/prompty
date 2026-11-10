@@ -16,13 +16,14 @@ Everything stays 100% local: no network, no telemetry, `storage.local` only (GOA
 | 6   | [G4 — Bulk operations](G4-bulk-ops.md)                | 52+ prompts outgrow per-card actions          | M      | —                |
 | 7   | [G9 — Prompt Composer](G9-prompt-composer.md)         | Turns the library into a shot-design kit      | L      | G6 (recommended) |
 | 8   | [G9b — Shot sequences](G9b-shot-sequences.md)         | Directors think in cuts, not single shots     | M–L    | G9               |
+| 9   | [G9c — Model dialects](G9c-model-dialects.md)         | Each video model reads cuts differently       | M      | G9b              |
 
 S1–S3 fix what a user sees on day one; do them first. G5/G6/G4 are independent and can
 run in parallel. G9 works without G6 but is far better with enum variables.
 
 ## Status
 
-- [x] S1 · [x] S2 · [x] S3 · [x] G5 · [x] G6 · [x] G4 · [x] G9 · [x] G9b
+- [x] S1 · [x] S2 · [x] S3 · [x] G5 · [x] G6 · [x] G4 · [x] G9 · [x] G9b · [x] G9c
 
 ## Rules for every subgoal
 

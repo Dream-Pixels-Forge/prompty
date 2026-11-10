@@ -31,7 +31,7 @@ export function siteTag(url) {
  * @param {string} value
  * @returns {string}
  */
-function shortTitle(value) {
+export function shortTitle(value) {
   const flat = value.replace(/\s+/g, ' ').trim();
   return flat.length > MAX_TITLE ? `${flat.slice(0, MAX_TITLE - 1)}…` : flat;
 }

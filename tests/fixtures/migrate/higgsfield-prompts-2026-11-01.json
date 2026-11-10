@@ -1,0 +1,77 @@
+{
+  "version": "1.0.0",
+  "exportedAt": 1793750400000,
+  "prompts": [
+    {
+      "id": "1730000000001",
+      "title": "Full-Body Character Portrait",
+      "text": "Full-body portrait of {character}, {outfit}, standing in {environment}, soft rim lighting, sharp focus, highly detailed, professional photography",
+      "createdAt": 1730000000001,
+      "useCount": 12,
+      "isFavorite": true,
+      "categoryId": "cat_characters",
+      "tags": ["portrait"],
+      "aspectRatio": "2:3",
+      "quality": "high",
+      "lastUsedAt": 1793000000000
+    },
+    {
+      "id": "1730000000002",
+      "title": "Character Design Sheet",
+      "text": "Character design sheet for {character}, multiple views (front, side, back), expression thumbnails, clean lineart, flat colors, neutral background",
+      "createdAt": 1730000000002,
+      "useCount": 0,
+      "isFavorite": false,
+      "categoryId": "cat_characters",
+      "tags": [],
+      "aspectRatio": "1:1",
+      "quality": "high",
+      "lastUsedAt": null
+    },
+    {
+      "id": "1731000000000",
+      "title": "Brutalist Rooftop Dancer",
+      "text": "A dancer in a crimson coat spins on a brutalist rooftop at dawn, {lens} lens, wind-driven fabric, low angle, concrete and sky",
+      "createdAt": 1731000000000,
+      "useCount": 7,
+      "isFavorite": true,
+      "categoryId": "cat_characters",
+      "tags": ["dance", "client-a"],
+      "aspectRatio": "9:16",
+      "quality": "ultra",
+      "lastUsedAt": 1793100000000
+    },
+    {
+      "id": "1731000000001",
+      "title": "Salt Desert Monolith",
+      "text": "A black monolith on a white salt desert under a violet sky, {weather}, tiny figure for scale",
+      "createdAt": 1731000000001,
+      "useCount": 2,
+      "isFavorite": false,
+      "categoryId": "cat_land",
+      "tags": [],
+      "aspectRatio": "21:9",
+      "quality": "high",
+      "lastUsedAt": 1792000000000
+    },
+    {
+      "id": "1731000000002",
+      "title": "Glass Perfume Hero",
+      "text": "Glass perfume bottle on wet black stone, single hard backlight, caustics, macro, product hero shot",
+      "createdAt": 1731000000002,
+      "useCount": 0,
+      "isFavorite": false,
+      "categoryId": "cat_ads",
+      "tags": ["product"],
+      "aspectRatio": "4:5",
+      "quality": "high",
+      "lastUsedAt": null
+    }
+  ],
+  "categories": [
+    { "id": "cat_characters", "name": "Characters", "color": "#8b5cf6", "icon": "👤", "order": 0 },
+    { "id": "cat_land", "name": "Landscapes", "color": "#10b981", "icon": "🏔️", "order": 1 },
+    { "id": "cat_ads", "name": "Product Ads", "color": "#ef4444", "icon": "🛍️", "order": 2 }
+  ],
+  "settings": { "defaultView": "all", "sortBy": "recent", "compactMode": false, "autoUnlimited": true }
+}

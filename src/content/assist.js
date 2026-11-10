@@ -678,6 +678,29 @@
   const api = globalScope.browser ?? globalScope.chrome;
   if (!api || !api.runtime) return;
 
+  /* G8c: in-page strings come from the same catalogs as the popup (_locales, via
+   * browser.i18n). The English fallback is the catalog text itself — a test keeps
+   * them identical — so pages and the test hook still read right without i18n. */
+  function tr(key, fallback, ...subs) {
+    const s = subs.map(String);
+    let msg = '';
+    try {
+      msg = (api.i18n && api.i18n.getMessage(key, s)) || '';
+    } catch {
+      msg = '';
+    }
+    return msg || fallback.replace(/\$(\d)/g, (_m, d) => s[Number(d) - 1] ?? '');
+  }
+
+  /** Grammar-block messages (kept English there for parity) → UI language. */
+  function trVarProblem(problem) {
+    if (problem === 'Fill in this field') return tr('varFillIn', 'Fill in this field');
+    if (problem === 'Pick one of the options') return tr('varPickOption', 'Pick one of the options');
+    const m = /^Enter a whole number from (-?\d+) to (-?\d+)$/.exec(problem);
+    if (m) return tr('varWholeNumber', 'Enter a whole number from $1 to $2', m[1], m[2]);
+    return problem;
+  }
+
   const HOST_ID = 'prompty-content-ui';
   const WIDGET_SIZE = 42;
   const PILL_HIDE_DELAY_MS = 400;
@@ -1235,9 +1258,9 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     // Pill
     pill = elInShadow('div');
     applyStyles(pill, STYLES.pill);
-    pillButton(pill, '⌕', 'Open Prompty library', () => openLibrary());
-    pillButton(pill, '⤒', 'Save focused text as prompt', () => startSaveFlow());
-    pillButton(pill, '⋯', 'More options', () => togglePillMenu());
+    pillButton(pill, '⌕', tr('pageOpenLibrary', 'Open Prompty library'), () => openLibrary());
+    pillButton(pill, '⤒', tr('pageSaveFocused', 'Save focused text as prompt'), () => startSaveFlow());
+    pillButton(pill, '⋯', tr('pageMoreOptions', 'More options'), () => togglePillMenu());
     pill.hidden = true;
     shadow.appendChild(pill);
 
@@ -1245,7 +1268,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     pillMenu = elInShadow('div');
     applyStyles(pillMenu, STYLES.menu);
     const disableButton = elInShadow('button');
-    disableButton.textContent = 'Disable Prompty on this site';
+    disableButton.textContent = tr('pageDisableSite', 'Disable Prompty on this site');
     disableButton.setAttribute('role', 'menuitem');
     applyStyles(disableButton, STYLES.menuButton);
     disableButton.addEventListener('click', () => {
@@ -1261,7 +1284,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     widgetBubble.appendChild(mascotSvg(WIDGET_SIZE - 10));
     widgetBubble.setAttribute('aria-label', 'Prompty');
     widgetBubble.setAttribute('role', 'button');
-    widgetBubble.setAttribute('title', 'Prompty — drag to move, click to open');
+    widgetBubble.setAttribute('title', tr('pageWidgetTitle', 'Prompty — drag to move, click to open'));
     applyStyles(widgetBubble, STYLES.widgetBubble);
     widgetBubble.hidden = true;
     shadow.appendChild(widgetBubble);
@@ -1270,7 +1293,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     applyStyles(widgetPanel, STYLES.widgetPanel);
     widgetSearchInput = elInShadow('input');
     widgetSearchInput.type = 'search';
-    widgetSearchInput.placeholder = 'Search prompts…';
+    widgetSearchInput.placeholder = tr('pageSearchPrompts', 'Search prompts…');
     applyStyles(widgetSearchInput, STYLES.widgetSearch);
     widgetSearchInput.addEventListener('input', () => renderList());
     widgetList = elInShadow('div');
@@ -1284,16 +1307,16 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     saveModal = elInShadow('div');
     const card = elInShadow('div');
     const label = elInShadow('div');
-    label.textContent = 'Save as prompt';
+    label.textContent = tr('saveAsPrompt', 'Save as prompt');
     const textPreview = elInShadow('div');
     saveTitleInput = elInShadow('input');
     saveTitleInput.type = 'text';
-    saveTitleInput.placeholder = 'Prompt title';
+    saveTitleInput.placeholder = tr('pagePromptTitle', 'Prompt title');
     const actions = elInShadow('div');
     const cancelButton = elInShadow('button');
-    cancelButton.textContent = 'Cancel';
+    cancelButton.textContent = tr('cancel', 'Cancel');
     const saveButton = elInShadow('button');
-    saveButton.textContent = 'Save';
+    saveButton.textContent = tr('save', 'Save');
     cancelButton.addEventListener('click', closeSaveModal);
     saveButton.addEventListener('click', () => confirmSave());
     applyStyles(card, STYLES.modal);
@@ -1331,7 +1354,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
 
     paletteSearch = elInShadow('input');
     paletteSearch.type = 'search';
-    paletteSearch.placeholder = 'Search prompts…';
+    paletteSearch.placeholder = tr('pageSearchPrompts', 'Search prompts…');
     applyStyles(paletteSearch, STYLES.paletteSearch);
     paletteSearch.addEventListener('input', () => filterPalette());
     // Keys reach handlePaletteKeydown through the document capture listener
@@ -1343,7 +1366,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     palette.appendChild(paletteList);
 
     const paletteHint = elInShadow('div');
-    paletteHint.textContent = '↑↓ navigate · Enter insert · Esc close';
+    paletteHint.textContent = tr('pagePaletteHint', '↑↓ navigate · Enter insert · Esc close');
     applyStyles(paletteHint, STYLES.paletteHint);
     palette.appendChild(paletteHint);
 
@@ -1389,7 +1412,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
   const VAULT_SECRET_KEYS = ['prompts', 'variableMemory'];
   /** True after the background reported the vault as locked. */
   let vaultLocked = false;
-  const VAULT_LOCKED_MESSAGE = 'Vault locked — open Prompty to unlock';
+  const VAULT_LOCKED_MESSAGE = tr('pageVaultLocked', 'Vault locked — open Prompty to unlock');
 
   /**
    * storage.local look-alike: plain keys read/write directly; with the vault
@@ -1432,7 +1455,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
         }
         const res = await api.runtime.sendMessage({ type: 'PROMPTY_VAULT_SET', items: secret });
         vaultLocked = !!(res && res.locked);
-        if (!res || !res.ok) throw new Error(vaultLocked ? VAULT_LOCKED_MESSAGE : 'Could not save');
+        if (!res || !res.ok) throw new Error(vaultLocked ? VAULT_LOCKED_MESSAGE : tr('pageCouldNotSave', 'Could not save'));
       },
     };
   }
@@ -1582,12 +1605,12 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const target = pillAnchor && pillAnchor.isConnected ? pillAnchor : editableValueTarget();
     const text = readEditableText(target);
     if (text.trim() === '') {
-      showToast({ message: 'Focused field is empty', isError: true });
+      showToast({ message: tr('pageFieldEmpty', 'Focused field is empty'), isError: true });
       return;
     }
     saveModalPendingText = text;
     hidePill();
-    openSaveModal(truncatedTitle(text) || 'Untitled prompt', text);
+    openSaveModal(truncatedTitle(text) || tr('pageUntitledPrompt', 'Untitled prompt'), text);
   }
 
   /**
@@ -1646,10 +1669,10 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
   async function confirmSave() {
     const store = pageStore();
     const text = saveModalPendingText;
-    const title = String(saveTitleInput.value || '').trim() || truncatedTitle(text, 40) || 'Untitled prompt';
+    const title = String(saveTitleInput.value || '').trim() || truncatedTitle(text, 40) || tr('pageUntitledPrompt', 'Untitled prompt');
     closeSaveModal();
     if (!store) {
-      showToast({ message: 'Storage unavailable', isError: true });
+      showToast({ message: tr('pageStorageUnavailable', 'Storage unavailable'), isError: true });
       return;
     }
     try {
@@ -1677,9 +1700,9 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
       await store.set({ prompts: list });
       prompts = list;
       renderList();
-      showToast({ message: 'Prompt saved', icon: '✓' });
+      showToast({ message: tr('pagePromptSaved', 'Prompt saved'), icon: '✓' });
     } catch {
-      showToast({ message: vaultLocked ? VAULT_LOCKED_MESSAGE : 'Could not save prompt', isError: true });
+      showToast({ message: vaultLocked ? VAULT_LOCKED_MESSAGE : tr('pageCouldNotSavePrompt', 'Could not save prompt'), isError: true });
     }
   }
 
@@ -1728,7 +1751,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
    */
   function insertIntoTextField(el, text, mode) {
     const joined = mode === 'append' ? appendJoin(el.value, text) : text;
-    if (joined === '') return { success: false, error: 'Empty prompt text' };
+    if (joined === '') return { success: false, error: tr('pageEmptyPromptText', 'Empty prompt text') };
     try {
       fireBubbled(el, 'keydown');
       setNativeValue(el, joined);
@@ -1736,7 +1759,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
       fireBubbled(el, 'keyup');
       fireBubbled(el, 'change');
     } catch {
-      return { success: false, error: 'Insert rejected by page' };
+      return { success: false, error: tr('pageInsertRejected', 'Insert rejected by page') };
     }
     if (document.activeElement === el && typeof el.setSelectionRange === 'function') {
       try {
@@ -1761,12 +1784,12 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const needle = String(wanted).trim();
     const options = Array.isArray(el.options) ? Array.from(el.options) : [];
     const match = options.find((option) => option && option.textContent && option.textContent.trim() === needle);
-    if (!match) return { success: false, error: 'No matching select option' };
+    if (!match) return { success: false, error: tr('pageNoMatchingOption', 'No matching select option') };
     try {
       setNativeValue(el, match.value);
       fireBubbled(el, 'change');
     } catch {
-      return { success: false, error: 'Insert rejected by page' };
+      return { success: false, error: tr('pageInsertRejected', 'Insert rejected by page') };
     }
     return { success: true };
   }
@@ -1815,7 +1838,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
         fireBubbled(el, 'input');
       }
     } catch {
-      return { success: false, error: 'Insert rejected by page' };
+      return { success: false, error: tr('pageInsertRejected', 'Insert rejected by page') };
     }
     return { success: true };
   }
@@ -1832,7 +1855,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     if (tag === 'TEXTAREA' || tag === 'INPUT') return insertIntoTextField(target, text, mode);
     if (tag === 'SELECT') return insertIntoSelect(target, text, mode);
     if (target.isContentEditable === true) return insertIntoContentEditable(target, text, mode);
-    return { success: false, error: 'No editable target found' };
+    return { success: false, error: tr('pageNoTarget', 'No editable target found') };
   }
 
   /**
@@ -2313,11 +2336,11 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const text = String(selectedPrompt.text ?? '');
     const result = insertInto(paletteTarget, text, 'insert');
     if (result.success) {
-      showToast({ message: 'Inserted', icon: '✓' });
+      showToast({ message: tr('pageInserted', 'Inserted'), icon: '✓' });
       // Update lastUsedAt
       updatePromptLastUsed(selectedPrompt.id);
     } else {
-      showToast({ message: result.error || 'Insert failed', isError: true });
+      showToast({ message: result.error || tr('insertFailedDefault', 'Insert failed'), isError: true });
     }
     closePalette();
     if (paletteTarget && typeof paletteTarget.focus === 'function') {
@@ -2410,8 +2433,8 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
         const dice = elInShadow('button');
         dice.type = 'button';
         dice.textContent = '🎲';
-        dice.title = 'Random';
-        dice.setAttribute('aria-label', `Random ${humanizeVarInline(spec.name)}`);
+        dice.title = tr('random', 'Random');
+        dice.setAttribute('aria-label', tr('randomNamed', 'Random $1', humanizeVarInline(spec.name)));
         applyStyles(dice, STYLES.modalSecondary);
         dice.style.padding = '3px 9px';
         const input = control;
@@ -2435,7 +2458,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     }
 
     const confirmBtn = elInShadow('button');
-    confirmBtn.textContent = 'Insert';
+    confirmBtn.textContent = tr('insert', 'Insert');
     applyStyles(confirmBtn, STYLES.modalPrimary);
     confirmBtn.style.width = '100%';
     confirmBtn.style.marginTop = '4px';
@@ -2478,7 +2501,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
       const problem = varCheck(spec, input.value);
       if (problem) {
         input.focus();
-        showToast({ message: `${humanizeVarInline(spec.name)}: ${problem}`, isError: true });
+        showToast({ message: `${humanizeVarInline(spec.name)}: ${trVarProblem(problem)}`, isError: true });
         return;
       }
       values[spec.name] = String(input.value).trim();
@@ -2487,10 +2510,10 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const resolved = resolveVariablesInline(String(paletteVariablePrompt.text ?? ''), values);
     const result = insertInto(paletteTarget, resolved, 'insert');
     if (result.success) {
-      showToast({ message: 'Inserted', icon: '✓' });
+      showToast({ message: tr('pageInserted', 'Inserted'), icon: '✓' });
       updatePromptLastUsed(paletteVariablePrompt.id);
     } else {
-      showToast({ message: result.error || 'Insert failed', isError: true });
+      showToast({ message: result.error || tr('insertFailedDefault', 'Insert failed'), isError: true });
     }
     closePalette();
     if (paletteTarget && typeof paletteTarget.focus === 'function') {
@@ -2576,7 +2599,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
           const mode = message.mode === 'append' ? 'append' : 'insert';
           const target = resolveInsertTarget();
           if (!target) {
-            respondSafe({ success: false, error: 'No editable target found' });
+            respondSafe({ success: false, error: tr('pageNoTarget', 'No editable target found') });
             return;
           }
           respondSafe(insertInto(target, text, mode));
@@ -2586,7 +2609,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
           const selection = window.getSelection ? window.getSelection() : null;
           const text = selection ? String(selection) : '';
           if (text.trim() === '') {
-            respondSafe({ success: false, error: 'No selection' });
+            respondSafe({ success: false, error: tr('pageNoSelection', 'No selection') });
             return;
           }
           respondSafe({
@@ -2814,7 +2837,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     }
     if (shown === 0) {
       const empty = elInShadow('div');
-      empty.textContent = vaultLocked ? VAULT_LOCKED_MESSAGE : query.trim() === '' ? 'No prompts yet' : 'No prompts match';
+      empty.textContent = vaultLocked ? VAULT_LOCKED_MESSAGE : query.trim() === '' ? tr('pageNoPromptsYet', 'No prompts yet') : tr('pageNoPromptsMatch', 'No prompts match');
       applyStyles(empty, STYLES.emptyList);
       widgetList.appendChild(empty);
     }
@@ -2836,9 +2859,9 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     applyStyles(snippet, STYLES.rowText);
     const actions = elInShadow('div');
     applyStyles(actions, STYLES.rowActions);
-    rowAction(actions, 'Insert', 'Insert (replace field)', () => insertFromWidget(prompt.text, 'insert'));
-    rowAction(actions, 'Append', 'Append (join with ", ")', () => insertFromWidget(prompt.text, 'append'));
-    rowAction(actions, 'Copy', 'Copy to clipboard', () => copyFromWidget(prompt.text));
+    rowAction(actions, tr('insert', 'Insert'), tr('pageInsertHint', 'Insert (replace field)'), () => insertFromWidget(prompt.text, 'insert'));
+    rowAction(actions, tr('append', 'Append'), tr('pageAppendHint', 'Append (join with ", ")'), () => insertFromWidget(prompt.text, 'append'));
+    rowAction(actions, tr('copy', 'Copy'), tr('pageCopyHint', 'Copy to clipboard'), () => copyFromWidget(prompt.text));
     row.appendChild(title);
     row.appendChild(snippet);
     row.appendChild(actions);
@@ -2871,14 +2894,14 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const value = typeof text === 'string' ? text : '';
     const target = resolveInsertTarget();
     if (!target) {
-      showToast({ message: 'No editable target found', isError: true });
+      showToast({ message: tr('pageNoTarget', 'No editable target found'), isError: true });
       return;
     }
     const result = insertInto(target, value, mode === 'append' ? 'append' : 'insert');
     showToast(
       result.success
-        ? { message: mode === 'append' ? 'Appended to field' : 'Inserted into field', icon: '✓' }
-        : { message: result.error || 'Insert failed', isError: true },
+        ? { message: mode === 'append' ? tr('pageAppended', 'Appended to field') : tr('pageInsertedInto', 'Inserted into field'), icon: '✓' }
+        : { message: result.error || tr('insertFailedDefault', 'Insert failed'), isError: true },
     );
   }
 
@@ -2892,7 +2915,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     try {
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
         await navigator.clipboard.writeText(value);
-        showToast({ message: 'Copied to clipboard', icon: '✓' });
+        showToast({ message: tr('pageCopied', 'Copied to clipboard'), icon: '✓' });
         return;
       }
     } catch {
@@ -2919,7 +2942,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
         ok = false;
       }
       scratch.remove();
-      showToast(ok ? { message: 'Copied to clipboard', icon: '✓' } : { message: 'Copy failed', isError: true });
+      showToast(ok ? { message: tr('pageCopied', 'Copied to clipboard'), icon: '✓' } : { message: tr('pageCopyFailed', 'Copy failed'), isError: true });
     }
   }
 

@@ -2,7 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import EN from '../src/locales/en.js';
 import FR from '../src/locales/fr.js';
-import { fill, t, tn } from '../src/lib/i18n.js';
+import { fill, localizeVarProblem, t, tn } from '../src/lib/i18n.js';
+import { checkVariableValue } from '../src/lib/variables.js';
 
 const popupDir = new URL('../src/popup/', import.meta.url);
 const files = readdirSync(popupDir).filter((f) => f.endsWith('.js'));
@@ -115,6 +116,47 @@ describe('usage', () => {
         }
     }
     expect(found).toEqual([]);
+  });
+});
+
+describe('in-page UI (content script)', () => {
+  const assist = readFileSync(new URL('../src/content/assist.js', import.meta.url), 'utf8');
+
+  it('every tr(key, fallback) uses a catalog key whose English text is exactly the fallback', () => {
+    const calls = [...assist.matchAll(/\btr\('([A-Za-z0-9_]+)', '((?:[^'\\]|\\.)*)'/g)];
+    expect(calls.length).toBeGreaterThan(30);
+    const bad = calls
+      .map(([, key, fallback]) => [key, fallback.replace(/\\'/g, "'")])
+      .filter(([key, fallback]) => /** @type {any} */ (EN)[key] !== fallback);
+    expect(bad).toEqual([]);
+  });
+
+  it('no English literal is written straight into in-page UI', () => {
+    const sinks =
+      /(?:textContent|placeholder|title)\s*=\s*'([^']*[A-Za-z]{2}[^']*)'|(?:message|error):\s*'([^']*[A-Za-z]{2}[^']*)'|setAttribute\('(?:aria-label|title)',\s*'([^']*[A-Za-z]{2}[^']*)'\)/g;
+    const found = [...assist.matchAll(sinks)]
+      .map((m) => m[1] ?? m[2] ?? m[3])
+      // brand name; 'unknown type' is a script-to-script protocol reply, never shown
+      .filter((text) => text !== 'Prompty' && text !== 'unknown type');
+    expect(found).toEqual([]);
+  });
+
+  it('grammar validation messages are mapped in the popup and the page', () => {
+    const specs = [
+      [{ name: 'a', kind: 'text' }, ''],
+      [{ name: 'a', kind: 'choice', options: ['x'] }, 'y'],
+      [{ name: 'a', kind: 'range', min: 1, max: 9 }, '0'],
+    ];
+    for (const [spec, value] of specs) {
+      const problem = checkVariableValue(/** @type {any} */ (spec), value);
+      expect(problem).not.toBe('');
+      // English catalog text matches the grammar's own words; a translation would differ.
+      expect(localizeVarProblem(problem)).toBe(problem);
+      expect(Object.values(EN)).toContain(
+        problem.replace(/from (-?\d+) to (-?\d+)/, 'from $$1 to $$2'),
+      );
+    }
+    expect(assist).toContain('trVarProblem(problem)');
   });
 });
 

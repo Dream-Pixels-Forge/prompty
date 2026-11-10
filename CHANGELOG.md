@@ -5,6 +5,17 @@ before 1.0, minor versions may change stored data shapes, and every such change 
 
 ## [Unreleased]
 
+### Security
+
+- **Vault Mode** (G10, opt-in, Settings → Vault): prompts, snippets, fill-in memory and Composer
+  drafts are encrypted on disk with a key derived from your passphrase (PBKDF2-SHA-256 at 250k
+  iterations, AES-GCM-256).
+  - The key is held in memory only (`storage.session`), and the vault auto-locks after 5 min,
+    15 min, 1 h, or only when the browser closes.
+  - Web pages never see the key; the in-page palette asks the background.
+  - Exports while the vault is on warn that the file is plain JSON.
+  - There is no passphrase recovery.
+
 ### Accessibility
 
 - An axe-core audit of every popup view in light and dark mode now finds nothing (G8a):

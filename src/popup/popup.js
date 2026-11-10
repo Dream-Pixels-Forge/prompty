@@ -52,6 +52,7 @@ import {
 import { exportLibrary, openPalette } from './palette-ui.js';
 import { onComposeKey, openComposition, renderCompose } from './compose-view.js';
 import { renderInsights } from './insights-view.js';
+import { syncLockScreen } from './vault-ui.js';
 import { renderSettings } from './settings-view.js';
 import { renderSnippets } from './snippets-view.js';
 import { load, save, state, subscribe, watchStorage } from './store.js';
@@ -814,6 +815,8 @@ function focusCard(id) {
 /* ------------------------------------------------------------------ */
 
 function render() {
+  syncLockScreen(); // G10: full-screen lock while the vault is locked
+  if (state.vault === 'locked') return;
   // Re-rendering replaces the grid; keep keyboard focus on the same card.
   const active = document.activeElement;
   const focusedCard =

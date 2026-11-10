@@ -6,7 +6,7 @@ keystroke away — in ChatGPT, Claude, Gemini, Perplexity, Higgsfield, or any
 plain `<textarea>` on the web.
 
 **100% local.** No servers, no accounts, no telemetry, zero network requests.
-Everything lives in `browser.storage.local`.
+Everything lives in `browser.storage.local`, encrypted at rest if you turn on Vault Mode.
 
 ## Features (v0.3)
 
@@ -19,6 +19,7 @@ What's new in each version: [`CHANGELOG.md`](CHANGELOG.md).
 - **Shot sequences** — chain shots into a scene: each shot has a duration and the cut into the next (hard, match, smash, whip pan, dissolve, or no cut). The sequence is written as timecoded shots, a shot list, or one continuous take, and variables shared between shots (`{hero}`) are asked once.
 - **Model dialects** — write the sequence the way the target model reads it: **Seedance 2.5** (`0–4 seconds: …`, then `At 4 seconds, match cut.`) or **Muse Video** (`SHOT 1 (0–4 s): … STOP. HARD CUT.`). The Composer suggests the dialect for the site you're on (Dreamina → Seedance, meta.ai → Muse), remembers your choice per site, and warns when a sequence fights the model (for example, more than 4 cuts for Muse).
 - **Command palette (`Ctrl/Cmd+K`)** — one keyboard-only list of prompts, snippets and commands.
+- **Vault Mode (opt-in)** — encrypt prompts, snippets, fill-ins and drafts on disk with a passphrase (AES-GCM, PBKDF2 250k). Auto-locks after idle time; the key is held in memory only. No recovery if the passphrase is lost.
 - **Insights** — most-used prompts and categories, prompts added per month, never-used and dormant prompts (one click selects them for bulk tidy-up), and your recent fill-ins. Computed from what Prompty already stores; nothing new is tracked.
 - **Share packs** — select prompts, then **Pack…** saves a `.prompty` file (prompts, categories, Composer blocks; no personal stats). Drop a pack on the popup to preview and add it.
 - **Import from another tool** — bring a Higgsfield Prompt Saver export, a CSV, a text/Markdown file or a JSON list. A report shows what will be added, merged or skipped before anything changes; duplicates are skipped and categories matched by name.

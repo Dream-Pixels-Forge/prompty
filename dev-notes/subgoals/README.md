@@ -35,7 +35,7 @@ run in parallel. G9 works without G6 but is far better with enum variables.
 ## Status
 
 - [x] S1 · [x] S2 · [x] S3 · [x] G5 · [x] G6 · [x] G4 · [x] G9 · [x] G9b · [x] G9c
-- Wave 2: [x] G11 (real upstream sample pending) · [x] G13 · [ ] G7 · [ ] G8 · [ ] G10 · [ ] G12
+- Wave 2: [x] G11 (real upstream sample pending) · [x] G13 · [x] G7 · [ ] G8 · [ ] G10 · [ ] G12
 
 ## Rules for every subgoal
 

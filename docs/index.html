@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Prompty — Global Prompt Library</title>
+<meta name="description" content="Prompty is a cross-browser prompt library extension. 100% local, no servers." />
+<style>
+  :root{
+    --bg:#ffffff;
+    --fg:#0a0a0a;
+    --muted:#6b7280;
+    --line:#e5e7eb;
+    --accent:#0a0a0a;
+    --orange:#FF6A00;
+    --orange-soft: color-mix(in oklab, var(--orange) 12%, transparent);
+    --radius:16px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0a0a0a; --fg:#f5f5f5; --muted:#9ca3af; --line:#262626; --accent:#f5f5f5; --orange-soft: color-mix(in oklab, var(--orange) 18%, transparent); }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg);line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{color:var(--orange);text-decoration:none}
+  header{position:sticky;top:0;background:color-mix(in oklab,var(--bg) 88%,transparent);backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);z-index:10}
+  nav{max-width:1000px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+  .brand{font-weight:700;letter-spacing:.2px}
+  .brand span{opacity:.5}
+  main{max-width:1000px;margin:0 auto;padding:40px 20px 100px}
+  .hero{display:grid;gap:32px;align-items:start;grid-template-columns:1fr}
+  .hero .banner{grid-column:1/-1}
+  .hero h1{font-size:clamp(44px,7vw,84px);line-height:0.95;margin:0;font-weight:800;letter-spacing:-0.02em}
+  .hero p{font-size:clamp(16px,1.2vw,18px)}
+  .hero p{margin:0;color:var(--muted);max-width:60ch}
+  .banner{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#000;margin-top:8px}
+  .banner img{width:100%;height:auto;display:block;filter:contrast(1.05) brightness(0.95);box-shadow:0 1px 0 var(--line) inset}
+  .tag{font-variant:small-caps;letter-spacing:.08em;font-size:12px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:28px 0}
+  .card{border:1px solid var(--line);border-radius:var(--radius);padding:18px;background:color-mix(in oklab,var(--bg) 98%,white)}
+  .card h3{margin:0 0 8px;font-size:16px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .section{margin:48px 0}
+  .stats-section{margin-top:48px}
+  .section h2{font-size:22px;margin:0 0 12px;border-bottom:1px solid var(--line);padding-bottom:8px;position:relative}
+  .section h2::after{content:"";position:absolute;left:0;bottom:-1px;height:2px;width:48px;background:var(--orange);border-radius:2px}
+  pre{background:#0a0a0a;color:#eaeaea;padding:14px 16px;border-radius:12px;overflow:auto;font-size:13px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  .steps{display:grid;gap:12px;margin-top:12px}
+  .step{display:flex;gap:12px}
+  .step b{min-width:28px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:2px 6px;color:var(--fg);background:var(--orange-soft);border-color:color-mix(in oklab,var(--orange) 30%,var(--line))}
+  footer{border-top:1px solid var(--line);margin-top:80px;color:var(--muted);font-size:13px}
+  .pill{display:inline-block;border:1px solid var(--line);padding:4px 10px;border-radius:999px;font-size:12px;color:var(--muted);background:var(--orange-soft)}
+  .pill:hover{border-color:var(--orange);color:var(--fg)}
+  .links{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .trusted{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;margin-top:4px}
+  .logos{display:flex;flex-wrap:wrap;gap:16px;color:var(--muted);font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+  .logos span{opacity:.8}
+  .stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0;margin-top:24px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .stat{display:flex;flex-direction:column;padding:16px;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:none}
+  .stat dt{font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);font-variant:small-caps}
+  .stat dd{font-size:20px;font-weight:600;margin-top:6px}
+  .mono{color:var(--muted);font-family:ui-monospace}
+</style>
+</head>
+<body>
+<header>
+  <nav>
+    <div class="brand">prompty <span>/global prompt library</span></div>
+    <div class="tag">v0.2.0 • 100% local</div>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <div>
+      <h1>Save, organize and paste prompts<br/>on any site.</h1>
+      <p>Prompty is a Chromium MV3 + Firefox MV3 browser extension that keeps your prompt library one keystroke away — ChatGPT, Claude, Gemini, Perplexity, Higgsfield, or any plain textarea.</p>
+      <div class="links">
+        <a class="pill" href="#install">Install</a>
+        <a class="pill" href="#features">Features</a>
+        <a class="pill" href="#scripts">Scripts</a>
+        <a class="pill" href="../README.md">README.md</a>
+      </div>
+    </div>
+    <div class="banner">
+      <img src="../assets/banner.png" alt="Prompty banner" />
+    </div>
+    <div class="trusted">
+      <div class="tag">Works everywhere</div>
+      <div class="logos">
+        <span>ChatGPT</span>
+        <span>Claude</span>
+        <span>Gemini</span>
+        <span>Perplexity</span>
+        <span>Higgsfield</span>
+        <span>Any textarea</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="stats-section">
+    <dl class="stats">
+      <div class="stat">
+        <dt>Version</dt>
+        <dd>0.2.0</dd>
+      </div>
+      <div class="stat">
+        <dt>Tests</dt>
+        <dd>304 passed</dd>
+      </div>
+      <div class="stat">
+        <dt>Local only</dt>
+        <dd>100%</dd>
+      </div>
+      <div class="stat">
+        <dt>MV3</dt>
+        <dd>Chrome + Firefox</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="section" id="features">
+    <h2>Features</h2>
+    <div class="grid">
+      <div class="card"><h3>Prompt library</h3><p>Browse by view/category, search, sort, star, insert/append/copy/edit/delete with undo.</p></div>
+      <div class="card"><h3>Cinematic starter</h3><p>52 prompts across 16 categories. Variables like <code>{subject}</code>, <code>{lens:24mm|50mm}</code>, <code>{seed:1-999}</code>.</p></div>
+      <div class="card"><h3>Command palette</h3><p><code>Ctrl/Cmd+K</code> for prompts, snippets and commands, keyboard-first.</p></div>
+      <div class="card"><h3>Quick insert</h3><p>Type <code>!</code> in any input for fuzzy palette at the caret.</p></div>
+      <div class="card"><h3>Site recipes</h3><p>Data-driven anchors for AI sites + custom JSON recipes.</p></div>
+      <div class="card"><h3>Assist UI</h3><p>Smart pill + floating widget, clipboard snippets, context menu shortcuts.</p></div>
+    </div>
+    <p class="tag">No network. No accounts. All data in <code>browser.storage.local</code>.</p>
+  </section>
+
+  <section class="section" id="install">
+    <h2>Install</h2>
+    <p class="mono">Node 22+ · pnpm 11</p>
+    <pre><code>pnpm install
+pnpm build    # → dist/chrome + dist/firefox
+pnpm package  # → dist/prompty-0.2.0-chrome.zip, prompty-0.2.0-firefox.xpi</code></pre>
+    <div class="steps">
+      <div class="step"><b>1</b><div><strong>Chrome / Edge / Brave</strong><br/>chrome://extensions → Developer mode → Load unpacked → <code>dist/chrome</code></div></div>
+      <div class="step"><b>2</b><div><strong>Firefox 142+</strong><br/>about:debugging → Load Temporary Add-on → <code>dist/firefox/manifest.json</code></div></div>
+    </div>
+  </section>
+
+  <section class="section" id="scripts">
+    <h2>Scripts & CI</h2>
+    <ul>
+      <li><code>pnpm type-check</code> — <code>tsc --noEmit</code></li>
+      <li><code>pnpm lint</code> — ESLint, zero warnings</li>
+      <li><code>pnpm test</code> — Vitest, 304 tests</li>
+      <li><code>pnpm build</code> — Emit dual manifests</li>
+      <li><code>pnpm package</code> — Build + zip xpi/zip</li>
+    </ul>
+    <p>CI <code>.github/workflows/pr-validation.yml</code> runs type-check, lint, test, package, <code>web-ext lint</code> (Firefox) and <code>addons-linter</code> (Chrome) on every PR / push to main.</p>
+  </section>
+
+  <section class="section">
+    <h2>Architecture</h2>
+    <div class="grid">
+      <div class="card"><h3>Dual manifest build</h3><p>One source → <code>dist/chrome</code> service worker MV3 and <code>dist/firefox</code> event page MV3. Shared assets copied per target.</p></div>
+      <div class="card"><h3>Background</h3><p>Service worker/event page handles storage sync, commands, context menus, settings migration and seed presets. No network.</p></div>
+      <div class="card"><h3>Content script</h3><p>Shadow DOM assist UI: pill, floating widget, <code>!</code> palette, insert/append/save handlers. Passive unless user triggered.</p></div>
+      <div class="card"><h3>Popup UI</h3><p>Library, editor, categories, snippets, settings, command palette. Pure DOM, no frameworks.</p></div>
+      <div class="card"><h3>Lib modules</h3><p>Pure ES modules: storage, variables, search, recipes, sites, text, message, diff, capture. Fully tested.</p></div>
+      <div class="card"><h3>Quality gates</h3><p>Vitest 304 tests, TypeScript check, ESLint, <code>web-ext lint</code>, <code>addons-linter</code>. CI on every PR.</p></div>
+    </div>
+    <p class="tag">100% local · <code>browser.storage.local</code> only · zero telemetry</p>
+  </section>
+
+  <section class="section">
+    <h2>Roadmap</h2>
+    <p>v0.3 Differentiators: Ctrl+K command palette refined, prompt version history, bulk ops, Variables 2.0. See <a href="../dev-notes/ROADMAP.md">dev-notes/ROADMAP.md</a>.</p>
+  </section>
+
+  <footer>
+    <p>MIT © 2026 Dream Pixels Forge. Ported from Higgsfield Prompt Saver v1.0.0 © JohnLaibach, MIT.</p>
+    <p class="mono">src/ · tests/ · scripts/ · dev-notes/ · assets/banner.png</p>
+  </footer>
+</main>
+</body>
+</html>

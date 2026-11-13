@@ -320,15 +320,16 @@ M
 
 ---
 
-## Status (v0.3.0, 2026-11-10)
+## Status (v0.4.0, 2026-11-13)
 
 | Goal                                                                    | Status                                                 |
 | ----------------------------------------------------------------------- | ------------------------------------------------------ |
 | G1 trigger-char quick insert · G3 site recipes                          | ✅ v0.2.0                                              |
 | G2 Ctrl+K palette · G4 bulk ops · G5 version history · G6 Variables 2.0 | ✅ v0.3.0                                              |
 | G9 Prompt Composer (+ G9b sequences, G9c model dialects)                | ✅ v0.3.0 — specs in [`subgoals/`](subgoals/README.md) |
-| G7 usage insights · G8 theming/a11y/i18n                                | ⏳ open (G8 partly: brand light/dark theme shipped)    |
-| G10 Vault · G11 Migration · G12 IndexedDB · G13 packs                   | ⏳ open                                                |
+| G7 usage insights · G8 theming/a11y/i18n (en + fr)                      | ✅ v0.4.0                                              |
+| G10 Vault · G11 Migration · G13 packs                                   | ✅ v0.4.0                                              |
+| G12 large-library performance                                           | ✅ v0.4.0 — re-scoped by measurement; **no IndexedDB**. 5k prompts: first card 7.0 s → 0.3 s. Revisit when storage dominates or libraries near the 10 MB quota (~25–30k prompts). Spec in [`subgoals/`](subgoals/G12-indexeddb-engine.md) |
 
 ## Tier v0.3 — "Differentiators"
 

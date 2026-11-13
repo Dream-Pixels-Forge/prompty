@@ -53,11 +53,19 @@ export async function load() {
     // seeding is best-effort; an empty library still renders
   }
   // "New" = created since the popup was last opened (first open: nothing is new).
+  // G12: the library read starts now, alongside the bookkeeping, not after it.
+  const library = reload();
   const seen = await browser.storage.local.get(['popupSeenAt']);
   state.newSince = typeof seen.popupSeenAt === 'number' ? seen.popupSeenAt : Infinity;
   await browser.storage.local.set({ popupSeenAt: Date.now() });
-  await reload();
+  await library;
+  emit(); // newSince may have arrived after the first paint
 }
+
+/** Storage keys whose changes never affect what the popup shows (G12: skip the re-read). */
+const IGNORED_KEYS = ['popupSeenAt', 'composerTargets', 'vault_composerDraft', 'composerDraft'];
+/** @param {string} key */
+const ignorable = (key) => IGNORED_KEYS.includes(key) || key.startsWith('widgetPositions:');
 
 /**
  * G10: unlock the vault, then finish loading.
@@ -150,9 +158,10 @@ let reloadTimer = 0;
 /** Re-read on external changes (debounced; our own writes are idempotent). */
 export function watchStorage() {
   browser.storage?.onChanged?.addListener(
-    /** @param {Record<string, unknown>} _changes @param {string} area */
-    (_changes, area) => {
+    /** @param {Record<string, unknown>} changes @param {string} area */
+    (changes, area) => {
       if (area !== 'local') return;
+      if (Object.keys(changes ?? {}).every(ignorable)) return;
       clearTimeout(reloadTimer);
       reloadTimer = window.setTimeout(() => void reload(), 120);
     },

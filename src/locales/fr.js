@@ -501,4 +501,5 @@ export default {
   varFillIn: 'Remplissez ce champ',
   varPickOption: 'Choisissez l’une des options',
   varWholeNumber: 'Saisissez un nombre entier de $1 à $2',
+  showingNofM: '$1 sur $2 affichés — faites défiler pour la suite',
 };

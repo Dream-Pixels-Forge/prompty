@@ -5,6 +5,15 @@ before 1.0, minor versions may change stored data shapes, and every such change 
 
 ## [Unreleased]
 
+### Performance
+
+- **Large libraries** (G12): with 5,000 prompts the popup now shows its first card in about 0.3 s
+  instead of about 7 s.
+  - Search keystrokes take about 0.09 s instead of 0.6 s, and starring a card about 0.17 s instead
+    of 4 s.
+  - The grid draws 60 cards at a time and adds more as you scroll.
+  - Opening the popup no longer reads the library twice.
+
 ### Languages
 
 - **French** (G8b, G8c): the popup and the in-page UI (pill, widget, `!` palette, save dialog, toasts) are translated and follows the browser's language. Prompt text

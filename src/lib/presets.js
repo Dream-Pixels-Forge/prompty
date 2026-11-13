@@ -461,13 +461,16 @@ export function createPresetsInstance({ categoryIds = [], promptIds = [] } = {})
 export async function seedPresets(area) {
   const store = area ?? browser?.storage?.local;
   if (!store) throw new Error('Prompty: storage.local is unavailable');
-  const keys = ['prompts', 'categories', 'presetsInitialized', 'presetsVersion'];
+  // G12: check the version alone first, so an up-to-date library (the usual case,
+  // on every popup open and worker start) is not read twice.
   /** @type {Record<string, unknown>} */
-  const raw = await store.get(keys);
-  const initialized = raw.presetsInitialized === true;
-  const version = typeof raw.presetsVersion === 'number' ? raw.presetsVersion : 0;
+  const flags = await store.get(['presetsInitialized', 'presetsVersion']);
+  const initialized = flags.presetsInitialized === true;
+  const version = typeof flags.presetsVersion === 'number' ? flags.presetsVersion : 0;
 
   if (initialized && version >= PRESETS_VERSION) return; // already seeded — no-op
+  /** @type {Record<string, unknown>} */
+  const raw = await store.get(['prompts', 'categories']);
 
   /** @type {Prompt[]} */
   const existingPrompts = [];

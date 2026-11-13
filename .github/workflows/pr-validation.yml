@@ -9,12 +9,14 @@ concurrency:
   cancel-in-progress: true
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    # Pinned: `ubuntu-latest` is mid-migration to Ubuntu 26 and emits a
+    # runner notice on every run.
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with: { version: 11 }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm type-check
@@ -25,13 +27,3 @@ jobs:
         run: |
           pnpm dlx web-ext@8 lint --source-dir dist/firefox --warnings-as-errors
           pnpm dlx addons-linter dist/chrome --no-summary
-      - name: Upload packages
-        # Convenience only — never fail the quality gate on artifact storage quota.
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: prompty-packages
-          retention-days: 7
-          path: |
-            dist/*.zip
-            dist/*.xpi

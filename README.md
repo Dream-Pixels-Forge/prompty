@@ -63,7 +63,9 @@ Produces installable archives in `dist/`:
 | `prompty-<version>-chrome.zip`  | Chrome Web Store upload                |
 | `prompty-<version>-firefox.xpi` | Firefox AMO upload / temporary install |
 
-CI also attaches both archives to every run as the `prompty-packages` artifact.
+CI builds and package-lints both archives on every run; it does not attach
+them to the run (that hit the account's Actions storage quota). Attach them as
+GitHub Release assets when cutting a version.
 
 ## Scripts
 

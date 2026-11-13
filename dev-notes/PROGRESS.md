@@ -2,7 +2,7 @@
 
 - Project: prompty
 - Started: 2026-11-05
-- Current Phase: v0.3.0 released (2026-11-10) — see [`CHANGELOG.md`](../CHANGELOG.md)
+- Current Phase: v0.4.0 released (2026-11-13) — see [`CHANGELOG.md`](../CHANGELOG.md) and [release v0.4.0](https://github.com/Dream-Pixels-Forge/prompty/releases/tag/v0.4.0)
 
 ## Phase completion
 
@@ -113,11 +113,33 @@
 
 Release pass: version 0.3.0, `CHANGELOG.md`, store screenshots and listing in `store/`.
 
+### v0.4.0 — merged (release: [v0.4.0 — Sovereign](https://github.com/Dream-Pixels-Forge/prompty/releases/tag/v0.4.0))
+
+| PR  | Subgoal / change                                                              | Status    |
+| --- | ------------------------------------------------------------------------------ | --------- |
+| #25 | G11 Migration Suite — import from another tool, with a report                  | ✅ Merged |
+| #26 | G13 `.prompty` share packs                                                     | ✅ Merged |
+| #27 | G7 Insights — what your library is doing                                       | ✅ Merged |
+| #28 | G8a accessibility — 0 axe violations, light and dark                           | ✅ Merged |
+| #29 | G10 Vault Mode — opt-in encryption at rest                                     | ✅ Merged |
+| #30 | G8b popup localization — English + French                                      | ✅ Merged |
+| #31 | G8c in-page UI translation — pill, widget, `!` palette, toasts                 | ✅ Merged |
+| #32 | G12 5k-prompt libraries in ~0.3 s — incremental grid, no double reads          | ✅ Merged |
+| #33 | brand assets + static landing page (`assets/`, `docs/`)                        | ✅ Merged |
+| #34 | CI zero annotations — actions bumped off Node 20, quota-hit upload removed     | ✅ Merged |
+| #35 | release v0.4.0 — versions, changelog, store listing, screenshots, mount fix    | ✅ Merged |
+
+First tagged release: `v0.4.0` with `prompty-0.4.0-chrome.zip` / `prompty-0.4.0-firefox.xpi`
+attached as release assets (CI no longer uploads run artifacts — the account hit its Actions
+storage quota).
+
 ### Open backlog (ROADMAP.md)
 
-1. **G7** Local usage insights panel
-2. **G8** Theming + a11y + i18n baseline (brand light/dark theme already shipped)
-3. **G10** Vault Mode (AES-GCM passphrase)
-4. **G11** Migration Suite (import upstream export format)
-5. **G12** IndexedDB engine for 5k+ prompts
-6. **G13** `.prompty` share packs
+1. **G14** Smart library hygiene — near-duplicate detection, auto-tag suggestions, archive dormant
+2. **G15** Burst generator — N combinations from enums/ranges, batch export
+3. **G16** Prompt hotkeys — up to 4 user-bound insert commands
+4. **G17** Weekly auto-snapshot (opt-in, rotation cap 4)
+5. **G18** On-device rewrite assist — local heuristics, no cloud LLM
+6. **Deferred**: G12's IndexedDB adapter — only when the benchmark shows storage dominating, or
+   libraries approach the 10 MB `storage.local` quota
+7. **Optional**: publish `docs/index.html` (GitHub Pages) — committed but not deployed

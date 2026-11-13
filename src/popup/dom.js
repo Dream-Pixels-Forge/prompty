@@ -57,10 +57,24 @@ function append(parent, children) {
 
 /**
  * Replace all children of `el`.
+ *
+ * Chrome throws `NotFoundError: The node to be removed is no longer a child of
+ * this node` when `replaceChildren()` detaches the focused element: removal
+ * fires blur, and the focus fix-up can mutate the child list while it is being
+ * emptied. Re-rendering from a `change` handler on a control inside the view
+ * (duration, cut, format) hits exactly that. Blur while the element is still
+ * attached; views that need focus back restore it after rendering through
+ * `data-focus-key`.
  * @param {Element} el
  * @param {...(Child|Child[])} children
  */
 export function mount(el, ...children) {
+  const active = /** @type {HTMLElement|null} */ (
+    typeof document === 'undefined' ? null : document.activeElement
+  );
+  if (active && active !== el && el.contains(active) && typeof active.blur === 'function') {
+    active.blur();
+  }
   el.replaceChildren();
   append(el, children);
 }

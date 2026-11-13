@@ -102,12 +102,11 @@ store/                 store screenshots, promo tile, listing copy
 
 ## Roadmap
 
-v0.3 shipped the Ctrl+K palette, version history, bulk operations, Variables 2.0
-and the Composer (shots, sequences, model dialects). Still open on the roadmap:
-usage insights (G7), theming/a11y/i18n (G8), Vault Mode (G10), the Migration Suite
-(G11), large-library performance (G12) and `.prompty` share packs (G13) — all since
-shipped, see [`CHANGELOG.md`](CHANGELOG.md). See [`dev-notes/ROADMAP.md`](dev-notes/ROADMAP.md) and the shipped subgoal specs
-in [`dev-notes/subgoals/`](dev-notes/subgoals/README.md).
+v0.4 adds Vault Mode, Insights, share packs, the import suite, French, the
+accessibility pass and 5k-prompt performance. The remaining tier is the v0.4+
+"moonshots" — library hygiene, a burst generator, prompt hotkeys, snapshots and
+an on-device rewrite assist — listed in [`dev-notes/ROADMAP.md`](dev-notes/ROADMAP.md).
+Shipped subgoal specs live in [`dev-notes/subgoals/`](dev-notes/subgoals/README.md).
 
 ## License & attribution
 

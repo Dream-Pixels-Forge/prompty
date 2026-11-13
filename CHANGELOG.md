@@ -3,7 +3,11 @@
 All notable changes to Prompty. Versions follow [Semantic Versioning](https://semver.org/);
 before 1.0, minor versions may change stored data shapes, and every such change migrates silently.
 
-## [Unreleased]
+## [0.4.0] — 2026-11-13 · "Sovereign"
+
+Prompty becomes a library you can trust with years of work: it can encrypt itself on demand, shows
+what you actually use, imports what you already have, and hands a selection to someone else as one
+file — and a 5,000-prompt library opens in about a third of a second instead of seven.
 
 ### Performance
 
@@ -63,6 +67,13 @@ before 1.0, minor versions may change stored data shapes, and every such change 
   - Duplicates are found by normalized text, so re-importing a file adds nothing.
   - Categories are matched by name.
   - The import can be undone for 10 s.
+
+### Fixed
+
+- Re-rendering the Composer from a control's `change` event (duration, cut, format, slots) no
+  longer throws `NotFoundError` in Chrome when it detaches the focused control; the control is
+  blurred before the view is replaced and focus returns through `data-focus-key`. Editing a
+  duration or picking a cut no longer aborts the render.
 
 ## [0.3.0] — 2026-11-10 · "Director's cut"
 

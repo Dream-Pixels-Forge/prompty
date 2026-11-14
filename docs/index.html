@@ -3,184 +3,514 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Prompty — Global Prompt Library</title>
-<meta name="description" content="Prompty is a cross-browser prompt library extension. 100% local, no servers." />
+<script>document.documentElement.classList.add('js')</script>
+<title>Prompty — a local-first prompt library that reaches into any text box</title>
+<meta name="description" content="Prompty is a cross-browser extension that keeps your prompt library one keystroke away on any site. 100% local, no servers, no account." />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="canonical" href="https://dream-pixels-forge.github.io/prompty/" />
+<link rel="icon" type="image/png" href="assets/icon-192.png" />
+<link rel="apple-touch-icon" href="assets/icon-192.png" />
+<meta property="og:site_name" content="Prompty" />
+<meta property="og:title" content="Prompty — a local-first prompt library that reaches into any text box" />
+<meta property="og:description" content="Save, organize and paste prompts on any site. Compose AI-video shots, keep it all local, encrypt it if you want. 100% local, no account." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://dream-pixels-forge.github.io/prompty/" />
+<meta property="og:image" content="https://dream-pixels-forge.github.io/prompty/assets/og.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Prompty banner: your prompts, everywhere, one keystroke away." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Prompty — a local-first prompt library that reaches into any text box" />
+<meta name="twitter:description" content="Save, organize and paste prompts on any site. 100% local, no servers, no account." />
+<meta name="twitter:image" content="https://dream-pixels-forge.github.io/prompty/assets/og.jpg" />
 <style>
   :root{
-    --bg:#ffffff;
-    --fg:#0a0a0a;
-    --muted:#6b7280;
-    --line:#e5e7eb;
-    --accent:#0a0a0a;
+    /* Dream-Pixels brand: near-black, warm white, signal orange */
+    color-scheme:dark;
+    --bg:#0a0a0a;
+    --bg-soft:#111111;
+    --panel:#141414;
+    --fg:#f5f5f5;
+    --muted:#9a9a9a;
+    --muted-2:#8a8a8a;
+    --line:#242424;
+    --line-soft:#1b1b1b;
     --orange:#FF6A00;
-    --orange-soft: color-mix(in oklab, var(--orange) 12%, transparent);
-    --radius:16px;
-  }
-  @media (prefers-color-scheme: dark){
-    :root{ --bg:#0a0a0a; --fg:#f5f5f5; --muted:#9ca3af; --line:#262626; --accent:#f5f5f5; --orange-soft: color-mix(in oklab, var(--orange) 18%, transparent); }
+    --orange-2:#ff8a3c;
+    --orange-soft:color-mix(in oklab, var(--orange) 16%, transparent);
+    --orange-line:color-mix(in oklab, var(--orange) 34%, transparent);
+    --radius:20px;
+    /* Strong ease-out for UI; used for scroll reveals + hover. */
+    --ease:cubic-bezier(0.23,1,0.32,1);
+    --maxw:1120px;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg);line-height:1.6;-webkit-font-smoothing:antialiased}
-  a{color:var(--accent);text-decoration:none}
-  a:hover{color:var(--orange);text-decoration:none}
-  header{position:sticky;top:0;background:color-mix(in oklab,var(--bg) 88%,transparent);backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);z-index:10}
-  nav{max-width:1000px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
-  .brand{font-weight:700;letter-spacing:.2px}
-  .brand span{opacity:.5}
-  main{max-width:1000px;margin:0 auto;padding:40px 20px 100px}
-  .hero{display:grid;gap:32px;align-items:start;grid-template-columns:1fr}
-  .hero .banner{grid-column:1/-1}
-  .hero h1{font-size:clamp(44px,7vw,84px);line-height:0.95;margin:0;font-weight:800;letter-spacing:-0.02em}
-  .hero p{font-size:clamp(16px,1.2vw,18px)}
-  .hero p{margin:0;color:var(--muted);max-width:60ch}
-  .banner{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#000;margin-top:8px}
-  .banner img{width:100%;height:auto;display:block;filter:contrast(1.05) brightness(0.95);box-shadow:0 1px 0 var(--line) inset}
-  .tag{font-variant:small-caps;letter-spacing:.08em;font-size:12px;color:var(--muted)}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:28px 0}
-  .card{border:1px solid var(--line);border-radius:var(--radius);padding:18px;background:color-mix(in oklab,var(--bg) 98%,white)}
-  .card h3{margin:0 0 8px;font-size:16px}
-  .card p{margin:0;color:var(--muted);font-size:14px}
-  .section{margin:48px 0}
-  .stats-section{margin-top:48px}
-  .section h2{font-size:22px;margin:0 0 12px;border-bottom:1px solid var(--line);padding-bottom:8px;position:relative}
-  .section h2::after{content:"";position:absolute;left:0;bottom:-1px;height:2px;width:48px;background:var(--orange);border-radius:2px}
-  pre{background:#0a0a0a;color:#eaeaea;padding:14px 16px;border-radius:12px;overflow:auto;font-size:13px}
-  code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
-  .steps{display:grid;gap:12px;margin-top:12px}
-  .step{display:flex;gap:12px}
-  .step b{min-width:28px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:2px 6px;color:var(--fg);background:var(--orange-soft);border-color:color-mix(in oklab,var(--orange) 30%,var(--line))}
-  footer{border-top:1px solid var(--line);margin-top:80px;color:var(--muted);font-size:13px}
-  .pill{display:inline-block;border:1px solid var(--line);padding:4px 10px;border-radius:999px;font-size:12px;color:var(--muted);background:var(--orange-soft)}
-  .pill:hover{border-color:var(--orange);color:var(--fg)}
-  .links{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
-  .trusted{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;margin-top:4px}
-  .logos{display:flex;flex-wrap:wrap;gap:16px;color:var(--muted);font-variant:small-caps;letter-spacing:.04em;font-size:13px}
-  .logos span{opacity:.8}
-  .stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0;margin-top:24px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .stat{display:flex;flex-direction:column;padding:16px;border-right:1px solid var(--line)}
-  .stat:last-child{border-right:none}
-  .stat dt{font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);font-variant:small-caps}
-  .stat dd{font-size:20px;font-weight:600;margin-top:6px}
-  .mono{color:var(--muted);font-family:ui-monospace}
+  html{scroll-behavior:smooth;scroll-padding-top:88px;overflow-x:clip}
+  body{
+    margin:0;background:var(--bg);color:var(--fg);
+    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+    overflow-x:clip;
+  }
+  img{max-width:100%;height:auto}
+  ::selection{background:var(--orange);color:#1a0d00}
+  *{scrollbar-width:thin;scrollbar-color:#2d2d2d transparent}
+  :focus-visible{outline:2px solid var(--orange);outline-offset:3px;border-radius:6px}
+  .skip{
+    position:absolute;left:16px;top:-60px;z-index:100;background:var(--orange);color:#1a0d00;
+    font-weight:700;font-size:14px;padding:10px 16px;border-radius:0 0 10px 10px;transition:top .15s var(--ease);
+  }
+  .skip:focus{top:0;color:#1a0d00}
+  /* Ambient gradient wash behind the hero */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, var(--orange-soft), transparent 60%),
+      radial-gradient(900px 500px at 10% 0%, color-mix(in oklab, var(--orange) 7%, transparent), transparent 55%);
+  }
+  a{color:var(--fg);text-decoration:none}
+  a:hover{color:var(--orange)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.9em;background:var(--panel);border:1px solid var(--line);padding:.05em .4em;border-radius:6px;color:#ffd9bd;white-space:nowrap}
+
+  /* ---- Nav ---- */
+  .nav{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter:saturate(160%) blur(16px);
+    background:color-mix(in oklab, var(--bg) 92%, transparent);
+    border-bottom:1px solid var(--line-soft);
+  }
+  .nav__inner{max-width:var(--maxw);margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+  .brand img{width:30px;height:30px;border-radius:8px}
+  .brand small{display:block;font-weight:500;color:var(--muted-2);letter-spacing:.14em;text-transform:uppercase;font-size:10px;margin-top:2px}
+  .nav__links{display:flex;gap:6px;align-items:center}
+  .nav__links a{font-size:14px;padding:7px 12px;border-radius:8px;transition:color .15s ease}
+  .nav__links a:not(.nav__cta){color:var(--muted)}
+  .nav__links a:not(.nav__cta):hover{color:var(--fg);background:var(--panel)}
+  .nav__cta{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:8px 14px;border-radius:10px;
+    background:var(--orange);color:#1a0d00;border:1px solid var(--orange-line);transition:transform .15s var(--ease),box-shadow .2s ease}
+  .nav__cta:hover{color:#1a0d00;box-shadow:0 8px 24px -8px var(--orange);transform:translateY(-1px)}
+  .nav__cta:active{transform:scale(.97)}
+
+  main{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  section{padding:80px 0}
+  .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange-2);font-weight:600}
+
+  /* ---- Hero ---- */
+  .hero{padding-top:84px;padding-bottom:40px}
+  .hero__copy{max-width:980px;margin:0 auto;text-align:center}
+  .hero h1{font-size:clamp(40px,6vw,68px);line-height:1.06;margin:18px 0 0;font-weight:800;letter-spacing:-.03em;text-wrap:balance}
+  .hero h1 em{font-style:normal;background:linear-gradient(120deg,var(--orange),var(--orange-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{font-size:19px;color:var(--muted);max-width:62ch;margin:22px auto 0}
+  .hero__ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px;justify-content:center}
+  .btn{display:inline-flex;align-items:center;gap:9px;font-size:15px;font-weight:600;padding:13px 22px;border-radius:12px;transition:transform .15s var(--ease),background .2s ease,border-color .2s ease}
+  .btn--primary{background:var(--orange);color:#1a0d00;border:1px solid var(--orange-line);box-shadow:0 12px 30px -12px var(--orange)}
+  .btn--primary:hover{transform:translateY(-1px);color:#1a0d00}
+  .btn--primary:active{transform:scale(.98)}
+  .btn--ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+  .btn--ghost:hover{border-color:var(--orange-line);background:var(--orange-soft);color:var(--fg)}
+  .btn--ghost:active{transform:scale(.98)}
+  .hero__meta{display:flex;gap:22px;margin-top:34px;color:var(--muted-2);font-size:13px;flex-wrap:wrap;justify-content:center}
+  .hero__meta span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--orange);box-shadow:0 0 10px var(--orange)}
+  /* Grid children default to min-width:auto, which lets long content blow out a track. */
+  .hero__copy,.bento>*,.how>*,.priv>*,.install__grid>*,.stats>*{min-width:0}
+
+  /* hero visual: the product, large */
+  .stage{position:relative;margin-top:56px}
+  .stage__frame{
+    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--panel);
+    box-shadow:0 50px 100px -50px rgba(0,0,0,.95),0 0 0 1px var(--line-soft);
+  }
+  .stage__frame img{width:100%;display:block}
+  .stage__glow{position:absolute;inset:auto -6% -12% -6%;height:60%;background:radial-gradient(50% 60% at 50% 50%, var(--orange-soft), transparent 70%);filter:blur(20px);z-index:-1}
+
+  /* ---- Trusted marquee ---- */
+  .trusted{margin-top:56px;padding-top:34px;border-top:1px solid var(--line-soft)}
+  .trusted .lbl{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);font-weight:600}
+  .marquee{overflow:hidden;margin-top:18px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
+  .marquee__row{display:flex;gap:40px;width:max-content;animation:scroll 26s linear infinite}
+  .marquee__row span{font-size:16px;color:var(--muted);font-weight:600;letter-spacing:.01em;opacity:.85;white-space:nowrap}
+  @keyframes scroll{to{transform:translateX(-50%)}}
+
+  /* ---- Section header ---- */
+  .sec-head{max-width:640px;margin-bottom:44px}
+  .sec-head h2{font-size:clamp(28px,3.6vw,42px);letter-spacing:-.02em;line-height:1.1;margin:14px 0 0;font-weight:700}
+  .sec-head p{color:var(--muted);font-size:17px;margin:14px 0 0}
+
+  /* ---- Bento grid ---- */
+  .bento{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+  .tile{
+    border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,var(--panel),var(--bg-soft));
+    padding:26px;position:relative;overflow:hidden;
+    transition:transform .25s var(--ease),border-color .25s ease;
+  }
+  .tile:hover{transform:translateY(-3px);border-color:var(--orange-line)}
+  .tile h3{font-size:18px;margin:0;letter-spacing:-.01em}
+  .tile p{color:var(--muted);font-size:14px;margin:8px 0 0}
+  .tile .ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--orange-soft);border:1px solid var(--orange-line);color:var(--orange);margin-bottom:16px;font-size:20px}
+  .t-3{grid-column:span 3}
+  .t-2{grid-column:span 2}
+  .t-6{grid-column:span 6;padding:0}
+  .tile--media{padding:0;display:flex;flex-direction:column}
+  .tile--media img{width:100%;display:block;border-bottom:1px solid var(--line);background:var(--bg)}
+  .tile--media .cap{padding:20px 24px}
+  .tile--media .cap h3{margin-top:0}
+  .tile--media .cap p{margin-top:6px}
+
+  /* ---- Stats ---- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--panel)}
+  .stat{padding:30px 24px;border-right:1px solid var(--line);position:relative}
+  .stat:last-child{border-right:0}
+  .stat b{font-size:clamp(30px,3.4vw,44px);font-weight:800;letter-spacing:-.03em;display:block;line-height:1}
+  .stat b i{font-style:normal;color:var(--orange)}
+  .stat span{color:var(--muted);font-size:13px;display:block;margin-top:10px;letter-spacing:.02em}
+
+  /* ---- How it works ---- */
+  .how{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .how__step{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);padding:28px;position:relative}
+  .how__n{font-size:13px;font-weight:700;color:var(--orange);letter-spacing:.1em}
+  .how__step h3{margin:14px 0 8px;font-size:19px}
+  .how__step p{margin:0;color:var(--muted);font-size:14px}
+  .how__step .kbd{display:inline-block;margin-top:14px;font-family:ui-monospace,monospace;font-size:13px;background:var(--bg);border:1px solid var(--line);border-bottom-width:2px;border-radius:8px;padding:4px 9px;color:var(--fg)}
+
+  /* ---- Privacy ---- */
+  .priv{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
+  .priv h2{font-size:clamp(26px,3.4vw,38px);letter-spacing:-.02em;line-height:1.12;margin:0 0 14px}
+  .priv p{color:var(--muted);font-size:17px}
+  .priv ul{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+  .priv li{display:flex;gap:12px;align-items:flex-start;font-size:15px}
+  .priv li .ck{flex:0 0 auto;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;background:var(--orange-soft);border:1px solid var(--orange-line);color:var(--orange);font-size:13px;margin-top:2px}
+
+  /* ---- Install / CTA ---- */
+  .install{border:1px solid var(--line);border-radius:24px;background:
+    radial-gradient(800px 400px at 85% 0%, var(--orange-soft), transparent 60%),var(--panel);
+    padding:52px;position:relative;overflow:hidden}
+  .install__grid{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+  .install h2{font-size:clamp(26px,3.4vw,38px);letter-spacing:-.02em;margin:10px 0 0}
+  .install p.lead{color:var(--muted);font-size:17px;margin:14px 0 0;max-width:40ch}
+  .browser{border:1px solid var(--line);border-radius:14px;background:var(--bg);padding:18px;margin-top:14px;transition:border-color .2s ease}
+  .browser:hover{border-color:var(--orange-line)}
+  .browser h4{margin:0 0 4px;font-size:15px}
+  .browser p{margin:0;color:var(--muted);font-size:13px}
+  .browser .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+  .browser .tags span{font-size:11px;color:var(--muted-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  .terminal{background:#050505;border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:13.5px}
+  .terminal__bar{display:flex;align-items:center;gap:6px;padding:10px 14px;background:#0d0d0d;border-bottom:1px solid var(--line)}
+  .terminal__bar i{width:11px;height:11px;border-radius:50%;background:#2a2a2a;display:inline-block}
+  .terminal__bar i:nth-child(1){background:#ff5f57}
+  .terminal__bar i:nth-child(2){background:#febc2e}
+  .terminal__bar i:nth-child(3){background:#28c840}
+  .terminal pre{margin:0;padding:16px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.7}
+  .terminal .p{color:#8b8b8b}
+  .terminal .c{color:var(--orange-2)}
+  .terminal .o{color:#d6d6d6}
+
+  /* ---- Footer ---- */
+  footer{border-top:1px solid var(--line-soft);margin-top:40px;padding:40px 0 60px;color:var(--muted-2);font-size:13px}
+  footer .cols{display:flex;justify-content:space-between;flex-wrap:wrap;gap:20px}
+  footer a{color:var(--muted)}
+  footer a:hover{color:var(--orange)}
+
+  /* ---- Reveal on scroll ---- */
+  .js .reveal{opacity:0;transform:translateY(22px)}
+  .js .reveal.in{opacity:1;transform:none;transition:opacity .7s var(--ease),transform .7s var(--ease)}
+  .reveal.in:nth-child(2){transition-delay:.06s}
+  .reveal.in:nth-child(3){transition-delay:.12s}
+  .reveal.in:nth-child(4){transition-delay:.18s}
+
+  @media (max-width:900px){
+    .hero{padding-top:56px}
+    .stage{margin-top:40px}
+    .bento{grid-template-columns:repeat(2,1fr)}
+    .t-3,.t-2,.t-6{grid-column:span 2}
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .stat{border-bottom:1px solid var(--line)}
+    .stat:nth-last-child(-n+2){border-bottom:0}
+    .how{grid-template-columns:1fr}
+    .priv{grid-template-columns:1fr;gap:24px}
+    .install__grid{grid-template-columns:1fr}
+    .nav__links a:not(.nav__cta){display:none}
+  }
+  @media (max-width:560px){
+    .hero p{font-size:17px}
+    .hero__ctas .btn{flex:1 1 100%;justify-content:center}
+    .bento{grid-template-columns:1fr}
+    .t-3,.t-2,.t-6{grid-column:span 1}
+    .stats{grid-template-columns:1fr}
+    .stat{border-right:0;border-bottom:1px solid var(--line)}
+    .stat:last-child{border-bottom:0}
+    .install{padding:28px}
+    .terminal pre{white-space:pre-wrap;overflow-wrap:anywhere}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .marquee__row{animation:none}
+    .js .reveal{opacity:1;transform:none;transition:none}
+  }
 </style>
 </head>
 <body>
-<header>
-  <nav>
-    <div class="brand">prompty <span>/global prompt library</span></div>
-    <div class="tag">v0.2.0 • 100% local</div>
-  </nav>
-</header>
 
-<main>
+<a class="skip" href="#top">Skip to content</a>
+
+<nav class="nav" aria-label="Primary">
+  <div class="nav__inner">
+    <a class="brand" href="#top">
+      <img src="assets/icon-192.png" width="30" height="30" alt="" onerror="this.style.display='none'" />
+      <span>Prompty<small>Dream Pixels Forge</small></span>
+    </a>
+    <div class="nav__links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a class="nav__cta" href="#install">Get the extension</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+  <!-- HERO -->
   <section class="hero">
-    <div>
-      <h1>Save, organize and paste prompts<br/>on any site.</h1>
-      <p>Prompty is a Chromium MV3 + Firefox MV3 browser extension that keeps your prompt library one keystroke away — ChatGPT, Claude, Gemini, Perplexity, Higgsfield, or any plain textarea.</p>
-      <div class="links">
-        <a class="pill" href="#install">Install</a>
-        <a class="pill" href="#features">Features</a>
-        <a class="pill" href="#scripts">Scripts</a>
-        <a class="pill" href="https://github.com/Dream-Pixels-Forge/prompty/blob/main/README.md" target="_blank" rel="noreferrer">README</a>
+    <div class="hero__copy reveal">
+      <span class="eyebrow">v0.4.0 · local-first</span>
+      <h1>Your prompts, one keystroke away <em>on any site.</em></h1>
+      <p>Prompty keeps your prompts, shots and variables one keystroke away — on ChatGPT, Claude, Gemini, Higgsfield, or any text box. No servers, no account, no telemetry.</p>
+      <div class="hero__ctas">
+        <a class="btn btn--primary" href="#install">Install the extension</a>
+        <a class="btn btn--ghost" href="https://github.com/Dream-Pixels-Forge/prompty" target="_blank" rel="noreferrer">View source</a>
+      </div>
+      <div class="hero__meta">
+        <span><i class="dot"></i> 100% local</span>
+        <span><i class="dot"></i> MV3 · Chrome + Firefox</span>
+        <span><i class="dot"></i> 453 tests passing</span>
       </div>
     </div>
-    <div class="banner">
-      <img src="../assets/banner.png" alt="Prompty banner"
-           onerror="this.closest('.banner').style.display='none'" />
+
+    <div class="stage reveal">
+      <div class="stage__glow"></div>
+      <div class="stage__frame">
+        <img src="assets/brand-palette-dark.png" width="1560" height="1160" fetchpriority="high" decoding="async"
+             alt="Prompty command palette over the prompt library"
+             onerror="this.closest('.stage__frame').style.display='none'" />
+      </div>
     </div>
-    <div class="trusted">
-      <div class="tag">Works everywhere</div>
-      <div class="logos">
-        <span>ChatGPT</span>
-        <span>Claude</span>
-        <span>Gemini</span>
-        <span>Perplexity</span>
-        <span>Higgsfield</span>
-        <span>Any textarea</span>
+
+    <div class="trusted reveal">
+      <div class="lbl">Works anywhere you type a prompt</div>
+      <div class="marquee" aria-hidden="true">
+        <div class="marquee__row">
+          <span>ChatGPT</span><span>Claude</span><span>Gemini</span><span>Perplexity</span><span>Higgsfield</span><span>Dreamina</span><span>meta.ai</span><span>Any textarea</span>
+          <span>ChatGPT</span><span>Claude</span><span>Gemini</span><span>Perplexity</span><span>Higgsfield</span><span>Dreamina</span><span>meta.ai</span><span>Any textarea</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="stats-section">
-    <dl class="stats">
-      <div class="stat">
-        <dt>Version</dt>
-        <dd>0.2.0</dd>
-      </div>
-      <div class="stat">
-        <dt>Tests</dt>
-        <dd>304 passed</dd>
-      </div>
-      <div class="stat">
-        <dt>Local only</dt>
-        <dd>100%</dd>
-      </div>
-      <div class="stat">
-        <dt>MV3</dt>
-        <dd>Chrome + Firefox</dd>
-      </div>
-    </dl>
-  </section>
-
-  <section class="section" id="features">
-    <h2>Features</h2>
-    <div class="grid">
-      <div class="card"><h3>Prompt library</h3><p>Browse by view/category, search, sort, star, insert/append/copy/edit/delete with undo.</p></div>
-      <div class="card"><h3>Cinematic starter</h3><p>52 prompts across 16 categories. Variables like <code>{subject}</code>, <code>{lens:24mm|50mm}</code>, <code>{seed:1-999}</code>.</p></div>
-      <div class="card"><h3>Command palette</h3><p><code>Ctrl/Cmd+K</code> for prompts, snippets and commands, keyboard-first.</p></div>
-      <div class="card"><h3>Quick insert</h3><p>Type <code>!</code> in any input for fuzzy palette at the caret.</p></div>
-      <div class="card"><h3>Site recipes</h3><p>Data-driven anchors for AI sites + custom JSON recipes.</p></div>
-      <div class="card"><h3>Assist UI</h3><p>Smart pill + floating widget, clipboard snippets, context menu shortcuts.</p></div>
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Features</span>
+      <h2>A library, a composer, and a command palette — all yours.</h2>
+      <p>Everything stays in <code>browser.storage.local</code>. Prompty reads it, writes to it, and never phones home.</p>
     </div>
-    <p class="tag">No network. No accounts. All data in <code>browser.storage.local</code>.</p>
-  </section>
 
-  <section class="section" id="install">
-    <h2>Install</h2>
-    <p class="mono">Node 22+ · pnpm 11</p>
-    <pre><code>pnpm install
-pnpm build    # → dist/chrome + dist/firefox
-pnpm package  # → dist/prompty-0.2.0-chrome.zip, prompty-0.2.0-firefox.xpi</code></pre>
-    <div class="steps">
-      <div class="step"><b>1</b><div><strong>Chrome / Edge / Brave</strong><br/>chrome://extensions → Developer mode → Load unpacked → <code>dist/chrome</code></div></div>
-      <div class="step"><b>2</b><div><strong>Firefox 142+</strong><br/>about:debugging → Load Temporary Add-on → <code>dist/firefox/manifest.json</code></div></div>
+    <div class="bento">
+      <!-- big media tile: the library -->
+      <div class="tile tile--media t-6 reveal">
+        <img src="assets/brand-library-dark.png" width="1560" height="1160" loading="lazy" decoding="async"
+             alt="Prompty library grid with categories, variable badges and insert actions" />
+        <div class="cap">
+          <h3>The library, at a glance</h3>
+          <p>Browse by category, search by tag, star and reorder. Each card shows its variables, use count and one-tap Insert · Append · Copy.</p>
+        </div>
+      </div>
+
+      <!-- media tile: editor -->
+      <div class="tile tile--media t-3 reveal">
+        <img src="assets/brand-editor-light.png" width="1560" height="1160" loading="lazy" decoding="async"
+             alt="Prompty prompt editor with variable fill-in" />
+        <div class="cap">
+          <h3>Fill-in that remembers</h3>
+          <p>Prompts with <code>{subject}</code>, <code>{lens:24mm|50mm}</code> or <code>{seed:1-999}</code> render a live form. Last-used values are remembered per session.</p>
+        </div>
+      </div>
+
+      <!-- media tile: command palette -->
+      <div class="tile tile--media t-3 reveal">
+        <img src="assets/brand-palette-light.png" width="1560" height="1160" loading="lazy" decoding="async"
+             alt="Prompty command palette filtering prompts in light theme" />
+        <div class="cap">
+          <h3>One keystroke, every prompt</h3>
+          <p>Recency-weighted, fuzzy-matched, keyboard-only. Open it with <code>Ctrl/⌘ K</code>, or type <code>!</code> in any input to launch it at the caret.</p>
+        </div>
+      </div>
+
+      <div class="tile t-2 reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/></svg></div>
+        <h3>Quick insert</h3>
+        <p>Type <code>!</code> in any input and a fuzzy palette opens at the caret.</p>
+      </div>
+
+      <div class="tile t-2 reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="M7.5 4.5v15M16.5 4.5v15M2.5 9.5h5M2.5 14.5h5M16.5 9.5h5M16.5 14.5h5"/></svg></div>
+        <h3>Shot composer</h3>
+        <p>Build a shot from film-grammar blocks, chain shots into a scene, write it the way the model reads it.</p>
+      </div>
+
+      <div class="tile t-2 reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10.5" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+        <h3>Vault mode</h3>
+        <p>Opt-in AES-GCM encryption at rest. Your passphrase never leaves the browser.</p>
+      </div>
+
+      <div class="tile t-3 reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.5v14m0 0-3.2-3.2M8 17.5l3.2-3.2M16 20.5v-14m0 0-3.2 3.2M16 6.5l3.2 3.2"/></svg></div>
+        <h3>Import · share · export</h3>
+        <p>Migrate from Higgsfield, CSV, Markdown or JSON with a merge report. Share a selection as a <code>.prompty</code> pack; drop one on the popup to import.</p>
+      </div>
+
+      <div class="tile t-3 reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20.5h17M7 20.5V10M12 20.5V4M17 20.5v-7"/></svg></div>
+        <h3>Insights</h3>
+        <p>Most-used prompts, uses by category, prompts added per month, and never-used / dormant items — computed from what it already stores.</p>
+      </div>
     </div>
   </section>
 
-  <section class="section" id="scripts">
-    <h2>Scripts & CI</h2>
-    <ul>
-      <li><code>pnpm type-check</code> — <code>tsc --noEmit</code></li>
-      <li><code>pnpm lint</code> — ESLint, zero warnings</li>
-      <li><code>pnpm test</code> — Vitest, 304 tests</li>
-      <li><code>pnpm build</code> — Emit dual manifests</li>
-      <li><code>pnpm package</code> — Build + zip xpi/zip</li>
-    </ul>
-    <p>CI <code>.github/workflows/pr-validation.yml</code> runs type-check, lint, test, package, <code>web-ext lint</code> (Firefox) and <code>addons-linter</code> (Chrome) on every PR / push to main.</p>
-  </section>
-
-  <section class="section">
-    <h2>Architecture</h2>
-    <div class="grid">
-      <div class="card"><h3>Dual manifest build</h3><p>One source → <code>dist/chrome</code> service worker MV3 and <code>dist/firefox</code> event page MV3. Shared assets copied per target.</p></div>
-      <div class="card"><h3>Background</h3><p>Service worker/event page handles storage sync, commands, context menus, settings migration and seed presets. No network.</p></div>
-      <div class="card"><h3>Content script</h3><p>Shadow DOM assist UI: pill, floating widget, <code>!</code> palette, insert/append/save handlers. Passive unless user triggered.</p></div>
-      <div class="card"><h3>Popup UI</h3><p>Library, editor, categories, snippets, settings, command palette. Pure DOM, no frameworks.</p></div>
-      <div class="card"><h3>Lib modules</h3><p>Pure ES modules: storage, variables, search, recipes, sites, text, message, diff, capture. Fully tested.</p></div>
-      <div class="card"><h3>Quality gates</h3><p>Vitest 304 tests, TypeScript check, ESLint, <code>web-ext lint</code>, <code>addons-linter</code>. CI on every PR.</p></div>
+  <!-- STATS -->
+  <section style="padding-top:0">
+    <div class="stats reveal">
+      <div class="stat"><b>0.3<i>s</i></b><span>to open a 5,000-prompt library</span></div>
+      <div class="stat"><b>453</b><span>unit + parity tests passing</span></div>
+      <div class="stat"><b>0</b><span>network requests · no telemetry</span></div>
+      <div class="stat"><b>2</b><span>builds: Chrome MV3 + Firefox MV3</span></div>
     </div>
-    <p class="tag">100% local · <code>browser.storage.local</code> only · zero telemetry</p>
   </section>
 
-  <section class="section">
-    <h2>Roadmap</h2>
-    <p>v0.4.0 — Sovereign: Vault Mode (opt-in encryption), Insights, share packs, import from other tools, French, and 5,000-prompt libraries opening in ~0.3 s. See the <a href="https://github.com/Dream-Pixels-Forge/prompty/tree/main/dev-notes/ROADMAP.md" target="_blank" rel="noreferrer">full roadmap</a>.</p>
+  <!-- HOW IT WORKS -->
+  <section id="how">
+    <div class="sec-head reveal">
+      <span class="eyebrow">How it works</span>
+      <h2>From thought to prompt, without leaving the input.</h2>
+    </div>
+    <div class="how">
+      <div class="how__step reveal">
+        <span class="how__n">01 — Capture</span>
+        <h3>Save anything, anywhere</h3>
+        <p>Right-click → save selection, the floating pill, or <code>Alt+Shift+S</code>. Prompty anchors to the save button and fields of the site you're on via per-site recipes.</p>
+        <span class="kbd">! palette · context menu</span>
+      </div>
+      <div class="how__step reveal">
+        <span class="how__n">02 — Organize</span>
+        <h3>Categorize, tag, version</h3>
+        <p>Drag cards between categories, bulk-select with <code>Ctrl+A</code>, keep version history with word-level diffs, and undo any delete for 10 seconds.</p>
+        <span class="kbd">Ctrl/⌘ + K</span>
+      </div>
+      <div class="how__step reveal">
+        <span class="how__n">03 — Paste</span>
+        <h3>Insert at the caret</h3>
+        <p>Insert, append or copy into the focused box on any site. Variables are filled in once and reused. The in-page palette asks the background — pages never see your key.</p>
+        <span class="kbd">Enter to insert</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRIVACY -->
+  <section id="privacy" style="padding-top:20px">
+    <div class="priv">
+      <div class="reveal">
+        <span class="eyebrow">Privacy by design</span>
+        <h2>Built for people who don't want a second account.</h2>
+        <p>Prompty has no login, no cloud, no analytics and no remote code. Your prompts live in your browser's local storage — and if you turn on Vault Mode, they're encrypted before they're written.</p>
+      </div>
+      <ul class="reveal">
+        <li><span class="ck">✓</span> All data in <code>browser.storage.local</code> on your device</li>
+        <li><span class="ck">✓</span> Zero network requests, zero telemetry</li>
+        <li><span class="ck">✓</span> Optional Vault Mode: AES-GCM-256, PBKDF2-SHA-256 at 250k iterations</li>
+        <li><span class="ck">✓</span> Export is a plain file you hold; import is a report you approve</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- INSTALL / CTA -->
+  <section id="install">
+    <div class="install reveal">
+      <div class="install__grid">
+        <div>
+          <span class="eyebrow">Get started</span>
+          <h2>Load it in two clicks.</h2>
+          <p class="lead">Grab the archives from the latest release. Load them unpacked in Chrome, or as a temporary add-on in Firefox — no store account needed.</p>
+          <div style="display:grid;gap:0">
+            <div class="browser">
+              <h4>Chrome · Edge · Brave</h4>
+              <p><code>chrome://extensions</code> → Developer mode → Load unpacked → the folder you unzipped</p>
+              <div class="tags"><span>MV3</span><span>service worker</span><span>developer mode</span></div>
+            </div>
+            <div class="browser">
+              <h4>Firefox 142+</h4>
+              <p><code>about:debugging</code> → This Firefox → Load Temporary Add-on → <code>manifest.json</code> inside the unzipped <code>.xpi</code></p>
+              <div class="tags"><span>MV3</span><span>event page</span><span>temporary add-on</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <span class="eyebrow" style="color:var(--muted-2)">Or build it yourself</span>
+          <div class="terminal" style="margin-top:14px">
+            <div class="terminal__bar"><i></i><i></i><i></i></div>
+            <pre tabindex="0" role="region" aria-label="Build commands"><span class="p">$</span> <span class="c">git clone</span> \
+    https://github.com/Dream-Pixels-Forge/prompty
+<span class="p">$</span> <span class="c">cd</span> prompty && <span class="c">pnpm</span> install
+<span class="p">$</span> <span class="c">pnpm</span> package
+<span class="o">✓</span> <span class="p">dist/prompty-0.4.0-chrome.zip</span>
+<span class="o">✓</span> <span class="p">dist/prompty-0.4.0-firefox.xpi</span></pre>
+          </div>
+          <div class="hero__meta" style="margin-top:22px">
+            <a href="https://github.com/Dream-Pixels-Forge/prompty/releases/tag/v0.4.0" target="_blank" rel="noreferrer">⬇ Download v0.4.0</a>
+            <a href="https://github.com/Dream-Pixels-Forge/prompty" target="_blank" rel="noreferrer">View source</a>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <footer>
-    <p>MIT © 2026 Dream Pixels Forge. Ported from Higgsfield Prompt Saver v1.0.0 © JohnLaibach, MIT.</p>
-    <p class="mono">v0.4.0 · 100% local · <a href="https://github.com/Dream-Pixels-Forge/prompty" target="_blank" rel="noreferrer">source on GitHub</a></p>
+    <div class="cols">
+      <div>
+        <div class="brand" style="font-size:15px">Prompty <span style="color:var(--muted-2);font-weight:400">· Dream Pixels Forge</span></div>
+        <p style="max-width:34ch;margin-top:10px">MIT © 2026. Ported from and inspired by Higgsfield Prompt Saver v1.0.0 (© JohnLaibach, MIT).</p>
+      </div>
+      <div style="display:grid;gap:8px">
+        <a href="https://dream-pixels-forge.github.io/prompty/" target="_blank" rel="noreferrer">This page</a>
+        <a href="https://github.com/Dream-Pixels-Forge/prompty" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://github.com/Dream-Pixels-Forge/prompty/releases/tag/v0.4.0" target="_blank" rel="noreferrer">Releases</a>
+        <a href="https://github.com/Dream-Pixels-Forge/prompty/tree/main/dev-notes/ROADMAP.md" target="_blank" rel="noreferrer">Roadmap</a>
+        <a href="#top">Back to top ↑</a>
+      </div>
+    </div>
   </footer>
+
 </main>
+
+<script>
+  // Scroll reveal — IntersectionObserver, respects reduced-motion.
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const els = [...document.querySelectorAll('.reveal')];
+  if (reduce || !('IntersectionObserver' in window)) {
+    els.forEach(e => e.classList.add('in'));
+  } else {
+    const io = new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        if (en.isIntersecting) {
+          en.target.classList.add('in');
+          io.unobserve(en.target);
+        }
+      }
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+    els.forEach(e => io.observe(e));
+  }
+</script>
 </body>
 </html>

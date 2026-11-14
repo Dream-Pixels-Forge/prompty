@@ -23,7 +23,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm package
-      - name: web-ext lint (firefox) + addons-linter (chrome)
-        run: |
-          pnpm dlx web-ext@8 lint --source-dir dist/firefox --warnings-as-errors
-          pnpm dlx addons-linter dist/chrome --no-summary
+      - name: web-ext lint (firefox, AMO rules)
+        run: pnpm dlx web-ext@8 lint --source-dir dist/firefox --warnings-as-errors
+      - name: validate manifests (chrome + firefox)
+        run: pnpm validate

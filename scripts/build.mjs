@@ -1,46 +1,28 @@
 /**
  * Emit dist/chrome and dist/firefox from src/manifest.base.json (issue #1, Δ1).
  *
- * Dual-manifest details:
- * - dist/chrome: `background.service_worker` (module MV3 SW) is authoritative for
- *   Chromium. It is PAIRED with a `scripts` fallback and a Gecko id so the
- *   linter sees a Firefox-compatible shape; Chromium ignores both extra keys.
- * - dist/firefox: `background.scripts[]` module event page + gecko id.
+ * Target-specific manifest shapes live in `scripts/manifest.mjs`:
+ * - dist/chrome: `background.service_worker` (module MV3 SW) and nothing else
+ *   from the Firefox side of the world (issue #42).
+ * - dist/firefox: `background.scripts[]` module event page + the Gecko block.
  *
- * Lint gates (CI):
- * - firefox: `web-ext lint --warnings-as-errors` (0 errors / 0 warnings).
- * - chrome: `addons-linter --enable-background-service-worker --warnings-as-errors`
- *   — web-ext@8 has no chromо target and cannot enable its bundled linter's
- *   MV3 service-worker feature flag, so addons-linter (the engine web-ext ones)
- *   is invoked directly for the Chromium target.
+ * Gate: `scripts/validate-manifests.mjs` runs after both targets are written and
+ * fails the build on target-shape regressions, cross-target keys, missing
+ * referenced files, unresolved `__MSG_*__` placeholders or version drift.
+ * `web-ext lint --warnings-as-errors` stays the AMO-specific gate on Firefox.
  */
 import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { buildManifests } from './manifest.mjs';
 
 /** Project root (src/, dist/) — derived from this script's location. */
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
-const GECKO_ID = 'prompty@dream-pixels-forge.dev';
-const GECKO_STRICT_MIN_VERSION = '142.0';
-const GECKO_SETTINGS = {
-  gecko: {
-    id: GECKO_ID,
-    strict_min_version: GECKO_STRICT_MIN_VERSION,
-    data_collection_permissions: { required: ['none'] },
-  },
-};
 
-/**
- * @typedef {object} BuildTarget
- * @property {'chrome'|'firefox'} dir
- * @property {Record<string, unknown>} background
- * @property {{ gecko: { id: string, strict_min_version: string, data_collection_permissions: { required: string[] } } }} browser_specific_settings
- */
-
-/** @type {Record<string, unknown>} */
+/** @type {import('./manifest.mjs').ManifestShape} */
 const base = JSON.parse(await readFile(path.join(SRC, 'manifest.base.json'), 'utf8'));
 
 /**
@@ -62,39 +44,12 @@ for (const file of (await readdir(path.join(SRC, 'locales')))
   locales.push([file.replace(/\.js$/, ''), messages]);
 }
 
-/** @type {BuildTarget[]} */
-const targets = [
-  {
-    dir: 'chrome',
-    background: {
-      // Chromium runs the module service worker; ignores `scripts`.
-      service_worker: 'background.js',
-      scripts: ['background.js'],
-      type: 'module',
-    },
-    browser_specific_settings: GECKO_SETTINGS,
-  },
-  {
-    dir: 'firefox',
-    background: {
-      // Firefox runs the module event page; no service worker.
-      scripts: ['background.js'],
-      type: 'module',
-    },
-    browser_specific_settings: GECKO_SETTINGS,
-  },
-];
+/** @type {ReturnType<typeof buildManifests>} */
+const manifests = buildManifests(base);
 
-for (const target of targets) {
-  const outDir = path.join(DIST, target.dir);
+for (const [target, manifest] of Object.entries(manifests)) {
+  const outDir = path.join(DIST, target);
   await mkdir(outDir, { recursive: true });
-
-  /** @type {Record<string, unknown>} */
-  const manifest = {
-    ...base,
-    background: target.background,
-    browser_specific_settings: target.browser_specific_settings,
-  };
 
   await writeFile(
     path.join(outDir, 'manifest.json'),
@@ -104,10 +59,10 @@ for (const target of targets) {
 
   // G8b: src/locales/<lang>.js → _locales/<lang>/messages.json (browser.i18n format).
   for (const [lang, messages] of locales) {
-    const dir = path.join(outDir, '_locales', lang);
-    await mkdir(dir, { recursive: true });
+    const localeDir = path.join(outDir, '_locales', lang);
+    await mkdir(localeDir, { recursive: true });
     await writeFile(
-      path.join(dir, 'messages.json'),
+      path.join(localeDir, 'messages.json'),
       `${JSON.stringify(messages, null, 2)}\n`,
       'utf8',
     );
@@ -118,5 +73,5 @@ for (const target of targets) {
     await cp(path.join(SRC, asset), path.join(outDir, asset), { recursive: true });
   }
 
-  process.stderr.write(`built dist/${target.dir}\n`);
+  process.stderr.write(`built dist/${target}\n`);
 }

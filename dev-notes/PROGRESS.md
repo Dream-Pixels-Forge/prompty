@@ -31,7 +31,8 @@
 
 - ✅ `dist/chrome/` — Chromium MV3 (service_worker) build
 - ✅ `dist/firefox/` — Firefox MV3 (event page) build
-- ✅ Both pass `web-ext@8 lint --warnings-as-errors` (Firefox) and `addons-linter` (Chrome)
+- ✅ Both manifests validated — `web-ext@8 lint --warnings-as-errors` (Firefox) + `pnpm validate`
+      (both; `addons-linter` retired in #42 — it is a Firefox linter and could not check Chrome)
 - ✅ 191 tests passing (TDD: tests written before implementation)
 - ✅ Zero network calls; `storage.local` only; no telemetry
 
@@ -144,6 +145,19 @@ library: `save_prompt` writes to `~/.prompty`, the extension imports over a toke
 `127.0.0.1` bridge on a one-minute `alarms` clock. Off by default; the extension refuses
 non-loopback URLs and keeps the pairing token outside `settings` so exports never contain it.
 Subgoal spec: [`subgoals/G14-mcp-agent-bridge.md`](subgoals/G14-mcp-agent-bridge.md).
+
+### v0.5.1 — Chrome-clean manifest (issue #42)
+
+| PR  | Subgoal / change                                                               | Status    |
+| --- | ------------------------------------------------------------------------------ | --------- |
+| #43 | Chrome-clean manifest + `scripts/validate-manifests.mjs` gate                  | ✅ Merged |
+
+`dist/chrome/manifest.json` no longer carries `background.scripts` or `browser_specific_settings`
+— Firefox-only keys that Chromium ignores and the Chrome Web Store reports as unrecognized. They
+were there solely so `addons-linter` (Mozilla's Firefox linter) would accept the Chromium package,
+which also meant the gate could never fail. Shapes now live in `scripts/manifest.mjs`; both targets
+are checked by `scripts/validate-manifests.mjs` (target shape, cross-browser keys, referenced files,
+`__MSG_*__` placeholders, version sync), wired into `pnpm build` and CI.
 
 ### Open backlog (ROADMAP.md)
 

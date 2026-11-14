@@ -1,0 +1,53 @@
+name: Pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages-deploy.yml'
+  workflow_dispatch:
+
+# One deploy at a time; cancel in-flight runs on a new push to main.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+# Pages only needs to read the repo.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Enable GitHub Pages on first deploy (idempotent after)
+        if: github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.pages.getSite({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            if (data) {
+              core.info(`Pages already enabled (${data.url}); skipping enable`);
+            } else {
+              await github.rest.pages.enable({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+              core.info('Enabled GitHub Pages');
+            }
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

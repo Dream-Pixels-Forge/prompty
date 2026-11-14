@@ -4,7 +4,9 @@
 
 Status marker: v0.1 = the clone+global build (issues #1–#4, in flight).
 Everything below raises the bar beyond parity. Format per goal-writer.
-All features stay **100% local** (no servers, no telemetry) — security baseline non-negotiable.
+All features stay **local-first** (no servers, no telemetry); the only network surface is the
+opt-in loopback agent bridge (G14), which never leaves the machine — security baseline
+non-negotiable.
 
 ---
 
@@ -345,7 +347,8 @@ M
 
 | ID  | Goal                          | Objective (condensed)                                                                                                              | Why next-level                                  |
 | --- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| G14 | Smart library hygiene         | Near-duplicate detection (normalized similarity), auto-tag suggestions from keyword rules, "archive dormant" review flow           | Turns storage into a curated asset              |
+| G14 | MCP agent bridge ✅ v0.5      | Zero-dependency stdio MCP server with 8 tools; loopback, token-authed bridge into `storage.local`; opt-in Settings UI               | Agents write into the library, not a side file  |
+| G19 | Smart library hygiene         | Near-duplicate detection (normalized similarity), auto-tag suggestions from keyword rules, "archive dormant" review flow           | Turns storage into a curated asset              |
 | G15 | Burst generator               | From variables-with-enums/ranges: generate N combinations (cartesian or sampled), export batch as .txt/CSV, send-as-numbered lines | Pairs with bulk AI-gen workflows                |
 | G16 | Prompt hotkeys                | Up to 4 user-bound prompts (Firefox/Chrome command slots) insert into active tab directly                                          | Reflex-to-0 UI                                  |
 | G17 | Weekly auto-snapshot (opt-in) | Local JSON snapshot to Downloads with rotation cap 4; restore wizard                                                               | Safety net without servers                      |
@@ -357,4 +360,5 @@ M
 v0.1 (#1–#4, in flight) → v0.2: G3+G1 (parallel) → G2+G5 → G4+G6 → G7+G8
                         → v0.3: G11 (migration) unlocks onboarding of existing users
                         → v0.3: G12 perf → G9/G10/G13 by demand
+                        → v0.5: G14 MCP agent bridge → hygiene, bursts, hotkeys
 ```

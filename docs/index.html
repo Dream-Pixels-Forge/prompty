@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <script>document.documentElement.classList.add('js')</script>
 <title>Prompty — a local-first prompt library that reaches into any text box</title>
-<meta name="description" content="Prompty is a cross-browser extension that keeps your prompt library one keystroke away on any site. 100% local, no servers, no account." />
+<meta name="description" content="Prompty is a cross-browser extension that keeps your prompt library one keystroke away on any site. Local-first, no account — with an opt-in loopback bridge for coding agents." />
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#0a0a0a" />
 <link rel="canonical" href="https://dream-pixels-forge.github.io/prompty/" />
@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="assets/icon-192.png" />
 <meta property="og:site_name" content="Prompty" />
 <meta property="og:title" content="Prompty — a local-first prompt library that reaches into any text box" />
-<meta property="og:description" content="Save, organize and paste prompts on any site. Compose AI-video shots, keep it all local, encrypt it if you want. 100% local, no account." />
+<meta property="og:description" content="Save, organize and paste prompts on any site. Compose AI-video shots, keep it all local, encrypt it if you want. No cloud, no account." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://dream-pixels-forge.github.io/prompty/" />
 <meta property="og:image" content="https://dream-pixels-forge.github.io/prompty/assets/og.jpg" />
@@ -22,7 +22,7 @@
 <meta property="og:image:alt" content="Prompty banner: your prompts, everywhere, one keystroke away." />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Prompty — a local-first prompt library that reaches into any text box" />
-<meta name="twitter:description" content="Save, organize and paste prompts on any site. 100% local, no servers, no account." />
+<meta name="twitter:description" content="Save, organize and paste prompts on any site. Local-first, no cloud, no account — and an opt-in bridge for your coding agent." />
 <meta name="twitter:image" content="https://dream-pixels-forge.github.io/prompty/assets/og.jpg" />
 <style>
   :root{
@@ -275,17 +275,17 @@
   <!-- HERO -->
   <section class="hero">
     <div class="hero__copy reveal">
-      <span class="eyebrow">v0.4.0 · local-first</span>
+      <span class="eyebrow">v0.5.0 · local-first</span>
       <h1>Your prompts, one keystroke away <em>on any site.</em></h1>
-      <p>Prompty keeps your prompts, shots and variables one keystroke away — on ChatGPT, Claude, Gemini, Higgsfield, or any text box. No servers, no account, no telemetry.</p>
+      <p>Prompty keeps your prompts, shots and variables one keystroke away — on ChatGPT, Claude, Gemini, Higgsfield, or any text box. No cloud, no account, no telemetry.</p>
       <div class="hero__ctas">
         <a class="btn btn--primary" href="#install">Install the extension</a>
         <a class="btn btn--ghost" href="https://github.com/Dream-Pixels-Forge/prompty" target="_blank" rel="noreferrer">View source</a>
       </div>
       <div class="hero__meta">
-        <span><i class="dot"></i> 100% local</span>
+        <span><i class="dot"></i> Local-first</span>
         <span><i class="dot"></i> MV3 · Chrome + Firefox</span>
-        <span><i class="dot"></i> 453 tests passing</span>
+        <span><i class="dot"></i> 528 tests passing</span>
       </div>
     </div>
 
@@ -348,6 +348,12 @@
         </div>
       </div>
 
+      <div class="tile t-6 reveal" style="padding:26px">
+        <div class="ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><path d="m6.5 9 2.8 3-2.8 3M12 15h5"/></svg></div>
+        <h3>Your agent can write here</h3>
+        <p>Point Claude Code, Cursor or any MCP client at <code>mcp/server.mjs</code> and ask for <em>“a camera movement for a slow dolly zoom.”</em> It appears in Prompty within a minute, over an opt-in, token-paired loopback bridge. Off by default, no cloud, no account.</p>
+      </div>
+
       <div class="tile t-2 reveal">
         <div class="ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/></svg></div>
         <h3>Quick insert</h3>
@@ -385,7 +391,7 @@
     <div class="stats reveal">
       <div class="stat"><b>0.3<i>s</i></b><span>to open a 5,000-prompt library</span></div>
       <div class="stat"><b>453</b><span>unit + parity tests passing</span></div>
-      <div class="stat"><b>0</b><span>network requests · no telemetry</span></div>
+      <div class="stat"><b>0</b><span>cloud requests · no telemetry</span></div>
       <div class="stat"><b>2</b><span>builds: Chrome MV3 + Firefox MV3</span></div>
     </div>
   </section>
@@ -428,7 +434,7 @@
       </div>
       <ul class="reveal">
         <li><span class="ck">✓</span> All data in <code>browser.storage.local</code> on your device</li>
-        <li><span class="ck">✓</span> Zero network requests, zero telemetry</li>
+        <li><span class="ck">✓</span> No cloud requests, no telemetry; the agent bridge is opt-in and loopback-only</li>
         <li><span class="ck">✓</span> Optional Vault Mode: AES-GCM-256, PBKDF2-SHA-256 at 250k iterations</li>
         <li><span class="ck">✓</span> Export is a plain file you hold; import is a report you approve</li>
       </ul>

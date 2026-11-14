@@ -10,6 +10,7 @@ import { normalizeSiteInput, removeRecipe, toggleRecipe, upsertRecipe } from './
 import { applyImportData, parseImport, validateRecipeInput } from './logic.js';
 import { IMPORT_ACCEPT, migrateFrom } from './import-ui.js';
 import { vaultSection } from './vault-ui.js';
+import { bridgeSection } from './bridge-ui.js';
 import { confirmDialog, openModal, toast } from './modals.js';
 import { exportLibrary } from './palette-ui.js';
 import { save, state } from './store.js';
@@ -63,6 +64,7 @@ export function renderSettings(root) {
       sitesSection(s),
       recipesSection(s),
       vaultSection(section, () => renderSettings(root)),
+      bridgeSection(section, () => renderSettings(root)),
       backupSection(),
       section(
         t('setAbout'),

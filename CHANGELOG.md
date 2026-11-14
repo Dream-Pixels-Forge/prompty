@@ -3,6 +3,35 @@
 All notable changes to Prompty. Versions follow [Semantic Versioning](https://semver.org/);
 before 1.0, minor versions may change stored data shapes, and every such change migrates silently.
 
+## [Unreleased]
+
+### Added
+
+- **Agent bridge** (G14, opt-in, Settings → Agent bridge): a zero-dependency MCP server
+  (`mcp/server.mjs`) lets a coding agent — Claude Code, Cursor, Claude Desktop, any MCP client —
+  save prompts straight into Prompty. Ask for *"a camera movement for a slow dolly zoom"* and the
+  agent's `save_prompt` call is imported within a minute.
+  - Eight tools: `save_prompt`, `list_prompts`, `search_prompts`, `get_prompt`, `update_prompt`,
+    `delete_prompt`, `list_categories`, `bridge_status`.
+  - Prompts queue in `~/.prompty` while the browser is closed; the extension syncs on a one-minute
+    alarm or on demand, preserving agent ids, deduping by text, and applying deletions.
+  - The extension posts its library back as a snapshot, so the agent can search prompts written in
+    the browser too.
+  - Settings shows the bridge URL, pairing token, Test connection, Sync now and the last-sync
+    result.
+  - `alarms` permission (needed for the periodic sync).
+- **Prompty MCP README** (`mcp/README.md`) with client configs, tools, environment variables and
+  troubleshooting.
+
+### Security
+
+- The agent bridge is **off by default** and **loopback only**: the extension refuses any URL that
+  is not `127.0.0.1`/`localhost`, every request carries a 48-hex pairing token compared in constant
+  time, bodies are capped at 1 MB, and responses carry `Cache-Control: no-store` and no CORS
+  headers.
+- The pairing token is stored under its own storage key, outside `settings`, so a JSON export never
+  contains it. MCP state files (`library.json`, `bridge.json`) are written atomically with mode 0600.
+
 ## [0.4.0] — 2026-11-13 · "Sovereign"
 
 Prompty becomes a library you can trust with years of work: it can encrypt itself on demand, shows

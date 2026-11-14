@@ -20,7 +20,9 @@ Saver v1.0.0) — but **global**: it works on **any site**, not only higgsfield.
 3. Load in Chromium: popup lists 8 seed prompts, insert targets the focused input on a
    non-higgsfield site (e.g. a plain `<textarea>` on any test page), insert works — smoke test.
 4. Load in Firefox (web-ext run): same smoke test.
-5. No network requests anywhere; storage via `browser.storage.local` only.
+5. No network requests anywhere, except the opt-in agent bridge: the extension makes no request
+   until the user enables Settings → Agent bridge, and then only to a loopback URL
+   (`127.0.0.1`/`localhost`). Storage stays `browser.storage.local`.
 6. All new features verified on both browsers: copy, save-selection, paste-from-library,
    clipboard snippets history.
 
@@ -32,5 +34,6 @@ Saver v1.0.0) — but **global**: it works on **any site**, not only higgsfield.
 
 ## Out of scope
 
-- Sync/account features, external servers, analytics — the extension stays 100% local.
+- Sync/account features, external servers, analytics — the extension stays local-first. The only
+  network surface is the opt-in, loopback-only agent bridge (G14); it has no cloud component.
 - Store publishing (listing assets) — separate release phase (versioning-releases skill).

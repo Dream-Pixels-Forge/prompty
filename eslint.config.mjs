@@ -27,6 +27,12 @@ export default tseslint.config(
     rules: { 'no-undef': 'error' },
   },
   {
+    // mcp/ is a standalone Node package outside the extension's TS program;
+    // its contract tests + runtime handshake are the gate there.
+    files: ['mcp/**/*.mjs', 'tests/mcp-*.test.mjs'],
+    rules: { '@typescript-eslint/ban-ts-comment': 'off' },
+  },
+  {
     files: ['**/*.mjs'],
     languageOptions: {
       globals: { ...globals.node },

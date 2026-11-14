@@ -1,0 +1,18 @@
+{
+  "name": "prompty-mcp",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server that lets coding agents save prompts straight into the Prompty browser extension",
+  "keywords": ["mcp", "prompts", "prompty", "claude-code", "agent"],
+  "license": "MIT",
+  "bin": {
+    "prompty-mcp": "server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

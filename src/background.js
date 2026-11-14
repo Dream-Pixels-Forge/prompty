@@ -5,6 +5,8 @@
  */
 import browser from './lib/browser.js';
 import { seedPresets } from './lib/presets.js';
+import { syncBridge } from './lib/bridge-client.js';
+import { BRIDGE_ALARM, BRIDGE_STATUS_KEY, MSG_MCP_SYNC } from './lib/bridge-constants.js';
 import { secureArea } from './lib/secure.js';
 import { VaultLockedError } from './lib/secure-store.js';
 import { planSave } from './lib/capture.js';
@@ -167,6 +169,87 @@ async function saveSelection(tab, selectionText) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Agent bridge (G14)                                                  */
+/* ------------------------------------------------------------------ */
+
+/** How often the extension asks the loopback bridge for new prompts. */
+const BRIDGE_PERIOD_MINUTES = 1;
+
+/** @type {Promise<any>|null} */
+let bridgeSyncInFlight = null;
+
+/** Settings + pairing token, read fresh on every sync (never cached). */
+async function bridgeConfig() {
+  const data = await browser.storage.local.get(['settings', 'mcpBridgeToken']);
+  const settings = mergeSettings(DEFAULT_SETTINGS, data?.settings);
+  return {
+    enabled: settings.mcpBridgeEnabled === true,
+    url: settings.mcpBridgeUrl,
+    token: typeof data?.mcpBridgeToken === 'string' ? data.mcpBridgeToken : '',
+  };
+}
+
+/**
+ * Merge whatever the agent queued. Single-flight: an alarm and a "Sync now"
+ * click cannot run two merges over the same storage.
+ */
+async function runBridgeSync() {
+  if (bridgeSyncInFlight) return bridgeSyncInFlight;
+  bridgeSyncInFlight = (async () => {
+    const config = await bridgeConfig();
+    if (!config.enabled) {
+      await clearBridgeAlarm();
+      return { ok: false, reason: 'disabled' };
+    }
+    try {
+      return await syncBridge(secureArea(), config);
+    } catch (error) {
+      const locked = error instanceof VaultLockedError;
+      const status = {
+        ok: false,
+        reason: locked ? 'vault-locked' : 'error',
+        error: error instanceof Error ? error.message : String(error),
+        at: Date.now(),
+      };
+      try {
+        await browser.storage.local.set({ [BRIDGE_STATUS_KEY]: status });
+      } catch {
+        // status is best-effort
+      }
+      return status;
+    }
+  })().finally(() => {
+    bridgeSyncInFlight = null;
+  });
+  return bridgeSyncInFlight;
+}
+
+async function clearBridgeAlarm() {
+  try {
+    await browser.alarms.clear(BRIDGE_ALARM);
+  } catch {
+    // alarms unavailable
+  }
+}
+
+/** Keep exactly one periodic alarm while the bridge is enabled. */
+async function ensureBridgeAlarm() {
+  try {
+    const config = await bridgeConfig();
+    if (!config.enabled) {
+      await clearBridgeAlarm();
+      return;
+    }
+    const existing = await browser.alarms.get(BRIDGE_ALARM);
+    if (!existing) {
+      await browser.alarms.create(BRIDGE_ALARM, { periodInMinutes: BRIDGE_PERIOD_MINUTES });
+    }
+  } catch {
+    // On-demand sync still works without the alarm API.
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Message routing                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -253,6 +336,20 @@ function onMessage(message, sender, sendResponse) {
       return true;
     }
 
+    case MSG_MCP_SYNC: {
+      // G14: Settings → Agent bridge → Sync now. Extension pages only — a
+      // content script always carries `sender.tab`, and a page must not be able
+      // to make the worker read the library.
+      if (sender?.tab) {
+        respond({ ok: false, reason: 'forbidden' });
+        return true;
+      }
+      void (async () => {
+        respond(await runBridgeSync());
+      })();
+      return true;
+    }
+
     case MSG_TOGGLE_WIDGET: {
       // Toggle floating widget for the active tab's origin
       void (async () => {
@@ -313,11 +410,31 @@ async function onCommand(command) {
 
 browser.runtime.onInstalled.addListener(() => {
   void ensureContextMenu();
+  void ensureBridgeAlarm();
 });
 
 browser.runtime.onStartup.addListener(() => {
   void ensureContextMenu();
+  void ensureBridgeAlarm();
 });
+
+/* ------------------------------------------------------------------ */
+/* Agent bridge listeners (G14)                                        */
+/* ------------------------------------------------------------------ */
+
+browser.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === BRIDGE_ALARM) void runBridgeSync();
+});
+
+browser.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+  if (!('settings' in changes) && !('mcpBridgeToken' in changes)) return;
+  void ensureBridgeAlarm();
+  void runBridgeSync();
+});
+
+// The worker may be woken after the alarm was created; create it if missing.
+void ensureBridgeAlarm();
 
 /* ------------------------------------------------------------------ */
 /* Listeners                                                           */

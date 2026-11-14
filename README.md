@@ -5,8 +5,9 @@ Save, organize, and paste prompts on **any** site. Prompty is a cross-browser
 keystroke away — in ChatGPT, Claude, Gemini, Perplexity, Higgsfield, or any
 plain `<textarea>` on the web.
 
-**100% local.** No servers, no accounts, no telemetry, zero network requests.
-Everything lives in `browser.storage.local`, encrypted at rest if you turn on Vault Mode.
+**Local by construction.** No accounts, no cloud, no telemetry, and no network requests unless
+you opt into the agent bridge — a loopback-only connection that lets a coding agent save prompts
+for you. Everything lives in `browser.storage.local`, encrypted at rest if you turn on Vault Mode.
 
 ## Features (v0.3)
 
@@ -24,7 +25,8 @@ What's new in each version: [`CHANGELOG.md`](CHANGELOG.md).
 - **Insights** — most-used prompts and categories, prompts added per month, never-used and dormant prompts (one click selects them for bulk tidy-up), and your recent fill-ins. Computed from what Prompty already stores; nothing new is tracked.
 - **Share packs** — select prompts, then **Pack…** saves a `.prompty` file (prompts, categories, Composer blocks; no personal stats). Drop a pack on the popup to preview and add it.
 - **Import from another tool** — bring a Higgsfield Prompt Saver export, a CSV, a text/Markdown file or a JSON list. A report shows what will be added, merged or skipped before anything changes; duplicates are skipped and categories matched by name.
-- **Settings** — default view, compact cards, floating widget, quick-insert trigger, sites to skip, custom site recipes, JSON import/export.
+- **Agent bridge (opt-in)** — point Claude Code, Cursor or any MCP client at `mcp/server.mjs` and ask it to *"add a camera movement"*. The agent writes to `~/.prompty`; Prompty imports it over `127.0.0.1` on a one-minute clock. Off by default, token-paired, loopback only. See [`mcp/README.md`](mcp/README.md).
+- **Settings** — default view, compact cards, floating widget, quick-insert trigger, sites to skip, custom site recipes, agent bridge, JSON import/export.
 - **Template variables** — `{subject}` text, `{lens:24mm|50mm|85mm}` choices, `{seed:1-999}` ranges (with 🎲), `{mood=calm}` defaults. A fill-in form with live preview remembers what you used last, in the popup and the in-page `!` palette.
 - **Smart assist pill + floating widget** — save the current input or insert a prompt on any page.
 - **Clipboard snippets** — capped history of copied text you can promote to prompts.
@@ -95,6 +97,7 @@ src/
                        capture, presets, search, recipes, sites, text, message
   assets/recipes.json  seeded site recipes
 scripts/               build + package
+mcp/                   prompty-mcp: zero-dependency stdio MCP server + loopback bridge
 tests/                 vitest suites
 dev-notes/             GOAL, SPEC, SECURITY, ROADMAP, PROGRESS, subgoals/
 store/                 store screenshots, promo tile, listing copy
@@ -102,10 +105,11 @@ store/                 store screenshots, promo tile, listing copy
 
 ## Roadmap
 
-v0.4 adds Vault Mode, Insights, share packs, the import suite, French, the
-accessibility pass and 5k-prompt performance. The remaining tier is the v0.4+
-"moonshots" — library hygiene, a burst generator, prompt hotkeys, snapshots and
-an on-device rewrite assist — listed in [`dev-notes/ROADMAP.md`](dev-notes/ROADMAP.md).
+v0.4 shipped Vault Mode, Insights, share packs, the import suite, French, the
+accessibility pass and 5k-prompt performance. v0.5 adds the agent bridge.
+The remaining tier — library hygiene, a burst generator, prompt hotkeys,
+snapshots and an on-device rewrite assist — is listed in
+[`dev-notes/ROADMAP.md`](dev-notes/ROADMAP.md).
 Shipped subgoal specs live in [`dev-notes/subgoals/`](dev-notes/subgoals/README.md).
 
 ## License & attribution

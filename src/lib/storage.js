@@ -6,6 +6,7 @@
  * - prototype-pollution safe: own-property checks only, no spread of untrusted keys
  */
 import browser from './browser.js';
+import { DEFAULT_BRIDGE_URL } from './bridge-constants.js';
 import { normalizeStoredComposition } from './sequence.js';
 
 /**
@@ -66,6 +67,8 @@ export const MAX_VERSIONS = 20;
  * @property {string[]} enabledRecipes originPatterns of user recipes that are active
  * @property {string} quickTrigger single character that opens the in-page palette
  * @property {boolean} quickTriggerEnabled
+ * @property {boolean} mcpBridgeEnabled G14: let a coding agent save prompts over loopback
+ * @property {string} mcpBridgeUrl loopback base URL of the MCP bridge
  */
 
 /**
@@ -95,6 +98,8 @@ export const DEFAULT_SETTINGS = {
   enabledRecipes: [],
   quickTrigger: '!',
   quickTriggerEnabled: true,
+  mcpBridgeEnabled: false,
+  mcpBridgeUrl: DEFAULT_BRIDGE_URL,
 };
 
 /* ------------------------------------------------------------------ */

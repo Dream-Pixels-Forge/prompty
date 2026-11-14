@@ -3,6 +3,30 @@
 All notable changes to Prompty. Versions follow [Semantic Versioning](https://semver.org/);
 before 1.0, minor versions may change stored data shapes, and every such change migrates silently.
 
+## [0.5.1] — 2026-11-14 · "Clean Room"
+
+The Chrome package no longer carries Firefox-only manifest keys, and the Chromium build is now
+checked by a gate that is actually about Chromium.
+
+### Fixed
+
+- **Chrome Web Store manifest warnings.** `dist/chrome/manifest.json` shipped `background.scripts`
+  and `browser_specific_settings` — keys only Firefox reads, which the Chrome Web Store reports as
+  unrecognized. Both existed solely so Mozilla's `addons-linter` (a Firefox linter) would accept the
+  Chromium package. Shapes now live in `scripts/manifest.mjs`: Chrome gets
+  `background.service_worker` alone, Firefox keeps `background.scripts[]` plus the Gecko block.
+
+### Changed
+
+- **Both builds are validated.** `scripts/validate-manifests.mjs` checks each target's manifest
+  after a build: Manifest V3, version in sync with `package.json`, target-specific background shape,
+  no cross-browser keys, required permissions, every referenced file present, and every
+  `__MSG_*__` placeholder resolvable in `_locales/<default_locale>`. It runs as part of
+  `pnpm build` and `pnpm package`, and is available as `pnpm validate`.
+- **CI gate.** The Chromium target is no longer linted with `addons-linter` — it cannot pass a
+  Chromium-clean manifest — and `pnpm validate` replaces it. Firefox keeps
+  `web-ext lint --warnings-as-errors`.
+
 ## [0.5.0] — 2026-11-14 · "Handshake"
 
 Prompty opens one carefully bounded door to the rest of your tools: an opt-in, token-paired

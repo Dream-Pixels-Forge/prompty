@@ -26,7 +26,7 @@ MCP client ──stdio──► prompty-mcp ──HTTP 127.0.0.1──► Prompt
    ```
 
    ```
-   prompty-mcp 0.5.0
+   prompty-mcp 0.5.1
      library : /home/you/.prompty/library.json
      bridge  : http://127.0.0.1:47821  (enable Settings → Agent bridge in Prompty)
      token   : 3f9c…48 hex characters…
@@ -75,7 +75,7 @@ MCP client ──stdio──► prompty-mcp ──HTTP 127.0.0.1──► Prompt
    - turn on **Enable the agent bridge**
    - leave **Bridge URL** at `http://127.0.0.1:47821` unless the server printed another port
    - paste the **Pairing token**
-   - press **Test connection** — you should see `Bridge reachable — v0.5.0, 0 waiting, N in the library.`
+   - press **Test connection** — you should see `Bridge reachable — v0.5.1, 0 waiting, N in the library.`
 
    Prompty now checks the bridge once a minute while the browser is open. **Sync now** does the
    same on demand.

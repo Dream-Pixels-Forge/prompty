@@ -159,6 +159,8 @@ which also meant the gate could never fail. Shapes now live in `scripts/manifest
 are checked by `scripts/validate-manifests.mjs` (target shape, cross-browser keys, referenced files,
 `__MSG_*__` placeholders, version sync), wired into `pnpm build` and CI.
 
+Release pass: version 0.5.1, `CHANGELOG.md`, store listing and landing-page version.
+
 ### Open backlog (ROADMAP.md)
 
 1. **G19** Smart library hygiene — near-duplicate detection, auto-tag suggestions, archive dormant

@@ -322,7 +322,7 @@ M
 
 ---
 
-## Status (v0.4.0, 2026-11-13)
+## Status (v0.5.0, 2026-11-14)
 
 | Goal                                                                    | Status                                                 |
 | ----------------------------------------------------------------------- | ------------------------------------------------------ |
@@ -332,6 +332,7 @@ M
 | G7 usage insights · G8 theming/a11y/i18n (en + fr)                      | ✅ v0.4.0                                              |
 | G10 Vault · G11 Migration · G13 packs                                   | ✅ v0.4.0                                              |
 | G12 large-library performance                                           | ✅ v0.4.0 — re-scoped by measurement; **no IndexedDB**. 5k prompts: first card 7.0 s → 0.3 s. Revisit when storage dominates or libraries near the 10 MB quota (~25–30k prompts). Spec in [`subgoals/`](subgoals/G12-indexeddb-engine.md) |
+| G14 MCP agent bridge                                                    | ✅ v0.5.0 — opt-in, loopback only; spec in [`subgoals/`](subgoals/G14-mcp-agent-bridge.md) |
 
 ## Tier v0.3 — "Differentiators"
 

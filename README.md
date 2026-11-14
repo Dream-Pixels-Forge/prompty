@@ -9,7 +9,7 @@ plain `<textarea>` on the web.
 you opt into the agent bridge — a loopback-only connection that lets a coding agent save prompts
 for you. Everything lives in `browser.storage.local`, encrypted at rest if you turn on Vault Mode.
 
-## Features (v0.3)
+## Features (v0.5)
 
 What's new in each version: [`CHANGELOG.md`](CHANGELOG.md).
 

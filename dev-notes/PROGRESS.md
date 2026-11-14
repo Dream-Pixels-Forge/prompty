@@ -2,7 +2,7 @@
 
 - Project: prompty
 - Started: 2026-11-05
-- Current Phase: v0.4.0 released (2026-11-13) — see [`CHANGELOG.md`](../CHANGELOG.md) and [release v0.4.0](https://github.com/Dream-Pixels-Forge/prompty/releases/tag/v0.4.0)
+- Current Phase: v0.5.0 released (2026-11-14) — see [`CHANGELOG.md`](../CHANGELOG.md) and [release v0.5.0](https://github.com/Dream-Pixels-Forge/prompty/releases/tag/v0.5.0)
 
 ## Phase completion
 
@@ -137,7 +137,7 @@ storage quota).
 
 | PR  | Subgoal / change                                                               | Status    |
 | --- | ------------------------------------------------------------------------------ | --------- |
-| #40 | G14 MCP agent bridge — coding agents save prompts straight into Prompty        | ⏳ Review |
+| #40 | G14 MCP agent bridge — coding agents save prompts straight into Prompty        | ✅ Merged |
 
 A coding agent (Claude Code, Cursor, Claude Desktop, any MCP client) can add prompts to the
 library: `save_prompt` writes to `~/.prompty`, the extension imports over a token-authed

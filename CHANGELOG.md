@@ -3,7 +3,11 @@
 All notable changes to Prompty. Versions follow [Semantic Versioning](https://semver.org/);
 before 1.0, minor versions may change stored data shapes, and every such change migrates silently.
 
-## [Unreleased]
+## [0.5.0] — 2026-11-14 · "Handshake"
+
+Prompty opens one carefully bounded door to the rest of your tools: an opt-in, token-paired
+loopback bridge lets a coding agent save prompts straight into your library — and search what you
+already have. Everything else stays as local as before.
 
 ### Added
 

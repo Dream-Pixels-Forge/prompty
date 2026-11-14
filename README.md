@@ -78,6 +78,7 @@ GitHub Release assets when cutting a version.
 | `pnpm test`                                 | Vitest unit tests                                                                                                  |
 | `pnpm build`                                | Emit both dists from `src/manifest.base.json`, then validate                                                       |
 | `pnpm validate`                             | Check both built manifests: shape, files, i18n, version                                                            |
+| `pnpm check:docs`                           | Verify `docs/index.html` test-suite claims match the actual suite (no execution, ~5s)                              |
 | `pnpm package`                              | Build, validate, then zip both targets                                                                             |
 | `node scripts/icons.mjs`                    | Re-render the 16/32 px toolbar glyph from `src/icons/glyph.svg` (needs Playwright)                                 |
 | `node scripts/bench-library.mjs [count]`    | After `pnpm build`: seed N prompts (default 5,000) and time first card, search, star and Ctrl+K (needs Playwright) |
@@ -85,8 +86,8 @@ GitHub Release assets when cutting a version.
 | `node scripts/store-screenshots.mjs`        | After `pnpm build`: regenerate the store screenshots and promo tile in `store/` (needs Playwright)                 |
 
 CI (`.github/workflows/pr-validation.yml`) runs all gates plus `web-ext lint
---warnings-as-errors` (Firefox, AMO rules) and `pnpm validate` (both targets) on
-every PR and every push to `main`.
+--warnings-as-errors` (Firefox, AMO rules), `pnpm validate` (both targets) and
+`pnpm check:docs` (landing-page claims) on every PR and every push to `main`.
 
 ## Project layout
 

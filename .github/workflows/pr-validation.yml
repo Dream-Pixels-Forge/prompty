@@ -27,3 +27,5 @@ jobs:
         run: pnpm dlx web-ext@8 lint --source-dir dist/firefox --warnings-as-errors
       - name: validate manifests (chrome + firefox)
         run: pnpm validate
+      - name: check landing-page claims
+        run: pnpm check:docs

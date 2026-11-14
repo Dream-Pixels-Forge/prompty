@@ -28,13 +28,15 @@ Basis: REA analysis `ev_84b4661a…` of Higgsfield Prompt Saver v1.0.0 (MIT) + f
 | Δ5 Clipboard pack | (a) `⧉ Copy` card action → `navigator.clipboard.writeText` with fallback `execCommand('copy')` in popup context; (b) context-menu "Save Selection as Prompt" (title = document title, text = selection) auto-updates `useCount` untouched; (c) **Clipboard snippets**: popup tab where every user-triggered copy lands (`snippets[]` in storage, cap 50, FIFO, each `{id,text,sourceOrigin,emoji tag?}`); snippets searchable, copyable, promotable to a prompt; (d) paste-from-library: click snippet → writes text to active tab's focused editable via Δ7 messages. | All four actions verified in both browsers; no paste on sites that block synthetic focus (documented limitation) |
 | Δ6 Background | Event page (FF) / service worker (CR): context-menu registration, command routing, `OPEN_POPUP` → `action.openPopup()` + toast fallback; badge count of unread snippets? (optional, OFF by default) | Both background variants share logic via `src/lib/` |
 | Δ7 Insert targeted messages | Popup → tab: `{type:"PROMPTY_INSERT", text, mode:"insert"\|"append", origin?}`; content script responds `{success|error}` always (`error:"No editable target found"` when absent). Target = focused editable else smart-assist detected editable. | Unknown message types respond `{success:false,error:"unknown type"}` (fixes original bug #11) |
+| Δ14 Agent bridge | Opt-in MCP bridge (G14). `mcp/server.mjs` is a zero-dependency Node ≥20 stdio server; state in `~/.prompty` (`library.json`, `bridge.json`, both 0600, atomic writes). Loopback HTTP API v1 on `127.0.0.1:47821` (`PROMPTY_BRIDGE_PORT`): `GET /health`, `GET /pending`, `POST /ack`, `POST /snapshot`; every route requires `X-Prompty-Token` (48 hex, constant-time compare). MCP tools: `save_prompt`, `list_prompts`, `search_prompts`, `get_prompt`, `update_prompt`, `delete_prompt`, `list_categories`, `bridge_status`. Extension: `alarms` 1-min sync (plus **Sync now**), Settings → Agent bridge (enable, URL, token, Test, status); token lives in `mcpBridgeToken`, never in `settings`, so exports never contain it. Import preserves agent ids, dedupes by normalized text, applies tombstones, acks consumed ids, then posts the library snapshot back. | Off by default — no request until enabled; extension refuses non-loopback URLs; 401/405/400/413 tested; prompts saved while the browser is closed arrive on the next sync |
 
 ## 3. Non-goals
 
-No sync, no servers, no telemetry, no permissions beyond `storage`, `tabs`, `activeTab`,
-`contextMenus`, `scripting`, `notifications` and `<all_urls>` content script (why: global smart
-assist + context menu save require broad host access; permission justification popup in store
-listing phase).
+No sync, no servers, no telemetry. The only network surface is the opt-in loopback agent bridge
+(Δ14), which binds `127.0.0.1` and never leaves the machine. No permissions beyond `storage`,
+`tabs`, `activeTab`, `contextMenus`, `scripting`, `notifications`, `alarms` and `<all_urls>`
+content script (why: global smart assist + context menu save require broad host access;
+permission justification popup in store listing phase).
 
 ## 4. Architecture
 

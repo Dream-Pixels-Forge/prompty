@@ -2,7 +2,8 @@
 
 Each file is one shippable subgoal in the ROADMAP format (Objective · Context ·
 Deliverables · Definition of Done · Verification · Anti-Drift · Effort). One subgoal = one PR.
-Everything stays 100% local: no network, no telemetry, `storage.local` only (GOAL.md).
+Everything stays local-first: no telemetry, `storage.local` only, except the opt-in loopback
+agent bridge (G14) that never leaves the machine (GOAL.md).
 
 ## Order
 
@@ -36,6 +37,7 @@ run in parallel. G9 works without G6 but is far better with enum variables.
 
 - [x] S1 · [x] S2 · [x] S3 · [x] G5 · [x] G6 · [x] G4 · [x] G9 · [x] G9b · [x] G9c
 - Wave 2: [x] G11 (real upstream sample pending) · [x] G13 · [x] G7 · [x] G8a · [x] G8b · [x] G8c · [x] G10 · [x] G12 (re-scoped: incremental grid; IndexedDB deferred by measurement)
+- v0.5: [x] G14 — [MCP agent bridge](G14-mcp-agent-bridge.md)
 
 ## Rules for every subgoal
 

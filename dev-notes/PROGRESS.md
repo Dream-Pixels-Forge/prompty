@@ -133,9 +133,21 @@ First tagged release: `v0.4.0` with `prompty-0.4.0-chrome.zip` / `prompty-0.4.0-
 attached as release assets (CI no longer uploads run artifacts — the account hit its Actions
 storage quota).
 
+### v0.5.0 — agent bridge (issue #39)
+
+| PR  | Subgoal / change                                                               | Status    |
+| --- | ------------------------------------------------------------------------------ | --------- |
+| #40 | G14 MCP agent bridge — coding agents save prompts straight into Prompty        | ⏳ Review |
+
+A coding agent (Claude Code, Cursor, Claude Desktop, any MCP client) can add prompts to the
+library: `save_prompt` writes to `~/.prompty`, the extension imports over a token-authed
+`127.0.0.1` bridge on a one-minute `alarms` clock. Off by default; the extension refuses
+non-loopback URLs and keeps the pairing token outside `settings` so exports never contain it.
+Subgoal spec: [`subgoals/G14-mcp-agent-bridge.md`](subgoals/G14-mcp-agent-bridge.md).
+
 ### Open backlog (ROADMAP.md)
 
-1. **G14** Smart library hygiene — near-duplicate detection, auto-tag suggestions, archive dormant
+1. **G19** Smart library hygiene — near-duplicate detection, auto-tag suggestions, archive dormant
 2. **G15** Burst generator — N combinations from enums/ranges, batch export
 3. **G16** Prompt hotkeys — up to 4 user-bound insert commands
 4. **G17** Weekly auto-snapshot (opt-in, rotation cap 4)

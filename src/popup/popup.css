@@ -566,6 +566,14 @@ kbd {
   margin: -4px 0 2px;
   font-size: 12px;
 }
+.bridge__status {
+  font-size: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.bridge__status:empty {
+  display: none;
+}
 .settings p {
   margin: 0;
 }

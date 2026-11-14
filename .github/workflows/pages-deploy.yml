@@ -29,10 +29,10 @@ jobs:
       # at Settings → Pages → Source = "GitHub Actions" before the first deploy.
       # After that, every push to main redeploys automatically.
       - uses: actions/checkout@v7
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

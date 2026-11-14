@@ -25,9 +25,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-24.04
     steps:
-      # Prerequisite (one-time, not automated): the repo owner enables Pages
-      # at Settings → Pages → Source = "GitHub Actions" before the first deploy.
-      # After that, every push to main redeploys automatically.
+      # Pages is enabled for this repo with build_type=workflow
+      # (Settings → Pages → Source = "GitHub Actions"). Pushes to main that
+      # touch docs/ redeploy automatically; use workflow_dispatch to re-run.
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

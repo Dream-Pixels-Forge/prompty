@@ -253,7 +253,7 @@ export function timeline(seq) {
 export function composeSequence(seq) {
   const used = timeline(seq);
   const duration = used.length ? used[used.length - 1].end : 0;
-  let text = '';
+  let text;
   if (seq.shots.length === 1) {
     text = used[0]?.text ?? '';
   } else if (seq.format === 'script') {

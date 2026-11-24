@@ -106,7 +106,7 @@ export async function syncBridge(area, config, options = {}) {
 
   // A failed ack is recoverable: the next sync re-sends the same ids and the
   // merge is a no-op for prompts already present.
-  let ackFailed = false;
+  let ackFailed;
   try {
     const ack = await call('/ack', {
       method: 'POST',

@@ -78,7 +78,7 @@ export async function deliverText(text, mode) {
  * @returns {Promise<boolean>}
  */
 export async function copyText(text) {
-  let ok = false;
+  let ok;
   try {
     await navigator.clipboard.writeText(text);
     ok = true;

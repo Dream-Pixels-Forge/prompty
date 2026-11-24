@@ -683,13 +683,11 @@
    * them identical — so pages and the test hook still read right without i18n. */
   function tr(key, fallback, ...subs) {
     const s = subs.map(String);
-    let msg = '';
     try {
-      msg = (api.i18n && api.i18n.getMessage(key, s)) || '';
+      return (api.i18n && api.i18n.getMessage(key, s)) || fallback.replace(/\$(\d)/g, (_m, d) => s[Number(d) - 1] ?? '');
     } catch {
-      msg = '';
+      return fallback.replace(/\$(\d)/g, (_m, d) => s[Number(d) - 1] ?? '');
     }
-    return msg || fallback.replace(/\$(\d)/g, (_m, d) => s[Number(d) - 1] ?? '');
   }
 
   /** Grammar-block messages (kept English there for parity) → UI language. */
@@ -2935,7 +2933,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     if (host) {
       host.appendChild(scratch);
       scratch.select();
-      let ok = false;
+      let ok;
       try {
         ok = document.execCommand ? document.execCommand('copy') : false;
       } catch {

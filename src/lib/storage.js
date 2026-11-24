@@ -23,7 +23,7 @@ import { normalizeStoredComposition } from './sequence.js';
  * @property {string|null} quality
  * @property {number|null} lastUsedAt
  * @property {PromptVersion[]} [versions] previous title/text, newest first (G5; omitted when none)
- * @property {import('./composition.js').Composition|import('./sequence.js').Sequence} [composition] blocks (G9) or shots (G9b) it was composed from; omitted when none
+ * @property {import('./composition.js').Composition|import('./sequence.js').Sequence|import('./documents.js').DocumentComposition} [composition] blocks (G9) or shots (G9b) or document-linked (G15); omitted when none
  */
 
 /**

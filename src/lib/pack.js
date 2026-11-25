@@ -6,10 +6,13 @@
  * planner (dedupe by text, categories joined by name).
  */
 import { normalizeCategory, normalizePrompt } from './storage.js';
+import { normalizeProject, normalizeDocument, MAX_DOCUMENT_SIZE } from './documents.js';
 
 /**
  * @typedef {import('./storage.js').Prompt} Prompt
  * @typedef {import('./storage.js').Category} Category
+ * @typedef {import('./documents.js').Project} Project
+ * @typedef {import('./documents.js').Document} Document
  *
  * @typedef {object} Pack
  * @property {'prompty-pack'} format
@@ -20,6 +23,8 @@ import { normalizeCategory, normalizePrompt } from './storage.js';
  * @property {number} createdAt
  * @property {Prompt[]} prompts
  * @property {Category[]} categories
+ * @property {Project[]} [projects]    G15: optional, absent in older packs
+ * @property {Document[]} [documents] G15: optional, absent in older packs
  */
 
 export const PACK_FORMAT = 'prompty-pack';
@@ -48,12 +53,26 @@ function shareable(p, now) {
 }
 
 /**
+ * A document as it travels in a pack: version history never leaves in a pack,
+ * but the current markdown is kept so a recipient can rebuild the project.
+ * @param {Document} d
+ * @returns {Document}
+ */
+function shareableDocument(d) {
+  const { versions: _v, ...rest } = d;
+  void _v;
+  return rest;
+}
+
+/**
  * @param {{ prompts: Prompt[], categories: Category[] }} lib
  * @param {string[]} ids prompts to share, in this order
- * @param {{ name: string, author?: string, description?: string, now?: number }} meta
+ * @param {{ name: string, author?: string, description?: string, now?: number,
+ *   projects?: Project[], documents?: Document[] }} meta
  * @returns {Pack}
  */
-export function buildPack(lib, ids, { name, author = '', description = '', now = Date.now() }) {
+export function buildPack(lib, ids, { name, author = '', description = '', now = Date.now(),
+  projects, documents }) {
   const byId = new Map(lib.prompts.map((p) => [p.id, p]));
   const prompts = ids
     .map((id) => byId.get(id))
@@ -72,6 +91,8 @@ export function buildPack(lib, ids, { name, author = '', description = '', now =
   };
   if (clip(author, MAX_NAME)) pack.author = clip(author, MAX_NAME);
   if (clip(description, MAX_DESCRIPTION)) pack.description = clip(description, MAX_DESCRIPTION);
+  if (Array.isArray(projects)) pack.projects = projects;
+  if (Array.isArray(documents)) pack.documents = documents.map(shareableDocument);
   return pack;
 }
 
@@ -136,6 +157,36 @@ export function parsePack(text) {
     const c = normalizeCategory(item);
     if (c) categories.push(c);
   }
+
+  /** @type {Project[]} */
+  const projects = [];
+  const rawProjects = Array.isArray(r.projects) ? r.projects : [];
+  for (const item of rawProjects) {
+    const p = normalizeProject(item);
+    if (!p) return { ok: false, error: 'Pack contains an invalid project.' };
+    projects.push(p);
+  }
+
+  /** @type {Document[]} */
+  const documents = [];
+  const rawDocuments = Array.isArray(r.documents) ? r.documents : [];
+  for (const item of rawDocuments) {
+    if (!item || typeof item !== 'object' || Array.isArray(item))
+      return { ok: false, error: 'Pack contains an invalid document.' };
+    if (
+      typeof item.markdown === 'string' &&
+      item.markdown.length > MAX_DOCUMENT_SIZE
+    ) {
+      return {
+        ok: false,
+        error: `Document markdown is too large (${MAX_DOCUMENT_SIZE / 1024} KB max).`,
+      };
+    }
+    const d = normalizeDocument(item);
+    if (!d) return { ok: false, error: 'Pack contains an invalid document.' };
+    documents.push(d);
+  }
+
   /** @type {Pack} */
   const pack = {
     format: PACK_FORMAT,
@@ -145,6 +196,8 @@ export function parsePack(text) {
     prompts,
     categories,
   };
+  if (projects.length) pack.projects = projects;
+  if (documents.length) pack.documents = documents;
   if (clip(r.author, MAX_NAME)) pack.author = clip(r.author, MAX_NAME);
   if (clip(r.description, MAX_DESCRIPTION)) pack.description = clip(r.description, MAX_DESCRIPTION);
   return { ok: true, pack };

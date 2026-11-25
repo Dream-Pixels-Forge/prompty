@@ -148,3 +148,101 @@ describe('malicious or broken packs are rejected', () => {
     expect(Object.getPrototypeOf(out.pack)).toBe(Object.prototype);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* G15 — projects and documents in packs                              */
+/* ------------------------------------------------------------------ */
+
+import { normalizeProject, normalizeDocument } from '../src/lib/documents.js';
+
+const mkProject = (over = {}) =>
+  /** @type {import('../src/lib/documents.js').Project} */ (
+    normalizeProject({ id: 'proj-1', name: 'GOLDHUNTER', color: '#8b5cf6', icon: '🎬', order: 0, ...over })
+  );
+const mkDocument = (over = {}) =>
+  /** @type {import('../src/lib/documents.js').Document} */ (
+    normalizeDocument({
+      id: 'doc-1',
+      projectId: 'proj-1',
+      title: 'PROMPTS v3',
+      kind: 'prompt-sheet',
+      markdown: '## G01 — Shot\n```muse\nprompt\n```\n',
+      createdAt: 1000,
+      updatedAt: 2000,
+      ...over,
+    })
+  );
+
+describe('packs carry projects and documents (G15)', () => {
+  it('buildPack includes projects and documents when provided', () => {
+    const project = mkProject();
+    const document = mkDocument();
+    const pack = buildPack(lib, ['a'], {
+      name: 'Kit',
+      projects: [project],
+      documents: [document],
+    });
+    expect(pack.projects).toEqual([project]);
+    expect(pack.documents).toEqual([document]);
+  });
+
+  it('buildPack omits projects/documents when not provided', () => {
+    const pack = buildPack(lib, ['a'], { name: 'Kit' });
+    expect('projects' in pack).toBe(false);
+    expect('documents' in pack).toBe(false);
+  });
+
+  it('buildPack strips document versions (history never leaves in a pack)', () => {
+    const document = mkDocument({ versions: [{ markdown: 'old', updatedAt: 999 }] });
+    const pack = buildPack(lib, ['a'], { name: 'Kit', documents: [document] });
+    const documents = pack.documents ?? [];
+    expect(documents).toHaveLength(1);
+    expect('versions' in documents[0]).toBe(false);
+    expect(documents[0].markdown).toBe(document.markdown);
+  });
+
+  it('parsePack reads projects and documents when present', () => {
+    const project = mkProject();
+    const document = mkDocument();
+    const pack = buildPack(lib, ['a'], { name: 'Kit', projects: [project], documents: [document] });
+    const parsed = parsePack(JSON.stringify(pack));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.pack.projects).toEqual([project]);
+    expect(parsed.pack.documents).toEqual([document]);
+  });
+
+  it('parsePack tolerates packs without projects/documents (older packs)', () => {
+    const pack = buildPack(lib, ['a'], { name: 'Kit' });
+    const parsed = parsePack(JSON.stringify(pack));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.pack.projects).toBeUndefined();
+    expect(parsed.pack.documents).toBeUndefined();
+  });
+
+  it('parsePack rejects a document with an invalid kind', () => {
+    const project = mkProject();
+    const bad = /** @type {any} */ ({ ...mkDocument(), kind: 'novel' });
+    const pack = buildPack(lib, ['a'], { name: 'Kit', projects: [project], documents: [bad] });
+    const parsed = parsePack(JSON.stringify(pack));
+    expect(parsed.ok).toBe(false);
+    expect(parsed.ok === false && parsed.error).toContain('document');
+  });
+
+  it('parsePack rejects an oversized document markdown', () => {
+    const big = { ...mkDocument(), markdown: 'x'.repeat(513 * 1024) };
+    const pack = buildPack(lib, ['a'], { name: 'Kit', documents: [big] });
+    const parsed = parsePack(JSON.stringify(pack));
+    expect(parsed.ok).toBe(false);
+    expect(parsed.ok === false && parsed.error).toContain('too');
+  });
+
+  it('round trip export → parse keeps projects and documents field by field', () => {
+    const project = mkProject();
+    const document = mkDocument({ versions: [{ markdown: 'v1', updatedAt: 999 }] });
+    const pack = buildPack(lib, ['a'], { name: 'Kit', projects: [project], documents: [document] });
+    const parsed = parsePack(JSON.stringify(pack));
+    expect(parsed).toEqual({ ok: true, pack });
+  });
+});

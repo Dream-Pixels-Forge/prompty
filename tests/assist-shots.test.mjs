@@ -65,7 +65,8 @@ describe('extractShotsFromMarkdown (G15 inline port)', () => {
   it('extracts shots with id, name, refs, edit, check', () => {
     /** @type {Shot[]} */
     const shots = extractShotsFromMarkdown(sheet, 'doc-1', 'GOLDHUNTER');
-    expect(shots).toHaveLength(2);
+    // G01 (muse) + G08 (seedance-2.5 + kling) = 3 variants; G12 unterminated fence → none
+    expect(shots).toHaveLength(3);
     const g01 = shots[0];
     expect(g01.shotId).toBe('G01');
     expect(g01.name).toBe('Lizard plate');
@@ -81,13 +82,16 @@ describe('extractShotsFromMarkdown (G15 inline port)', () => {
   it('tags model variants by info string', () => {
     /** @type {Shot[]} */
     const shots = extractShotsFromMarkdown(sheet, 'doc-1', 'GOLDHUNTER');
-    const g08 = shots.find((s) => s.shotId === 'G08');
-    expect(g08).toBeDefined();
-    if (!g08) throw new Error('G08 shot missing');
-    // first known-model fenced block wins (seedance-2.5); kling block skipped
-    expect(g08.modelId).toBe('seedance-2.5');
-    expect(g08.prompt).toContain('Love, then greed');
-    expect(shots.find((s) => s.modelId === 'kling')).toBeUndefined();
+    const g08variants = shots.filter((s) => s.shotId === 'G08');
+    expect(g08variants).toHaveLength(2);
+    expect(g08variants.map((s) => s.modelId).sort()).toEqual([
+      'kling',
+      'seedance-2.5',
+    ]);
+    const seedance = g08variants.find((s) => s.modelId === 'seedance-2.5');
+    expect(seedance?.prompt).toContain('Love, then greed');
+    const kling = g08variants.find((s) => s.modelId === 'kling');
+    expect(kling?.prompt).toBe('Honor the blade.');
   });
 
   it('treats unknown info strings (e.g. text) as non-shot variants', () => {
@@ -111,8 +115,8 @@ describe('extractShotsFromMarkdown (G15 inline port)', () => {
     expect(extractShotsFromMarkdown('## NOTASHOT\n\njust text', 'd', 'p')).toEqual([]);
   });
 
-  it('shotParseSection returns null for a non-shot section', () => {
-    expect(shotParseSection('just some text\n\nmore text', 'd', 'p')).toBeNull();
+  it('shotParseSection returns [] for a non-shot section', () => {
+    expect(shotParseSection('just some text\n\nmore text', 'd', 'p')).toEqual([]);
   });
 
   it('shotParseRefs parses @ tokens', () => {

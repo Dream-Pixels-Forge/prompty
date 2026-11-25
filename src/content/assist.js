@@ -254,15 +254,17 @@
   }
 
   /**
-   * Parse one `## ID — Name` shot section into a shot record.
+   * Parse one `## ID — Name` shot section into shot variant records.
+   * Each recognized fenced-block variant (known model or neutral) is its own
+   * shot; unknown info strings (e.g. `json`, `text`) are not variants.
    * @param {string} section
    * @param {string} documentId
    * @param {string} projectName
-   * @returns {{ shotId:string,name:string,refs:string[],prompt:string,modelId:string|null,edit:string,check:string,documentId:string,projectName:string }|null}
+   * @returns {Array<{ shotId:string,name:string,refs:string[],prompt:string,modelId:string|null,edit:string,check:string,documentId:string,projectName:string }>}
    */
   function shotParseSection(section, documentId, projectName) {
     const headingMatch = String(section ?? '').match(SHOT_HEADING);
-    if (!headingMatch) return null;
+    if (!headingMatch) return [];
 
     const shotId = String(headingMatch[1]).trim();
     const name = String(headingMatch[2] ?? '').trim();
@@ -279,25 +281,26 @@
     const checkMatch = remaining.match(/\*\*CHECK:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
     const check = checkMatch ? String(checkMatch[1]).trim() : '';
 
-    let prompt = '';
-    let modelId = null;
+    /** @type {Array<{ shotId:string,name:string,refs:string[],prompt:string,modelId:string|null,edit:string,check:string,documentId:string,projectName:string }>} */
+    const shots = [];
     for (const block of fencedBlocks) {
       const info = String(block[1] ?? '').toLowerCase().trim();
       const content = String(block[2] ?? '').trimEnd();
       if (!info || SHOT_KNOWN_MODELS.has(info)) {
-        prompt = content;
-        modelId = info || null;
-        break;
+        shots.push({
+          shotId,
+          name,
+          refs,
+          prompt: content,
+          modelId: info || null,
+          edit,
+          check,
+          documentId,
+          projectName,
+        });
       }
     }
-    if (!prompt && fencedBlocks.length > 0) {
-      prompt = String(fencedBlocks[0][2] ?? '').trimEnd();
-      const info = String(fencedBlocks[0][1] ?? '').toLowerCase().trim();
-      modelId = SHOT_KNOWN_MODELS.has(info) ? info : null;
-    }
-    if (!prompt) return null;
-
-    return { shotId, name, refs, prompt, modelId, edit, check, documentId, projectName };
+    return shots;
   }
 
   /**
@@ -313,8 +316,9 @@
     const shots = [];
     const sections = String(markdown).split(/(?:^|\n)## /);
     for (let i = 1; i < sections.length; i++) {
-      const shot = shotParseSection(sections[i], documentId, projectName);
-      if (shot) shots.push(shot);
+      for (const shot of shotParseSection(sections[i], documentId, projectName)) {
+        shots.push(shot);
+      }
     }
     return shots;
   }

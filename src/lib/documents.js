@@ -8,6 +8,7 @@
  */
 
 import { MAX_VERSIONS } from './storage.js';
+import { extractShotVariants } from './prompt-sheet.js';
 
 /** @typedef {'screenplay'|'project-card'|'breakdown'|'prompt-sheet'|'rules'|'notes'} DocumentKind */
 
@@ -274,121 +275,16 @@ export function mergeDocumentsByProjectAndTitle(existing, incoming) {
 
 /**
  * Extract shot sections from a prompt-sheet markdown document.
- * Parses `## <ID> — <name>` headings, Refs, fenced code blocks (with optional model info string),
- * Edit, and CHECK lines.
+ * Parses `## <ID> — <name>` headings; each recognized fenced-block variant
+ * (known model or neutral) becomes its own Shot tagged with `modelId`.
+ * Delegates to {@link extractShotVariants} in prompt-sheet.js.
  * @param {string} markdown
  * @param {string} documentId
  * @param {string} projectName
  * @returns {Shot[]}
  */
 export function extractShotFromMarkdown(markdown, documentId, projectName) {
-  /** @type {Shot[]} */
-  const shots = [];
-
-  // Split by `## ` headings (shot sections) - handle both start of string and after newline
-  const sections = markdown.split(/(?:^|\n)## /);
-
-  for (let i = 1; i < sections.length; i++) {
-    const section = sections[i];
-    const shot = parseShotSection(section, documentId, projectName);
-    if (shot) shots.push(shot);
-  }
-
-  return shots;
-}
-
-/**
- * Parse a single shot section.
- * @param {string} section
- * @param {string} documentId
- * @param {string} projectName
- * @returns {Shot|null}
- */
-function parseShotSection(section, documentId, projectName) {
-  // First line: `ID — Name` (or just `ID`)
-  const headingMatch = section.match(/^([A-Z]\d+)\s*(?:—\s*(.+))?/);
-  if (!headingMatch) return null;
-
-  const shotId = headingMatch[1].trim();
-  const name = (headingMatch[2] || '').trim();
-
-  const remaining = section.slice(headingMatch[0].length);
-
-  // Extract Refs: `**Refs:** ...` (supports various delimiters)
-  const refsMatch = remaining.match(/\*\*Refs:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
-  const refs = parseRefs(refsMatch ? refsMatch[1] : '');
-
-  // Extract fenced code blocks: ```infoString\ncontent\n```
-  // Multiple blocks allowed; each with different info string = model variant
-  const fencedBlocks = [...remaining.matchAll(/```([a-zA-Z0-9.-]*)\n([\s\S]*?)\n```/g)];
-
-  // Extract Edit: `**Edit:** ...`
-  const editMatch = remaining.match(/\*\*Edit:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
-  const edit = editMatch ? editMatch[1].trim() : '';
-
-  // Extract CHECK: `**CHECK:** ...`
-  const checkMatch = remaining.match(/\*\*CHECK:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
-  const check = checkMatch ? checkMatch[1].trim() : '';
-
-  // For G15 (single variant per shot), take the first block that has a recognized model
-  // or the first neutral block (no info string). G15b will extend this.
-  let prompt = '';
-  let modelId = undefined;
-  for (const block of fencedBlocks) {
-    const info = /** @type {string} */ (block[1]).toLowerCase().trim();
-    const content = block[2].trimEnd(); // preserve leading whitespace, trim trailing
-    if (!info || isKnownModel(info)) {
-      prompt = content;
-      modelId = info || undefined;
-      break;
-    }
-  }
-
-  // If no recognized block found, fall back to first block
-  if (!prompt && fencedBlocks.length > 0) {
-    prompt = fencedBlocks[0][2].trimEnd();
-    const info = /** @type {string} */ (fencedBlocks[0][1]).toLowerCase().trim();
-    modelId = isKnownModel(info) ? info : undefined;
-  }
-
-  if (!prompt) return null;
-
-  return {
-    shotId,
-    name,
-    refs,
-    prompt,
-    modelId,
-    edit,
-    check,
-    documentId,
-    projectName,
-  };
-}
-
-/** Recognized model info strings (sourced dialects from G9c + G15b). */
-const KNOWN_MODELS = new Set([
-  'muse',
-  'seedance',
-  'seedance-2.5',
-  'kling',
-  'minimax-hailuo',
-  'veo',
-  'runway',
-  'wan',
-  'luma',
-  'higgsfield',
-  'timecoded',
-  'script',
-  'one-take',
-]);
-
-/**
- * @param {string} info
- * @returns {boolean}
- */
-function isKnownModel(info) {
-  return KNOWN_MODELS.has(info);
+  return extractShotVariants(markdown, documentId, projectName);
 }
 
 /**
@@ -397,7 +293,7 @@ function isKnownModel(info) {
  * @param {string} refsText
  * @returns {string[]}
  */
-function parseRefs(refsText) {
+export function parseRefs(refsText) {
   /** @type {string[]} */
   const refs = [];
   // Match @word tokens (backtick-wrapped or bare)
@@ -418,6 +314,8 @@ function parseRefs(refsText) {
 /**
  * Create a Prompty prompt linked to a document shot.
  * The caller is responsible for setting the correct categoryId (project-named category).
+ * When `id` is omitted a random id is generated; when provided (e.g. a stable
+ * {@link stableShotId}) the prompt keeps the same id across re-saves.
  * @param {object} params
  * @param {string} params.shotId
  * @param {string} params.name
@@ -430,6 +328,7 @@ function parseRefs(refsText) {
  * @param {string} [params.edit]
  * @param {string} [params.check]
  * @param {string|null} [params.categoryId]
+ * @param {string} [params.id] stable id for document-linked prompts (re-save in place)
  * @returns {import('./storage.js').Prompt}
  */
 export function linkPromptToDocument({
@@ -444,6 +343,7 @@ export function linkPromptToDocument({
   edit,
   check,
   categoryId = null,
+  id,
 }) {
   /** @type {string[]} */
   const tags = [projectName, shotId, versionTag];
@@ -464,7 +364,7 @@ export function linkPromptToDocument({
   };
 
   return {
-    id: generateId(),
+    id: id ?? generateId(),
     title: `${shotId} — ${name}`,
     text: prompt,
     createdAt: Date.now(),

@@ -49,13 +49,14 @@ export const KIND_VALUES = /** @type {const} */ (
 );
 
 /**
- * Extract shot sections from a prompt-sheet markdown document.
- * Parses `## <ID> — <name>` headings with fenced code blocks.
+ * Extract every shot variant from a prompt-sheet markdown document.
+ * One entry per fenced-block variant (known model or neutral). Unknown info
+ * strings (e.g. `json`, `text`) are not shot variants.
  * @param {string} markdown
- * @returns {Array<{ shotId: string, name: string, prompt: string, refs: string[], check: string, edit: string }>}
+ * @returns {Array<{ shotId: string, name: string, prompt: string, refs: string[], check: string, edit: string, modelId: string|null }>}
  */
 function extractShots(markdown) {
-  /** @type {Array<{ shotId: string, name: string, prompt: string, refs: string[], check: string, edit: string }>} */
+  /** @type {Array<{ shotId: string, name: string, prompt: string, refs: string[], check: string, edit: string, modelId: string|null }>} */
   const shots = [];
 
   const sections = markdown.split(/(?:^|\n)## /);
@@ -68,35 +69,48 @@ function extractShots(markdown) {
     const name = (headingMatch[2] || '').trim();
     const remaining = section.slice(headingMatch[0].length);
 
-    // Extract fenced code blocks
+    const refsMatch = remaining.match(/\*\*Refs:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const refs = parseRefs(refsMatch ? refsMatch[1] : '');
+
+    const editMatch = remaining.match(/\*\*Edit:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const edit = editMatch ? editMatch[1].trim() : '';
+
+    const checkMatch = remaining.match(/\*\*CHECK:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const check = checkMatch ? checkMatch[1].trim() : '';
+
+    // Each recognized fenced block = one variant
     const fencedBlocks = [...remaining.matchAll(/```([a-zA-Z0-9-]*)\n([\s\S]*?)\n```/g)];
-    let prompt = '';
+    let variantCount = 0;
     for (const block of fencedBlocks) {
       const info = /** @type {string} */ (block[1]).toLowerCase().trim();
       const content = block[2].trimEnd();
       if (!info || isKnownModel(info)) {
-        prompt = content;
-        break;
+        shots.push({
+          shotId,
+          name,
+          prompt: content,
+          refs,
+          check,
+          edit,
+          modelId: info || null,
+        });
+        variantCount++;
       }
     }
-    if (!prompt && fencedBlocks.length > 0) {
-      prompt = fencedBlocks[0][2].trimEnd();
+    if (variantCount === 0 && fencedBlocks.length > 0) {
+      // Fall back to the first block only if nothing recognized matched.
+      const info = /** @type {string} */ (fencedBlocks[0][1]).toLowerCase().trim();
+      const content = fencedBlocks[0][2].trimEnd();
+      shots.push({
+        shotId,
+        name,
+        prompt: content,
+        refs,
+        check,
+        edit,
+        modelId: isKnownModel(info) ? info : null,
+      });
     }
-    if (!prompt) continue;
-
-    // Extract Refs
-    const refsMatch = remaining.match(/\*\*Refs:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
-    const refs = parseRefs(refsMatch ? refsMatch[1] : '');
-
-    // Extract Edit
-    const editMatch = remaining.match(/\*\*Edit:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
-    const edit = editMatch ? editMatch[1].trim() : '';
-
-    // Extract CHECK
-    const checkMatch = remaining.match(/\*\*CHECK:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
-    const check = checkMatch ? checkMatch[1].trim() : '';
-
-    shots.push({ shotId, name, prompt, refs, check, edit });
   }
 
   return shots;

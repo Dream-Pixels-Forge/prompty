@@ -320,7 +320,7 @@ function parseShotSection(section, documentId, projectName) {
 
   // Extract fenced code blocks: ```infoString\ncontent\n```
   // Multiple blocks allowed; each with different info string = model variant
-  const fencedBlocks = [...remaining.matchAll(/```([a-zA-Z0-9-]*)\n([\s\S]*?)\n```/g)];
+  const fencedBlocks = [...remaining.matchAll(/```([a-zA-Z0-9.-]*)\n([\s\S]*?)\n```/g)];
 
   // Extract Edit: `**Edit:** ...`
   const editMatch = remaining.match(/\*\*Edit:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);

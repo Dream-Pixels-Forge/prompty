@@ -41,13 +41,13 @@ describe('check-page-claims gate', () => {
   }, 30_000);
 
   it('catches a stale hero count (off by one)', () => {
-    const stale = ORIGINAL_PAGE.replace('597 tests passing', '596 tests passing');
+    const stale = ORIGINAL_PAGE.replace('604 tests passing', '603 tests passing');
     expect(stale).not.toBe(ORIGINAL_PAGE);
     swapPage(stale);
     try {
       const { ok, stderr } = runCheck();
       expect(ok).toBe(false);
-      expect(stderr).toContain('596');
+      expect(stderr).toContain('603');
       expect(stderr).toContain('hero');
     } finally {
       restorePage();
@@ -56,8 +56,8 @@ describe('check-page-claims gate', () => {
 
   it('catches a stale stats-strip test count', () => {
     const stale = ORIGINAL_PAGE.replace(
-      '<b>597</b><span>tests passing · 42 files</span>',
-      '<b>500</b><span>tests passing · 42 files</span>',
+      '<b>604</b><span>tests passing · 43 files</span>',
+      '<b>500</b><span>tests passing · 43 files</span>',
     );
     expect(stale).not.toBe(ORIGINAL_PAGE);
     swapPage(stale);
@@ -72,7 +72,7 @@ describe('check-page-claims gate', () => {
   }, 30_000);
 
   it('catches a stale file count', () => {
-    const stale = ORIGINAL_PAGE.replace('tests passing · 42 files', 'tests passing · 12 files');
+    const stale = ORIGINAL_PAGE.replace('tests passing · 43 files', 'tests passing · 12 files');
     expect(stale).not.toBe(ORIGINAL_PAGE);
     swapPage(stale);
     try {
@@ -86,7 +86,7 @@ describe('check-page-claims gate', () => {
 
   it('reports a changed-markup error when the claim disappears', () => {
     const broken = ORIGINAL_PAGE.replace(
-      /<span><i class="dot"><\/i> 597 tests passing<\/span>/,
+      /<span><i class="dot"><\/i> 604 tests passing<\/span>/,
       '',
     );
     expect(broken).not.toBe(ORIGINAL_PAGE);

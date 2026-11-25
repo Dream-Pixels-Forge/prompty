@@ -217,6 +217,108 @@
     return list.filter((item) => item !== null && typeof item === 'object' && !Array.isArray(item));
   }
 
+  /* ------------------------------------------------------------------ */
+  /* G15: prompt-sheet shot extraction (inline port of src/lib/documents.js
+   * extractShotFromMarkdown / parseShotSection — content scripts cannot
+   * import ES modules, so the algorithm is duplicated here and kept in
+   * sync by tests/assist-parity.test.mjs). */
+  /* ------------------------------------------------------------------ */
+
+  /** Shot ids look like G01, G08, V12. */
+  const SHOT_HEADING = /^([A-Z]\d+)\s*(?:—\s*(.+))?/;
+
+  /**
+   * Recognized model info strings (sourced dialects from G9c + G15b).
+   * Kept in sync with src/lib/documents.js KNOWN_MODELS.
+   */
+  const SHOT_KNOWN_MODELS = new Set([
+    'muse', 'seedance', 'seedance-2.5', 'kling', 'minimax-hailuo', 'veo',
+    'runway', 'wan', 'luma', 'higgsfield', 'timecoded', 'script', 'one-take',
+  ]);
+
+  /**
+   * Parse Refs line into array of @reference tokens.
+   * @param {string} refsText
+   * @returns {string[]}
+   */
+  function shotParseRefs(refsText) {
+    const refs = [];
+    const matches = String(refsText ?? '').match(/@([a-zA-Z0-9_-]+)/g);
+    if (matches) {
+      for (const m of matches) {
+        const ref = m.startsWith('@') ? m : `@${m}`;
+        if (!refs.includes(ref)) refs.push(ref);
+      }
+    }
+    return refs;
+  }
+
+  /**
+   * Parse one `## ID — Name` shot section into a shot record.
+   * @param {string} section
+   * @param {string} documentId
+   * @param {string} projectName
+   * @returns {{ shotId:string,name:string,refs:string[],prompt:string,modelId:string|null,edit:string,check:string,documentId:string,projectName:string }|null}
+   */
+  function shotParseSection(section, documentId, projectName) {
+    const headingMatch = String(section ?? '').match(SHOT_HEADING);
+    if (!headingMatch) return null;
+
+    const shotId = String(headingMatch[1]).trim();
+    const name = String(headingMatch[2] ?? '').trim();
+    const remaining = String(section).slice(headingMatch[0].length);
+
+    const refsMatch = remaining.match(/\*\*Refs:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const refs = shotParseRefs(refsMatch ? refsMatch[1] : '');
+
+    const fencedBlocks = [...remaining.matchAll(/```([a-zA-Z0-9.-]*)\n([\s\S]*?)\n```/g)];
+
+    const editMatch = remaining.match(/\*\*Edit:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const edit = editMatch ? String(editMatch[1]).trim() : '';
+
+    const checkMatch = remaining.match(/\*\*CHECK:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const check = checkMatch ? String(checkMatch[1]).trim() : '';
+
+    let prompt = '';
+    let modelId = null;
+    for (const block of fencedBlocks) {
+      const info = String(block[1] ?? '').toLowerCase().trim();
+      const content = String(block[2] ?? '').trimEnd();
+      if (!info || SHOT_KNOWN_MODELS.has(info)) {
+        prompt = content;
+        modelId = info || null;
+        break;
+      }
+    }
+    if (!prompt && fencedBlocks.length > 0) {
+      prompt = String(fencedBlocks[0][2] ?? '').trimEnd();
+      const info = String(fencedBlocks[0][1] ?? '').toLowerCase().trim();
+      modelId = SHOT_KNOWN_MODELS.has(info) ? info : null;
+    }
+    if (!prompt) return null;
+
+    return { shotId, name, refs, prompt, modelId, edit, check, documentId, projectName };
+  }
+
+  /**
+   * Extract shot sections from a prompt-sheet markdown document.
+   * Parses `## <ID> — <name>` headings with fenced code blocks.
+   * @param {string} markdown
+   * @param {string} documentId
+   * @param {string} projectName
+   * @returns {Array<{shotId:string,name:string,refs:string[],prompt:string,modelId:string|null,edit:string,check:string,documentId:string,projectName:string}>}
+   */
+  function extractShotsFromMarkdown(markdown, documentId, projectName) {
+    if (typeof markdown !== 'string') return [];
+    const shots = [];
+    const sections = String(markdown).split(/(?:^|\n)## /);
+    for (let i = 1; i < sections.length; i++) {
+      const shot = shotParseSection(sections[i], documentId, projectName);
+      if (shot) shots.push(shot);
+    }
+    return shots;
+  }
+
   /* <variable-grammar> */
   // Shared verbatim with src/content/assist.js — edit both or the parity test fails.
   /**
@@ -657,6 +759,10 @@
       extractVariablesInline,
       humanizeVarInline,
       resolveVariablesInline,
+      // G15 prompt-sheet shot extraction
+      extractShotsFromMarkdown,
+      shotParseSection,
+      shotParseRefs,
       // G6 grammar (shared verbatim with src/lib/variables.js)
       varParse,
       varResolve,
@@ -1407,7 +1513,7 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
   /* ------------------------------------------------------------------ */
 
   /** Keys the content script needs that are encrypted when the vault is on. */
-  const VAULT_SECRET_KEYS = ['prompts', 'variableMemory'];
+  const VAULT_SECRET_KEYS = ['prompts', 'documents', 'variableMemory'];
   /** True after the background reported the vault as locked. */
   let vaultLocked = false;
   const VAULT_LOCKED_MESSAGE = tr('pageVaultLocked', 'Vault locked — open Prompty to unlock');
@@ -1991,14 +2097,30 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
   }
 
   /**
-   * Load prompts from storage for the palette.
+   * Load prompts + document shots from storage for the palette.
+   * Shots come from prompt-sheet documents (## ID — Name + fenced block).
    */
   async function loadPromptsForPalette() {
     const store = pageStore();
     if (!store) return;
     try {
-      const data = await store.get(['prompts']);
-      paletteItems = storedPromptList(data?.prompts);
+      const data = await store.get(['prompts', 'documents', 'projects']);
+      const promptItems = storedPromptList(data?.prompts).map((p) => ({ kind: 'prompt', ...p }));
+      const projectById = new Map();
+      for (const p of Array.isArray(data?.projects) ? data.projects : []) {
+        if (p && typeof p.id === 'string') projectById.set(p.id, p);
+      }
+      /** @type {any[]} */
+      const shotItems = [];
+      for (const doc of Array.isArray(data?.documents) ? data.documents : []) {
+        if (!doc || typeof doc !== 'object' || Array.isArray(doc)) continue;
+        const project = projectById.get(doc.projectId) || {};
+        const shots = extractShotsFromMarkdown(doc.markdown, doc.id, String(project.name ?? ''));
+        for (const shot of shots) {
+          shotItems.push({ kind: 'shot', ...shot });
+        }
+      }
+      paletteItems = [...promptItems, ...shotItems];
       if (vaultLocked) showToast({ message: VAULT_LOCKED_MESSAGE, isError: true });
     } catch {
       paletteItems = [];
@@ -2053,11 +2175,18 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     // Use inline fuzzy match (non-drift via test hook)
     const scored = [];
     for (const item of paletteItems) {
-      const key = `${String(item.title ?? '')} ${String(item.text ?? '')}`;
+      let key, ts;
+      if (item.kind === 'shot') {
+        // Search across shot id, name, project and prompt text.
+        key = `${String(item.shotId ?? '')} ${String(item.name ?? '')} ${String(item.projectName ?? '')} ${String(item.prompt ?? '')}`;
+        ts = 0; // shots rank on match quality only
+      } else {
+        key = `${String(item.title ?? '')} ${String(item.text ?? '')}`;
+        ts = item.lastUsedAt || item.createdAt;
+      }
       const subScore = subsequenceScoreInline(key, query);
       if (subScore !== null) {
         let recencyScore = 0;
-        const ts = item.lastUsedAt || item.createdAt;
         if (typeof ts === 'number' && ts > 0) {
           const ageMs = Date.now() - ts;
           const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
@@ -2167,26 +2296,43 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
 
   /**
    * Create a palette item element.
-   * @param {any} prompt
+   * @param {any} item prompt or shot ({kind:'shot'|'prompt', ...})
    * @param {string} key
    * @param {string} query
    * @param {boolean} selected
    * @returns {any}
    */
-  function createPaletteItem(prompt, key, query, selected) {
-    const item = elInShadow('div');
-    applyStyles(item, STYLES.paletteItem);
-    if (selected) applyStyles(item, STYLES.paletteItemSelected);
+  function createPaletteItem(item, key, query, selected) {
+    const isShot = item.kind === 'shot';
+    const itemEl = elInShadow('div');
+    applyStyles(itemEl, STYLES.paletteItem);
+    if (selected) applyStyles(itemEl, STYLES.paletteItemSelected);
 
     const title = elInShadow('div');
     applyStyles(title, STYLES.paletteItemTitle);
-    highlightText(title, String(prompt.title ?? '') || '(untitled)', query);
-    item.appendChild(title);
+    if (isShot) {
+      const shotTitle = String(item.shotId ?? '');
+      const shotName = String(item.name ?? '');
+      highlightText(title, shotName ? `${shotTitle} — ${shotName}` : shotTitle, query);
+    } else {
+      highlightText(title, String(item.title ?? '') || '(untitled)', query);
+    }
+    itemEl.appendChild(title);
+
+    const subtitle = elInShadow('div');
+    applyStyles(subtitle, STYLES.paletteItemText);
+    if (isShot) {
+      const badge = String(item.modelId ?? '');
+      subtitle.textContent = String(item.projectName ?? '') + (badge ? ` · ${badge}` : '');
+    } else {
+      subtitle.textContent = '';
+    }
+    itemEl.appendChild(subtitle);
 
     const snippet = elInShadow('div');
     applyStyles(snippet, STYLES.paletteItemText);
-    highlightText(snippet, String(prompt.text ?? ''), query);
-    item.appendChild(snippet);
+    highlightText(snippet, isShot ? String(item.prompt ?? '') : String(item.text ?? ''), query);
+    itemEl.appendChild(snippet);
 
     item.addEventListener('mousedown', (ev) => {
       ev.preventDefault(); // keep focus in page editable
@@ -2321,22 +2467,40 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const topItems = scored.slice(0, 8);
 
     if (paletteSelectedIndex >= topItems.length) return;
-    const selectedPrompt = topItems[paletteSelectedIndex].item;
+    const selected = topItems[paletteSelectedIndex].item;
+    const isShot = selected.kind === 'shot';
 
-    // Check for variables
-    const specs = varParse(String(selectedPrompt.text ?? ''));
+    // Shots insert directly — no variable form in the in-page palette
+    // (variable fill-in for shot prompts lives in the popup reader).
+    if (isShot) {
+      const text = String(selected.prompt ?? '');
+      const result = insertInto(paletteTarget, text, 'insert');
+      if (result.success) {
+        showToast({ message: tr('pageInserted', 'Inserted'), icon: '✓' });
+      } else {
+        showToast({ message: result.error || tr('insertFailedDefault', 'Insert failed'), isError: true });
+      }
+      closePalette();
+      if (paletteTarget && typeof paletteTarget.focus === 'function') {
+        paletteTarget.focus({ preventScroll: true });
+      }
+      return;
+    }
+
+    // Check for variables (prompts only)
+    const specs = varParse(String(selected.text ?? ''));
     if (specs.length > 0) {
-      void showVariableForm(selectedPrompt, specs);
+      void showVariableForm(selected, specs);
       return;
     }
 
     // Direct insert
-    const text = String(selectedPrompt.text ?? '');
+    const text = String(selected.text ?? '');
     const result = insertInto(paletteTarget, text, 'insert');
     if (result.success) {
       showToast({ message: tr('pageInserted', 'Inserted'), icon: '✓' });
       // Update lastUsedAt
-      updatePromptLastUsed(selectedPrompt.id);
+      updatePromptLastUsed(selected.id);
     } else {
       showToast({ message: result.error || tr('insertFailedDefault', 'Insert failed'), isError: true });
     }

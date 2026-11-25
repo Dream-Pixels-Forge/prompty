@@ -6,10 +6,10 @@
 import { t, tn } from '../lib/i18n.js';
 import { deliverText } from './actions.js';
 import { h, mount } from './dom.js';
-import { openModal } from './modals.js';
+import { openModal, documentHistoryModal, toast } from './modals.js';
 import { renderMarkdownToFragment } from '../lib/markdown-renderer.js';
-import { extractShotFromMarkdown } from '../lib/documents.js';
-import { state } from './store.js';
+import { extractShotFromMarkdown, MAX_DOCUMENT_VERSIONS } from '../lib/documents.js';
+import { save, state } from './store.js';
 import { kindLabel, kindIcon, formatRelative, markdownPreview } from './projects-logic.js';
 
 /** @typedef {import('../lib/documents.js').Project} Project */
@@ -420,6 +420,26 @@ function renderDocumentReader(root, host, project, document) {
     versions > 0
       ? h('span', { class: 'chip chip--doc' }, tn('versionCount', versions))
       : null,
+    versions > 0
+      ? h(
+          'button',
+          {
+            class: 'btn btn--ghost btn--sm',
+            type: 'button',
+            'aria-label': t('documentVersions'),
+            on: {
+              click: async () => {
+                const selected = await documentHistoryModal(document);
+                if (selected !== null && selected !== undefined) {
+                  await restoreDocumentVersion(document, selected);
+                  toast(t('versionRestored'));
+                }
+              },
+            },
+          },
+          '🕘',
+        )
+      : null,
     h('span', { class: 'muted document__kind' }, kindLabel(document.kind)),
   );
 
@@ -494,6 +514,27 @@ async function putShot(text, mode) {
   }
   const ok = await deliverText(text, mode);
   if (ok) window.close();
+}
+
+/**
+ * Restore an older document version: the current markdown becomes a new
+ * version and the selected version becomes current (G5-style versioning).
+ * @param {import('../lib/documents.js').Document} document
+ * @param {number} index index into document.versions (oldest = 0)
+ */
+async function restoreDocumentVersion(document, index) {
+  const version = document.versions?.[index];
+  if (!version) return;
+  const updated = {
+    ...document,
+    markdown: version.markdown,
+    updatedAt: Date.now(),
+    versions: [{ markdown: document.markdown, updatedAt: document.updatedAt }]
+      .concat(document.versions ?? [])
+      .slice(0, MAX_DOCUMENT_VERSIONS),
+  };
+  const docs = state.documents.map((d) => (d.id === document.id ? updated : d));
+  await save({ documents: docs });
 }
 
 /* ------------------------------------------------------------------ */

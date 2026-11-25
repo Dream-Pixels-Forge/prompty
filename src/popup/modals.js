@@ -759,3 +759,90 @@ export function historyModal(prompt) {
     onSubmit: () => selected,
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* Document version history (G15)                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Version list + side-by-side diff of a selected document version
+ * against the current markdown. Resolves to the index of the version to
+ * restore, or null.
+ * @param {import('../lib/documents.js').Document} document
+ * @returns {Promise<number|null>}
+ */
+export function documentHistoryModal(document) {
+  const versions = document.versions ?? [];
+  let selected = 0;
+  const list = h('ol', { class: 'history__list', role: 'listbox', 'aria-label': t('versions') });
+  const compare = h('div', { class: 'history__compare' });
+  const render = () => {
+    mount(
+      list,
+      h(
+        'li',
+        { class: 'history__item history__item--current', 'aria-disabled': 'true' },
+        h('strong', null, t('current')),
+        h('span', { class: 'muted' }, document.title),
+      ),
+      versions.map((v, i) =>
+        h(
+          'li',
+          {
+            class: 'history__item',
+            role: 'option',
+            tabindex: '0',
+            'aria-selected': String(i === selected),
+            on: {
+              click: () => ((selected = i), render()),
+              keydown: (e) => {
+                const k = /** @type {KeyboardEvent} */ (e).key;
+                if (k === 'ArrowDown' || k === 'ArrowUp') {
+                  e.preventDefault();
+                  selected = Math.max(
+                    0,
+                    Math.min(versions.length - 1, selected + (k === 'ArrowDown' ? 1 : -1)),
+                  );
+                  render();
+                  /** @type {HTMLElement|null} */ (
+                    list.querySelector('[aria-selected="true"]')
+                  )?.focus();
+                }
+              },
+            },
+          },
+          h('strong', null, `v${versions.length - i} · ${relativeTime(v.updatedAt)}`),
+          h('span', { class: 'muted' }, v.markdown.replace(/\s+/g, ' ').slice(0, 60)),
+        ),
+      ),
+    );
+    const v = versions[selected];
+    const { before, after } = sides(diffWords(v.markdown, document.markdown));
+    mount(
+      compare,
+      h(
+        'div',
+        { class: 'history__cols' },
+        h(
+          'section',
+          null,
+          h(
+            'span',
+            { class: 'field__label' },
+            `v${versions.length - selected} · ${relativeTime(v.updatedAt)}`,
+          ),
+          diffColumn(before),
+        ),
+        h('section', null, h('span', { class: 'field__label' }, t('current')), diffColumn(after)),
+      ),
+    );
+  };
+  render();
+  return openModal({
+    title: t('historyTitle', document.title),
+    wide: true,
+    body: h('div', { class: 'history' }, list, compare),
+    submitLabel: t('restoreThisVersion'),
+    onSubmit: () => selected,
+  });
+}

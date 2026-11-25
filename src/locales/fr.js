@@ -558,6 +558,8 @@ export default {
   versionCount_one: '$1 version',
   versionCount_other: '$1 versions',
   updatedAgo: 'Modifié il y a $1',
+  versionRestored: 'Version restaurée.',
+  documentVersions: 'Versions du document',
   newProject: 'Nouveau projet',
   addProject: 'Ajouter le projet',
   projectName: 'Nom du projet',

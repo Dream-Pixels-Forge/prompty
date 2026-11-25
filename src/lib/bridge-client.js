@@ -10,6 +10,7 @@ import { BRIDGE_STATUS_KEY } from './bridge-constants.js';
 import { applyPending, normalizeBridgeUrl, validatePending } from './bridge.js';
 import { CATEGORY_COLORS } from './colors.js';
 import { readAll, writeAll } from './storage.js';
+import { readAll as readAllDocuments } from './documents.js';
 
 /**
  * @typedef {import('./storage.js').Prompt} Prompt
@@ -100,9 +101,20 @@ export async function syncBridge(area, config, options = {}) {
   const check = validatePending(payload);
   if (!check.ok) return await fail({ reason: 'bad-payload', error: check.error });
 
-  const library = await readAll(area);
+  const [lib, docsLib] = await Promise.all([readAll(area), readAllDocuments(area)]);
+  const library = {
+    prompts: lib.prompts,
+    categories: lib.categories,
+    projects: docsLib.projects,
+    documents: docsLib.documents,
+  };
   const merged = applyPending(library, check.data, { now, newId: () => crypto.randomUUID(), colors });
-  await writeAll(area, { prompts: merged.prompts, categories: merged.categories });
+  await writeAll(area, {
+    prompts: merged.prompts,
+    categories: merged.categories,
+    projects: merged.projects,
+    documents: merged.documents,
+  });
 
   // A failed ack is recoverable: the next sync re-sends the same ids and the
   // merge is a no-op for prompts already present.
@@ -120,7 +132,12 @@ export async function syncBridge(area, config, options = {}) {
   try {
     await call('/snapshot', {
       method: 'POST',
-      body: JSON.stringify({ prompts: merged.prompts, categories: merged.categories }),
+      body: JSON.stringify({
+        prompts: merged.prompts,
+        categories: merged.categories,
+        projects: merged.projects,
+        documents: merged.documents,
+      }),
     });
   } catch {
     // Snapshot is a convenience for the agent's search; it never fails a sync.

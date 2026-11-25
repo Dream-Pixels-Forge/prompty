@@ -149,6 +149,25 @@ export async function startBridge({ store, token, port }) {
         icon: category.icon,
         order: category.order,
       })),
+      projects: pending.projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        color: project.color,
+        icon: project.icon,
+        description: project.description,
+        order: project.order,
+        createdAt: project.createdAt,
+      })),
+      documents: pending.documents.map((document) => ({
+        id: document.id,
+        projectId: document.projectId,
+        title: document.title,
+        kind: document.kind,
+        markdown: document.markdown,
+        createdAt: document.createdAt,
+        updatedAt: document.updatedAt,
+        versions: document.versions,
+      })),
       deleted: pending.deleted,
     };
   }

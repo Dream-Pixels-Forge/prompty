@@ -72,6 +72,9 @@ export const MAX_VERSIONS = 20;
  */
 
 /**
+ * @typedef {import('./documents.js').Project} Project
+ * @typedef {import('./documents.js').Document} Document
+ *
  * @typedef {object} Snippet
  * @property {string} id
  * @property {string} text
@@ -417,7 +420,7 @@ export async function readAll(area) {
 /**
  * Write the library back to a storage area.
  * @param {{ get: Function, set: Function }} [area] defaults to browser.storage.local
- * @param {{ prompts?: Prompt[], categories?: Category[], settings?: unknown }|undefined} [partialData]
+ * @param {{ prompts?: Prompt[], categories?: Category[], settings?: unknown, projects?: Project[], documents?: Document[] }|undefined} [partialData]
  * @returns {Promise<void>}
  */
 export async function writeAll(area, partialData) {
@@ -435,6 +438,12 @@ export async function writeAll(area, partialData) {
       DEFAULT_SETTINGS,
       isRecord(partialData.settings) ? partialData.settings : null,
     );
+  }
+  if (Array.isArray(partialData?.projects)) {
+    payload.projects = partialData.projects.filter((item) => item !== null);
+  }
+  if (Array.isArray(partialData?.documents)) {
+    payload.documents = partialData.documents.filter((item) => item !== null);
   }
   if (Object.keys(payload).length > 0) await store.set(payload);
 }

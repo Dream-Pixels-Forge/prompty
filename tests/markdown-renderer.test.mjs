@@ -1,11 +1,18 @@
-// @ts-nocheck
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { renderMarkdownToFragment } from '../src/lib/markdown-renderer.js';
 
 /**
  * Minimal DOM shim for markdown renderer tests.
  */
-class FakeNode {}
+class FakeNode {
+  _textContent = '';
+  get textContent() {
+    return this._textContent;
+  }
+  set textContent(value) {
+    this._textContent = String(value);
+  }
+}
 
 class FakeText extends FakeNode {
   /** @param {string} text */
@@ -33,9 +40,15 @@ class FakeElement extends FakeNode {
 
   classList = {
     _set: new Set(),
+    /** @param {string} className */
     add(className) { this._set.add(className); },
+    /** @param {string} className */
     remove(className) { this._set.delete(className); },
+    /** @param {string} className */
     contains(className) { return this._set.has(className); },
+    /** @param {string} className */
+    has(className) { return this._set.has(className); },
+    /** @param {string} className */
     toggle(className) { 
       if (this._set.has(className)) this._set.delete(className);
       else this._set.add(className);
@@ -64,6 +77,7 @@ class FakeElement extends FakeNode {
     return this.childNodes.includes(node);
   }
 
+  /** @param {string} selector @returns {FakeElement|null} */
   querySelector(selector) {
     // Simple selector matching: tag name, .class, [attr]
     for (const child of this.childNodes) {
@@ -80,9 +94,11 @@ class FakeElement extends FakeNode {
     return null;
   }
 
+  /** @param {string} selector @returns {FakeElement[]} */
   querySelectorAll(selector) {
     /** @type {FakeElement[]} */
     const results = [];
+    /** @param {FakeNode} node */
     const search = (node) => {
       if (node instanceof FakeElement) {
         const match = selector === node.name.toLowerCase() ||
@@ -96,9 +112,11 @@ class FakeElement extends FakeNode {
     return results;
   }
 
+  /** @param {string} tagName */
   getElementsByTagName(tagName) {
     /** @type {FakeElement[]} */
     const results = [];
+    /** @param {FakeNode} node */
     const search = (node) => {
       if (node instanceof FakeElement) {
         if (node.name.toLowerCase() === tagName.toLowerCase()) results.push(node);
@@ -109,10 +127,12 @@ class FakeElement extends FakeNode {
     return results;
   }
 
+  /** @param {string} name */
   getAttribute(name) {
     return this.attributes[name] ?? null;
   }
 
+  /** @param {string} name @param {string} value */
   setAttribute(name, value) {
     this.attributes[name] = value;
   }
@@ -130,13 +150,14 @@ class FakeElement extends FakeNode {
   }
 }
 
-class FakeDocumentFragment extends FakeNode {
+class FakeDocumentFragment extends FakeElement {
   constructor() {
     super();
     /** @type {FakeNode[]} */
     this.childNodes = [];
   }
 
+  /** @param {FakeNode} node */
   appendChild(node) {
     if (node instanceof FakeDocumentFragment) {
       // Expand fragment children
@@ -157,41 +178,6 @@ class FakeDocumentFragment extends FakeNode {
   get textContent() {
     return this.childNodes.map((n) => n.textContent ?? '').join('');
   }
-
-  querySelector(selector) {
-    for (const child of this.childNodes) {
-      if (child instanceof FakeElement) {
-        if (selector === child.name.toLowerCase()) return child;
-        const found = child.querySelector(selector);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  querySelectorAll(selector) {
-    /** @type {FakeElement[]} */
-    const results = [];
-    for (const child of this.childNodes) {
-      if (child instanceof FakeElement) {
-        const found = child.querySelectorAll(selector);
-        results.push(...found);
-      }
-    }
-    return results;
-  }
-
-  getElementsByTagName(tagName) {
-    /** @type {FakeElement[]} */
-    const results = [];
-    for (const child of this.childNodes) {
-      if (child instanceof FakeElement) {
-        const found = child.getElementsByTagName(tagName);
-        results.push(...found);
-      }
-    }
-    return results;
-  }
 }
 
 function installDom() {
@@ -200,8 +186,8 @@ function installDom() {
   globalThis.document = /** @type {any} */ ({
     body: new FakeElement('body'),
     activeElement: null,
-    createElement: (name) => new FakeElement(name),
-    createTextNode: (text) => new FakeText(text),
+    createElement: /** @type {(name: string) => FakeElement} */ ((name) => new FakeElement(name)),
+    createTextNode: /** @type {(text: string) => FakeText} */ ((text) => new FakeText(text)),
   });
 }
 
@@ -218,23 +204,23 @@ afterEach(() => {
 describe('renderMarkdownToFragment (safe markdown subset, DOM nodes only)', () => {
   it('renders headings', () => {
     const frag = renderMarkdownToFragment('# H1\n## H2\n### H3');
-    const h1 = frag.getElementsByTagName('h1');
-    const h2 = frag.getElementsByTagName('h2');
-    const h3 = frag.getElementsByTagName('h3');
+    const h1 = frag.querySelectorAll('h1');
+    const h2 = frag.querySelectorAll('h2');
+    const h3 = frag.querySelectorAll('h3');
     expect(h1).toHaveLength(1);
     expect(h2).toHaveLength(1);
     expect(h3).toHaveLength(1);
-    expect(h1[0].textContent).toBe('H1');
-    expect(h2[0].textContent).toBe('H2');
-    expect(h3[0].textContent).toBe('H3');
+    expect(h1[0]?.textContent).toBe('H1');
+    expect(h2[0]?.textContent).toBe('H2');
+    expect(h3[0]?.textContent).toBe('H3');
   });
 
   it('renders paragraphs', () => {
     const frag = renderMarkdownToFragment('Hello world\n\nSecond paragraph');
-    const paragraphs = frag.getElementsByTagName('p');
+    const paragraphs = frag.querySelectorAll('p');
     expect(paragraphs).toHaveLength(2);
-    expect(paragraphs[0].textContent).toBe('Hello world');
-    expect(paragraphs[1].textContent).toBe('Second paragraph');
+    expect(paragraphs[0]?.textContent).toBe('Hello world');
+    expect(paragraphs[1]?.textContent).toBe('Second paragraph');
   });
 
   it('renders bold and italic', () => {
@@ -247,20 +233,20 @@ describe('renderMarkdownToFragment (safe markdown subset, DOM nodes only)', () =
 
   it('renders unordered lists', () => {
     const frag = renderMarkdownToFragment('- item 1\n- item 2\n  - nested');
-    const lists = frag.getElementsByTagName('ul');
+    const lists = frag.querySelectorAll('ul');
     expect(lists.length).toBeGreaterThanOrEqual(1);
-    const items = frag.getElementsByTagName('li');
+    const items = frag.querySelectorAll('li');
     expect(items.length).toBe(3);
-    expect(items[0].textContent).toBe('item 1');
-    expect(items[1].textContent).toBe('item 2');
-    expect(items[2].textContent).toBe('nested');
+    expect(items[0]?.textContent).toBe('item 1');
+    expect(items[1]?.textContent).toBe('item 2');
+    expect(items[2]?.textContent).toBe('nested');
   });
 
   it('renders ordered lists', () => {
     const frag = renderMarkdownToFragment('1. first\n2. second');
     const ol = frag.querySelector('ol');
     expect(ol).not.toBeNull();
-    const items = frag.getElementsByTagName('li');
+    const items = frag.querySelectorAll('li');
     expect(items.length).toBe(2);
   });
 
@@ -268,7 +254,7 @@ describe('renderMarkdownToFragment (safe markdown subset, DOM nodes only)', () =
     const frag = renderMarkdownToFragment('> quoted text');
     const blockquote = frag.querySelector('blockquote');
     expect(blockquote).not.toBeNull();
-    expect(blockquote.textContent).toBe('quoted text');
+    expect(blockquote?.textContent).toBe('quoted text');
   });
 
   it('renders fenced code blocks', () => {
@@ -277,24 +263,24 @@ describe('renderMarkdownToFragment (safe markdown subset, DOM nodes only)', () =
     expect(pre).not.toBeNull();
     const code = frag.querySelector('code');
     expect(code).not.toBeNull();
-    expect(code.textContent).toBe('const x = 1;');
+    expect(code?.textContent).toBe('const x = 1;');
   });
 
   it('renders inline code', () => {
     const frag = renderMarkdownToFragment('Use `const x = 1` here');
     const code = frag.querySelector('code');
     expect(code).not.toBeNull();
-    expect(code.textContent).toBe('const x = 1');
+    expect(code?.textContent).toBe('const x = 1');
   });
 
   it('renders tables', () => {
     const frag = renderMarkdownToFragment('| A | B |\n|---|---|\n| 1 | 2 |');
     const table = frag.querySelector('table');
     expect(table).not.toBeNull();
-    const rows = frag.getElementsByTagName('tr');
+    const rows = frag.querySelectorAll('tr');
     expect(rows.length).toBe(2);
-    const cells = frag.getElementsByTagName('td');
-    const headers = frag.getElementsByTagName('th');
+    const cells = frag.querySelectorAll('td');
+    const headers = frag.querySelectorAll('th');
     // 2 headers (th) + 2 data cells (td) = 4
     expect(cells.length + headers.length).toBe(4);
   });
@@ -303,8 +289,8 @@ describe('renderMarkdownToFragment (safe markdown subset, DOM nodes only)', () =
     const frag = renderMarkdownToFragment('[link](https://example.com)');
     const a = frag.querySelector('a');
     expect(a).not.toBeNull();
-    expect(a.getAttribute('href')).toBeNull();
-    expect(a.textContent).toBe('link (https://example.com)');
+    expect(a?.getAttribute('href')).toBeNull();
+    expect(a?.textContent).toBe('link (https://example.com)');
   });
 
   it('does not execute script tags (treats as text)', () => {
@@ -324,8 +310,8 @@ describe('renderMarkdownToFragment (safe markdown subset, DOM nodes only)', () =
     const a = frag.querySelector('a');
     expect(a).not.toBeNull();
     // The parser extracts url up to ')', so it gets 'javascript:alert(1'
-    expect(a.textContent).toBe('click (javascript:alert(1)');
-    expect(a.getAttribute('href')).toBeNull();
+    expect(a?.textContent).toBe('click (javascript:alert(1)');
+    expect(a?.getAttribute('href')).toBeNull();
   });
 
   it('refuses oversized input (> 512 KB)', () => {
@@ -350,16 +336,17 @@ describe('renderMarkdownToFragment (safe markdown subset, DOM nodes only)', () =
 
   it('nested formatting in list items', () => {
     const frag = renderMarkdownToFragment('- **bold item**\n- *italic item*');
-    const items = frag.getElementsByTagName('li');
+    const items = frag.querySelectorAll('li');
     expect(items.length).toBe(2);
-    expect(items[0].querySelector('strong')).not.toBeNull();
-    expect(items[1].querySelector('em')).not.toBeNull();
+    expect(items[0]?.querySelector('strong')).not.toBeNull();
+    expect(items[1]?.querySelector('em')).not.toBeNull();
   });
 
   it('fenced code with info string preserved as class', () => {
     const frag = renderMarkdownToFragment('```muse\nprompt text\n```');
     const code = frag.querySelector('code');
-    expect(code.classList.contains('language-muse')).toBe(true);
+    expect(code).not.toBeNull();
+    expect(code?.classList.contains('language-muse')).toBe(true);
   });
 
   it('horizontal rule', () => {

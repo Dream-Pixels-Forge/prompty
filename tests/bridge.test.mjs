@@ -27,6 +27,8 @@ const prompt = (over = {}) =>
 const library = (over = {}) => ({
   prompts: [],
   categories: [],
+  projects: [],
+  documents: [],
   settings: { ...DEFAULT_SETTINGS },
   ...over,
 });

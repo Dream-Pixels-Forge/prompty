@@ -17,6 +17,7 @@ import { MAX_VERSIONS } from './storage.js';
  * @property {string} name
  * @property {string} color
  * @property {string} icon
+ * @property {string} [description]
  * @property {number} order
  * @property {number} createdAt
  */
@@ -476,6 +477,40 @@ export function linkPromptToDocument({
     lastUsedAt: null,
     composition,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Storage readers                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Read projects and documents from a storage area.
+ * @param {{ get: Function }} area
+ * @returns {Promise<{ projects: Project[], documents: Document[] }>}
+ */
+export async function readAll(area) {
+  const store = area;
+  const raw = await store.get(['projects', 'documents']);
+  /** @type {unknown[]} */
+  const rawProjects = Array.isArray(raw.projects) ? raw.projects : [];
+  /** @type {unknown[]} */
+  const rawDocuments = Array.isArray(raw.documents) ? raw.documents : [];
+
+  /** @type {Project[]} */
+  const projects = [];
+  for (const item of rawProjects) {
+    const normalized = normalizeProject(item);
+    if (normalized) projects.push(normalized);
+  }
+
+  /** @type {Document[]} */
+  const documents = [];
+  for (const item of rawDocuments) {
+    const normalized = normalizeDocument(item);
+    if (normalized) documents.push(normalized);
+  }
+
+  return { projects, documents };
 }
 
 /* ------------------------------------------------------------------ */

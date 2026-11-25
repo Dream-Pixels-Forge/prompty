@@ -33,10 +33,16 @@ describe('tool definitions', () => {
     const names = toolDefinitions.map((t) => t.name).sort();
     expect(names).toEqual([
       'bridge_status',
+      'delete_document',
       'delete_prompt',
+      'get_document',
       'get_prompt',
+      'get_shot',
       'list_categories',
+      'list_documents',
+      'list_projects',
       'list_prompts',
+      'save_document',
       'save_prompt',
       'search_prompts',
       'update_prompt',

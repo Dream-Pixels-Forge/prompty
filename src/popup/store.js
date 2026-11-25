@@ -10,12 +10,15 @@ import { DEFAULT_SETTINGS, readAll, writeAll } from '../lib/storage.js';
 import { secureArea } from '../lib/secure.js';
 import { VaultLockedError } from '../lib/secure-store.js';
 import { activeRecipes } from './library.js';
+import { readAll as readAllDocuments } from '../lib/documents.js';
 
 /**
  * @typedef {import('../lib/storage.js').Prompt} Prompt
  * @typedef {import('../lib/storage.js').Category} Category
  * @typedef {import('../lib/storage.js').Settings} Settings
  * @typedef {import('../lib/storage.js').Snippet} Snippet
+ * @typedef {import('../lib/documents.js').Project} Project
+ * @typedef {import('../lib/documents.js').Document} Document
  */
 
 export const state = {
@@ -23,6 +26,8 @@ export const state = {
   /** @type {Category[]} */ categories: [],
   /** @type {Settings} */ settings: { ...DEFAULT_SETTINGS },
   /** @type {Snippet[]} */ snippets: [],
+  /** @type {Project[]} */ projects: [],
+  /** @type {Document[]} */ documents: [],
   /** G6 fill-in memory (`variableMemory` storage key). @type {import('../lib/variables.js').VariableMemory} */
   variableMemory: {},
   /** Prompts created after this moment get a "New" chip (previous popup open). */
@@ -83,6 +88,8 @@ export async function lockVault() {
   await secureArea().lock();
   state.vault = 'locked';
   state.prompts = [];
+  state.projects = [];
+  state.documents = [];
   state.snippets = [];
   state.variableMemory = {};
   emit();
@@ -97,10 +104,12 @@ export async function refreshVault() {
 
 async function reload() {
   let lib;
+  let docsLib;
   /** @type {Record<string, any>} */
   let raw;
   try {
     lib = await readAll(secureArea());
+    docsLib = await readAllDocuments(secureArea());
     raw = await secureArea().get(['snippets', 'variableMemory']);
   } catch (error) {
     if (error instanceof VaultLockedError) return lockVault(); // idle-locked meanwhile
@@ -109,6 +118,8 @@ async function reload() {
   state.prompts = lib.prompts;
   state.categories = lib.categories;
   state.settings = lib.settings;
+  state.projects = (docsLib && docsLib.projects) || [];
+  state.documents = (docsLib && docsLib.documents) || [];
   state.snippets = Array.isArray(raw.snippets) ? raw.snippets : [];
   state.variableMemory =
     raw.variableMemory &&
@@ -122,7 +133,7 @@ async function reload() {
 /**
  * Persist any subset. Settings writes also mirror active user recipes to the
  * top-level `siteRecipes` key that the content script reads.
- * @param {{ prompts?: Prompt[], categories?: Category[], settings?: Partial<Settings>, snippets?: Snippet[], variableMemory?: import('../lib/variables.js').VariableMemory }} patch
+ * @param {{ prompts?: Prompt[], categories?: Category[], settings?: Partial<Settings>, snippets?: Snippet[], variableMemory?: import('../lib/variables.js').VariableMemory, projects?: Project[], documents?: Document[] }} patch
  */
 export async function save(patch) {
   if (patch.prompts) state.prompts = patch.prompts;
@@ -130,6 +141,8 @@ export async function save(patch) {
   if (patch.settings) state.settings = { ...state.settings, ...patch.settings };
   if (patch.snippets) state.snippets = patch.snippets;
   if (patch.variableMemory) state.variableMemory = patch.variableMemory;
+  if (patch.projects) state.projects = patch.projects;
+  if (patch.documents) state.documents = patch.documents;
   emit();
   try {
     await persist(patch);
@@ -145,6 +158,8 @@ async function persist(patch) {
     prompts: patch.prompts,
     categories: patch.categories,
     settings: patch.settings ? state.settings : undefined,
+    projects: patch.projects,
+    documents: patch.documents,
   });
   /** @type {Record<string, unknown>} */
   const extra = {};

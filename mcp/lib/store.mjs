@@ -16,6 +16,12 @@ import { join } from 'node:path';
 
 /** Longest prompt body accepted (matches the extension-side bridge cap). */
 export const MAX_TEXT = 100_000;
+/** Longest document markdown accepted (matches the extension-side cap). */
+export const MAX_DOCUMENT_MARKDOWN = 512 * 1024;
+/** Maximum documents per project. */
+export const MAX_DOCUMENTS_PER_PROJECT = 100;
+/** Maximum projects total. */
+export const MAX_PROJECTS = 50;
 /** Tags kept per prompt. */
 export const MAX_TAGS = 20;
 /** Deletion tombstones retained; older ones fall off. */
@@ -36,6 +42,108 @@ const PALETTE = [
   '#a855f7',
   '#0ea5e9',
 ];
+
+/** Valid document kinds. */
+export const KIND_VALUES = /** @type {const} */ (
+  ['screenplay', 'project-card', 'breakdown', 'prompt-sheet', 'rules', 'notes']
+);
+
+/**
+ * Extract shot sections from a prompt-sheet markdown document.
+ * Parses `## <ID> — <name>` headings with fenced code blocks.
+ * @param {string} markdown
+ * @returns {Array<{ shotId: string, name: string, prompt: string, refs: string[], check: string, edit: string }>}
+ */
+function extractShots(markdown) {
+  /** @type {Array<{ shotId: string, name: string, prompt: string, refs: string[], check: string, edit: string }>} */
+  const shots = [];
+
+  const sections = markdown.split(/(?:^|\n)## /);
+  for (let i = 1; i < sections.length; i++) {
+    const section = sections[i];
+    const headingMatch = section.match(/^([A-Z]\d+)\s*(?:—\s*(.+))?/);
+    if (!headingMatch) continue;
+
+    const shotId = headingMatch[1].trim();
+    const name = (headingMatch[2] || '').trim();
+    const remaining = section.slice(headingMatch[0].length);
+
+    // Extract fenced code blocks
+    const fencedBlocks = [...remaining.matchAll(/```([a-zA-Z0-9-]*)\n([\s\S]*?)\n```/g)];
+    let prompt = '';
+    for (const block of fencedBlocks) {
+      const info = /** @type {string} */ (block[1]).toLowerCase().trim();
+      const content = block[2].trimEnd();
+      if (!info || isKnownModel(info)) {
+        prompt = content;
+        break;
+      }
+    }
+    if (!prompt && fencedBlocks.length > 0) {
+      prompt = fencedBlocks[0][2].trimEnd();
+    }
+    if (!prompt) continue;
+
+    // Extract Refs
+    const refsMatch = remaining.match(/\*\*Refs:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const refs = parseRefs(refsMatch ? refsMatch[1] : '');
+
+    // Extract Edit
+    const editMatch = remaining.match(/\*\*Edit:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const edit = editMatch ? editMatch[1].trim() : '';
+
+    // Extract CHECK
+    const checkMatch = remaining.match(/\*\*CHECK:\*\*\s*([\s\S]*?)(?:\n\*\*|\n```|\n##|$)/);
+    const check = checkMatch ? checkMatch[1].trim() : '';
+
+    shots.push({ shotId, name, prompt, refs, check, edit });
+  }
+
+  return shots;
+}
+
+/** Recognized model info strings (sourced dialects from G9c + G15b). */
+const KNOWN_MODELS = new Set([
+  'muse',
+  'seedance',
+  'seedance-2.5',
+  'kling',
+  'minimax-hailuo',
+  'veo',
+  'runway',
+  'wan',
+  'luma',
+  'higgsfield',
+  'timecoded',
+  'script',
+  'one-take',
+]);
+
+/**
+ * @param {string} info
+ * @returns {boolean}
+ */
+function isKnownModel(info) {
+  return KNOWN_MODELS.has(info);
+}
+
+/**
+ * Parse Refs line into array of @reference tokens.
+ * @param {string} refsText
+ * @returns {string[]}
+ */
+function parseRefs(refsText) {
+  /** @type {string[]} */
+  const refs = [];
+  const matches = refsText.match(/@([a-zA-Z0-9_-]+)/g);
+  if (matches) {
+    for (const m of matches) {
+      const ref = m.startsWith('@') ? m : `@${m}`;
+      if (!refs.includes(ref)) refs.push(ref);
+    }
+  }
+  return refs;
+}
 
 /** Duplicate key: whitespace collapsed, case-folded (same rule as the extension). */
 export const textKey = (text) => text.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -63,6 +171,8 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
     prompts: loaded.prompts,
     categories: loaded.categories,
     tombstones: loaded.tombstones,
+    projects: loaded.projects,
+    documents: loaded.documents,
   };
 
   /** @param {string} path @param {unknown} data */
@@ -79,6 +189,8 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
       prompts: state.prompts,
       categories: state.categories,
       tombstones: state.tombstones,
+      projects: state.projects,
+      documents: state.documents,
       updatedAt: now(),
     });
 
@@ -199,6 +311,205 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
     return { deleted: true, id };
   };
 
+  /* ------------------------------------------------------------------ */
+  /* Projects                                                           */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Find or create a project by display name.
+   * @param {string} name
+   * @returns {string} project id
+   */
+  const resolveProject = (name) => {
+    const clean = name.trim().replace(/\s+/g, ' ');
+    const key = textKey(clean);
+    const existing = state.projects.find((project) => textKey(project.name) === key);
+    if (existing) return existing.id;
+    if (state.projects.length >= MAX_PROJECTS) {
+      throw new Error(`Project limit reached (max ${MAX_PROJECTS})`);
+    }
+    const project = {
+      id: newId(),
+      name: clean,
+      color: PALETTE[state.projects.length % PALETTE.length],
+      icon: '📁',
+      description: '',
+      order: state.projects.length,
+      createdAt: now(),
+    };
+    state.projects.push(project);
+    return project.id;
+  };
+
+  /**
+   * Upsert a document by (projectId, title). When markdown changed, the old
+   * content is archived as a version (capped at MAX_DOCUMENT_VERSIONS).
+   * @param {{
+   *   project: string,
+   *   title: string,
+   *   kind: string,
+   *   markdown: string,
+   *   extractPrompts?: boolean,
+   * }} input
+   * @returns {{
+   *   document: { id: string, projectId: string, title: string, kind: string },
+   *   created: boolean,
+   *   versions: number,
+   *   shots: number,
+   * }}
+   */
+  const saveDocument = async (input) => {
+    const projectName = typeof input?.project === 'string' && input.project.trim() !== '' ? input.project : null;
+    const title = typeof input?.title === 'string' ? input.title.trim() : '';
+    const kind =
+      typeof input?.kind === 'string' && KIND_VALUES.includes(input.kind) ? input.kind : 'notes';
+    const markdown = typeof input?.markdown === 'string' ? input.markdown : '';
+    const extractPrompts = input.extractPrompts === true;
+
+    if (!projectName) throw new Error('Project name is required');
+    if (title === '') throw new Error('Document title is required');
+    if (markdown.length > MAX_DOCUMENT_MARKDOWN) {
+      throw new Error(`Document markdown is too long (max ${MAX_DOCUMENT_MARKDOWN / 1024} KB)`);
+    }
+
+    const projectId = resolveProject(projectName);
+
+    const existing = state.documents.find(
+      (doc) => doc.projectId === projectId && textKey(doc.title) === textKey(title),
+    );
+
+    let shots;
+    if (existing) {
+      if (existing.markdown !== markdown) {
+        const version = { markdown: existing.markdown, updatedAt: existing.updatedAt };
+        const versions = existing.versions ? [version, ...existing.versions] : [version];
+        existing.versions = versions.slice(0, MAX_DOCUMENT_VERSIONS);
+      }
+      existing.markdown = markdown;
+      existing.updatedAt = now();
+      existing.kind = kind;
+      await persist();
+      shots = extractPrompts ? extractShots(markdown, projectName).length : 0;
+      return {
+        document: { id: existing.id, projectId, title: existing.title, kind: existing.kind },
+        created: false,
+        versions: existing.versions ? existing.versions.length : 0,
+        shots,
+      };
+    }
+
+    if (state.documents.length >= MAX_DOCUMENTS_PER_PROJECT) {
+      throw new Error(`Document limit reached per project (max ${MAX_DOCUMENTS_PER_PROJECT})`);
+    }
+
+    const document = {
+      id: newId(),
+      projectId,
+      title,
+      kind,
+      markdown,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    state.documents.push(document);
+    await persist();
+    shots = extractPrompts ? extractShots(markdown, projectName).length : 0;
+    return {
+      document: { id: document.id, projectId, title: document.title, kind: document.kind },
+      created: true,
+      versions: 0,
+      shots,
+    };
+  };
+
+  /** @returns {{ id: string, name: string, color: string, icon: string, order: number }[]} */
+  const listProjects = () =>
+    state.projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      color: project.color,
+      icon: project.icon,
+      order: project.order,
+    }));
+
+  /**
+   * @param {{ project?: string }} input
+   * @returns {Array<{ id: string, projectId: string, title: string, kind: string, updatedAt: number }>}
+   */
+  const listDocuments = (input) => {
+    const projectId =
+      typeof input?.project === 'string' && input.project.trim() !== ''
+        ? resolveProject(input.project)
+        : null;
+    const docs = projectId !== null
+      ? state.documents.filter((doc) => doc.projectId === projectId)
+      : state.documents;
+    return docs.map((doc) => ({
+      id: doc.id,
+      projectId: doc.projectId,
+      title: doc.title,
+      kind: doc.kind,
+      updatedAt: doc.updatedAt,
+    }));
+  };
+
+  /**
+   * @param {{ id?: string, project?: string, title?: string }} input
+   * @returns {{ id: string, projectId: string, title: string, kind: string, markdown: string, updatedAt: number, versions: Array<{ markdown: string, updatedAt: number }> } | null }
+   */
+  const getDocument = (input) => {
+    if (typeof input?.id === 'string' && input.id !== '') {
+      return state.documents.find((doc) => doc.id === input.id) ?? null;
+    }
+    if (
+      typeof input?.project === 'string' &&
+      input.project.trim() !== '' &&
+      typeof input?.title === 'string' &&
+      input.title.trim() !== ''
+    ) {
+      const projectId = resolveProject(input.project);
+      return (
+        state.documents.find(
+          (doc) => doc.projectId === projectId && textKey(doc.title) === textKey(input.title),
+        ) ?? null
+      );
+    }
+    return null;
+  };
+
+  /**
+   * Extract shot summaries from a document's markdown (prompt-sheet kind).
+   * @param {{ project: string, shotId: string }} input
+   * @returns {{ shotId: string, name: string, prompt: string, refs: string[], check: string, edit: string } | null }
+   */
+  const getShot = (input) => {
+    const projectName = typeof input?.project === 'string' ? input.project : '';
+    const shotId = typeof input?.shotId === 'string' ? input.shotId : '';
+    if (!projectName || !shotId) return null;
+    const projectId = resolveProject(projectName);
+    const doc = state.documents.find(
+      (d) => d.projectId === projectId && d.kind === 'prompt-sheet',
+    );
+    if (!doc) return null;
+    const shots = extractShots(doc.markdown, projectName);
+    return shots.find((shot) => shot.shotId === shotId) ?? null;
+  };
+
+  /** @param {{ id: string }} input */
+  const deleteDocument = async (input) => {
+    const id = typeof input?.id === 'string' ? input.id : '';
+    if (!id) throw new Error('Document id is required');
+    const index = state.documents.findIndex((doc) => doc.id === id);
+    if (index === -1) throw new Error(`Document not found: ${id}`);
+    state.documents.splice(index, 1);
+    state.tombstones.push({ id, deletedAt: now() });
+    if (state.tombstones.length > TOMBSTONE_CAP) {
+      state.tombstones = state.tombstones.slice(-TOMBSTONE_CAP);
+    }
+    await persist();
+    return { deleted: true, id };
+  };
+
   /** @param {unknown} ids */
   const ack = async (ids) => {
     const set = new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : []);
@@ -219,13 +530,15 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
   const pending = () => ({
     prompts: state.prompts.filter((prompt) => prompt.syncedAt === null),
     categories: state.categories,
+    documents: state.documents.filter((doc) => doc.syncedAt === null),
+    projects: state.projects.filter((project) => project.syncedAt === null),
     deleted: state.tombstones.map((tombstone) => ({ id: tombstone.id })),
   });
 
   /**
    * Merge the extension's library back in. Synced prompts mirror the browser;
    * prompts still queued for the extension survive the merge.
-   * @param {{ prompts?: unknown, categories?: unknown }} payload
+   * @param {{ prompts?: unknown, categories?: unknown, projects?: unknown, documents?: unknown }} payload
    */
   const snapshot = async (payload) => {
     const incoming = [];
@@ -268,8 +581,48 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
     }
     state.categories = [...categories.values()];
 
+    // Merge projects from the extension (same id-based merge as categories).
+    const projectsMap = new Map();
+    for (const raw of asArray(payload?.projects)) {
+      if (!isRecord(raw)) continue;
+      if (typeof raw.id !== 'string' || raw.id === '') continue;
+      if (typeof raw.name !== 'string' || raw.name.trim() === '') continue;
+      projectsMap.set(raw.id, {
+        id: raw.id,
+        name: raw.name.trim(),
+        color: typeof raw.color === 'string' ? raw.color : PALETTE[projectsMap.size % PALETTE.length],
+        icon: typeof raw.icon === 'string' ? raw.icon : '📁',
+        description: typeof raw.description === 'string' ? raw.description : '',
+        order: Number.isFinite(raw.order) ? Number(raw.order) : projectsMap.size,
+        createdAt: Number.isFinite(raw.createdAt) ? Number(raw.createdAt) : now(),
+      });
+    }
+    for (const project of state.projects) {
+      if (project.syncedAt === null && !projectsMap.has(project.id)) projectsMap.set(project.id, project);
+    }
+    state.projects = [...projectsMap.values()];
+
+    // Merge documents from the extension.
+    const docsMap = new Map();
+    for (const raw of asArray(payload?.documents)) {
+      const doc = normalizeDocument(raw, now);
+      if (doc) {
+        doc.source = 'extension';
+        doc.syncedAt = now();
+        docsMap.set(doc.id, doc);
+      }
+    }
+    for (const doc of state.documents) {
+      if (doc.syncedAt === null && !docsMap.has(doc.id)) docsMap.set(doc.id, doc);
+    }
+    state.documents = [...docsMap.values()];
+
     await persist();
-    return { stored: state.prompts.length };
+    return {
+      stored: state.prompts.length,
+      projects: state.projects.length,
+      documents: state.documents.length,
+    };
   };
 
   return {
@@ -280,9 +633,15 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
     recovered: loaded.recovered,
     listPrompts: () => state.prompts,
     listCategories: () => state.categories,
+    listProjects,
+    listDocuments,
     savePrompt,
     updatePrompt,
     deletePrompt,
+    saveDocument,
+    getDocument,
+    getShot,
+    deleteDocument,
     ack,
     pending,
     snapshot,
@@ -320,7 +679,7 @@ async function readLibrary(path, now) {
     recovered = !(error && /** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT');
   }
   if (!isRecord(parsed)) {
-    return { prompts: [], categories: [], tombstones: [], recovered };
+    return { prompts: [], categories: [], tombstones: [], projects: [], documents: [], recovered };
   }
   return {
     prompts: asArray(parsed.prompts).map((raw) => normalizeStored(raw, now)).filter(Boolean),
@@ -340,6 +699,23 @@ async function readLibrary(path, now) {
       .filter((raw) => isRecord(raw) && typeof raw.id === 'string' && raw.id !== '')
       .map((raw) => ({ id: raw.id, deletedAt: Number.isFinite(raw.deletedAt) ? raw.deletedAt : 0 }))
       .slice(-TOMBSTONE_CAP),
+    projects: asArray(parsed.projects)
+      .filter(
+        (raw) =>
+          isRecord(raw) && typeof raw.id === 'string' && raw.id !== '' && typeof raw.name === 'string',
+      )
+      .map((raw) => ({
+        id: raw.id,
+        name: String(raw.name).trim(),
+        color: typeof raw.color === 'string' ? raw.color : PALETTE[0],
+        icon: typeof raw.icon === 'string' ? raw.icon : '📁',
+        description: typeof raw.description === 'string' ? raw.description : '',
+        order: Number.isFinite(raw.order) ? Number(raw.order) : 0,
+        createdAt: Number.isFinite(raw.createdAt) ? Number(raw.createdAt) : now(),
+      })),
+    documents: asArray(parsed.documents)
+      .filter((raw) => isValidDocument(raw))
+      .map((raw) => normalizeDocument(raw, now)),
     recovered,
   };
 }
@@ -398,6 +774,55 @@ export function titleFrom(title, text) {
   if (typeof title === 'string' && title.trim() !== '') return title.trim().slice(0, 200);
   const line = text.trim().split('\n')[0].trim();
   return line.length > 80 ? `${line.slice(0, 77)}…` : line;
+}
+
+/**
+ * Validate a raw document object (whitelist fields, refuse empty/oversized).
+ * @param {unknown} raw
+ * @returns {boolean}
+ */
+function isValidDocument(raw) {
+  if (!isRecord(raw)) return false;
+  if (typeof raw.id !== 'string' || raw.id === '') return false;
+  if (typeof raw.projectId !== 'string' || raw.projectId === '') return false;
+  if (typeof raw.title !== 'string' || raw.title.trim() === '') return false;
+  if (!KIND_VALUES.includes(/** @type {any} */ (raw.kind))) return false;
+  if (typeof raw.markdown !== 'string' || raw.markdown.trim() === '') return false;
+  if (raw.markdown.length > MAX_DOCUMENT_MARKDOWN) return false;
+  return true;
+}
+
+/**
+ * Normalize a raw document object to the MCP store schema.
+ * @param {unknown} raw
+ * @param {() => number} now
+ */
+function normalizeDocument(raw, now = Date.now) {
+  if (!isValidDocument(raw)) return null;
+  const kind = /** @type {any} */ (raw.kind);
+  return {
+    id: raw.id,
+    projectId: raw.projectId,
+    title: raw.title.trim(),
+    kind,
+    markdown: raw.markdown,
+    createdAt: Number.isFinite(raw.createdAt) ? Number(raw.createdAt) : now(),
+    updatedAt: Number.isFinite(raw.updatedAt) ? Number(raw.updatedAt) : now(),
+    versions: raw.versions && Array.isArray(raw.versions)
+      ? raw.versions
+          .filter(
+            (v) =>
+              isRecord(v) &&
+              typeof v.markdown === 'string' &&
+              typeof v.updatedAt === 'number' &&
+              Number.isFinite(v.updatedAt),
+          )
+          .map((v) => ({ markdown: v.markdown, updatedAt: v.updatedAt }))
+          .slice(0, MAX_DOCUMENT_VERSIONS)
+      : undefined,
+    source: raw.source === 'extension' ? 'extension' : 'mcp',
+    syncedAt: raw.syncedAt === null ? null : null,
+  };
 }
 
 /* ------------------------------------------------------------------ */

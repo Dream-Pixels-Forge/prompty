@@ -5,7 +5,7 @@
  */
 import { localizeDom, t, tn, uiLanguage } from '../lib/i18n.js';
 import { extractVariables } from '../lib/variables.js';
-import { copyText, usePrompt } from './actions.js';
+import { copyText, deliverText, usePrompt } from './actions.js';
 import {
   PROMPTS_DRAG_TYPE,
   moveDialog,
@@ -56,6 +56,7 @@ import { renderInsights } from './insights-view.js';
 import { syncLockScreen } from './vault-ui.js';
 import { renderSettings } from './settings-view.js';
 import { renderSnippets } from './snippets-view.js';
+import { renderProjects } from './projects-view.js';
 import { load, save, state, subscribe, watchStorage } from './store.js';
 import { migrateFrom } from './import-ui.js';
 import { buildPack, packFileName } from '../lib/pack.js';
@@ -63,7 +64,7 @@ import { buildPack, packFileName } from '../lib/pack.js';
 /**
  * @typedef {import('../lib/storage.js').Prompt} Prompt
  * @typedef {import('../lib/storage.js').Category} Category
- * @typedef {'all'|'favorites'|'recent'|'category'|'snippets'|'compose'|'insights'|'settings'} View
+ * @typedef {'all'|'favorites'|'recent'|'category'|'snippets'|'compose'|'insights'|'settings'|'projects'} View
  */
 
 /** @param {string} id */
@@ -82,6 +83,8 @@ const bulkbarEl = $('bulkbar');
 const route = {
   /** @type {View} */ view: 'all',
   /** @type {string|null} */ categoryId: null,
+  /** @type {string|null} */ projectId: null,
+  /** @type {string|null} */ documentId: null,
 };
 
 const NAV = /** @type {const} */ ([
@@ -90,6 +93,7 @@ const NAV = /** @type {const} */ ([
   ['recent', '↺', t('navRecent')],
   ['snippets', '⧉', t('navSnippets')],
   ['compose', '✦', t('navCompose')],
+  ['projects', '📂', t('navProjects')],
   ['insights', '▥', t('navInsights')],
 ]);
 
@@ -100,6 +104,23 @@ const NAV = /** @type {const} */ ([
 function go(view, categoryId = null) {
   route.view = view;
   route.categoryId = categoryId;
+  route.projectId = null;
+  route.documentId = null;
+  render();
+  viewEl.scrollTop = 0;
+}
+
+/**
+ * Open the Projects view, optionally scoped to a project (its document list)
+ * or a document (its reader).
+ * @param {string|null} [projectId]
+ * @param {string|null} [documentId]
+ */
+function goProjects(projectId = null, documentId = null) {
+  route.view = 'projects';
+  route.categoryId = null;
+  route.projectId = projectId;
+  route.documentId = documentId;
   render();
   viewEl.scrollTop = 0;
 }
@@ -910,15 +931,28 @@ function render() {
     selection = clearSelection();
     visibleIds = [];
   }
-  sortEl.disabled = !isLibrary || route.view === 'recent';
+  sortEl.disabled = !isLibrary || route.view === 'recent' || route.view === 'projects';
   sortEl.value = state.settings.sortBy;
   searchEl.placeholder =
     route.view === 'snippets' ? t('searchSnippetsPlaceholder') : t('searchPlaceholder');
-  searchEl.disabled = ['settings', 'compose', 'insights'].includes(route.view);
+  searchEl.disabled = ['settings', 'compose', 'insights', 'projects'].includes(route.view);
   if (route.view === 'snippets') renderSnippets(viewEl, searchEl.value, { newPrompt });
   else if (route.view === 'settings') renderSettings(viewEl);
   else if (route.view === 'compose') renderCompose(viewEl);
   else if (route.view === 'insights') renderInsights(viewEl, insightsHost);
+  else if (route.view === 'projects') {
+    renderProjects(viewEl, {
+      projectId: route.projectId,
+      documentId: route.documentId,
+      onSelectProject: (id) => goProjects(id),
+      onSelectDocument: (id) => goProjects(route.projectId, id),
+      onBackToProjects: () => goProjects(null),
+      onBackToDocuments: () => goProjects(route.projectId),
+      insertShot: (text) => void deliverText(text, 'insert'),
+      appendShot: (text) => void deliverText(text, 'append'),
+      copyShot: (text) => void deliverText(text, 'copy'),
+    });
+  }
   else renderLibrary();
   renderChrome();
 

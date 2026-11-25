@@ -115,6 +115,88 @@ export const toolDefinitions = [
       'Report whether the Prompty bridge is running, its loopback URL and pairing token, and how many prompts are waiting to be imported. Use it when the user asks why saved prompts are not showing up.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'save_document',
+    description:
+      'Save a markdown document to a project in the user\'s Prompty library. Use it when the user produces or revises a project file (screenplay, project card, breakdown, prompt sheet, rules, notes). The document is versioned on change; if extractPrompts is true, prompt-sheet sections (## ID — Name with fenced code blocks) are extracted as insertable prompts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: {
+          type: 'string',
+          description: 'Project name, e.g. "GOLDHUNTER". Created if it does not exist.',
+        },
+        title: {
+          type: 'string',
+          description: 'Document title, e.g. "PROMPTS_G01-G17-v3".',
+        },
+        kind: {
+          type: 'string',
+          enum: ['screenplay', 'project-card', 'breakdown', 'prompt-sheet', 'rules', 'notes'],
+          description: 'Document kind. Defaults to "notes".',
+        },
+        markdown: { type: 'string', description: 'Full markdown body. Required.' },
+        extractPrompts: {
+          type: 'boolean',
+          description: 'If true and kind is "prompt-sheet", extract shot sections as Prompty prompts.',
+        },
+      },
+      required: ['project', 'title', 'markdown'],
+    },
+  },
+  {
+    name: 'list_projects',
+    description:
+      'List the user\'s Prompty projects with their colors, icons, and order. Use it before saving a document so you pick the right project.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_documents',
+    description:
+      'List documents in a project (or all documents if no project is given), with id, title, kind and last-updated time.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Only documents in this project (case-insensitive).' },
+      },
+    },
+  },
+  {
+    name: 'get_document',
+    description:
+      'Return one document in full by id, or by project + title. Includes markdown, kind, updated time and version history.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Document id from list/search results.' },
+        project: { type: 'string', description: 'Project name (used with title).' },
+        title: { type: 'string', description: 'Document title (used with project).' },
+      },
+    },
+  },
+  {
+    name: 'get_shot',
+    description:
+      'Return a single shot from a prompt-sheet document: prompt text, refs, edit and check lines. Use it to insert a specific shot into a generation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project name.' },
+        shotId: { type: 'string', description: 'Shot id, e.g. "G08".' },
+      },
+      required: ['project', 'shotId'],
+    },
+  },
+  {
+    name: 'delete_document',
+    description:
+      'Delete a document by id from the Prompty library. The deletion is queued and applied by the extension on its next sync. Ask the user before deleting.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Document id.' } },
+      required: ['id'],
+    },
+  },
 ];
 
 /**
@@ -141,6 +223,18 @@ export function createTools(store) {
         return guard(async () => listCategories());
       case 'bridge_status':
         return guard(async () => bridgeStatus());
+      case 'save_document':
+        return guard(async () => saveDocument(input));
+      case 'list_projects':
+        return guard(async () => listProjects());
+      case 'list_documents':
+        return guard(async () => listDocuments(input));
+      case 'get_document':
+        return guard(async () => getDocument(input));
+      case 'get_shot':
+        return guard(async () => getShot(input));
+      case 'delete_document':
+        return guard(async () => deleteDocument(input));
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -283,6 +377,90 @@ export function createTools(store) {
       `Prompty bridge is running at ${url} with ${status.pending} prompt(s) waiting and ${status.prompts} in the library.`,
       status,
     );
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Document tools                                                     */
+  /* ---------------------------------------------------------------- */
+
+  async function saveDocument(input) {
+    const saved = await store.saveDocument({
+      project: input.project,
+      title: input.title,
+      kind: input.kind,
+      markdown: input.markdown,
+      extractPrompts: input.extractPrompts === true,
+    });
+    const verb = saved.created ? 'Saved' : 'Updated';
+    return result(
+      `${verb} document “${saved.document.title}” in project “${input.project}” (${saved.versions} version${saved.versions === 1 ? '' : 's'}, ${saved.shots} shot${saved.shots === 1 ? '' : 's'}). It will appear in Prompty on the next sync.`,
+      {
+        created: saved.created,
+        document: saved.document,
+        versions: saved.versions,
+        shots: saved.shots,
+        pending: true,
+      },
+    );
+  }
+
+  async function listProjects() {
+    const projects = store.listProjects();
+    const text =
+      projects.length === 0
+        ? 'No projects yet.'
+        : `${projects.length} project${projects.length === 1 ? '' : 's'}:\n${projects
+            .map((p) => `• ${p.name} [${p.id}]`)
+            .join('\n')}`;
+    return result(text, { projects });
+  }
+
+  async function listDocuments(input) {
+    const project = typeof input?.project === 'string' ? input.project : undefined;
+    const docs = store.listDocuments({ project });
+    const text =
+      docs.length === 0
+        ? project ? `No documents in project “${project}”.` : 'No documents yet.'
+        : `${docs.length} document${docs.length === 1 ? '' : 's'}:\n${docs
+            .map((d) => `• ${d.title} [${d.id}] (${d.kind})`)
+            .join('\n')}`;
+    return result(text, { documents: docs });
+  }
+
+  async function getDocument(input) {
+    const doc = store.getDocument(input);
+    if (!doc) throw new Error('Document not found');
+    const versions = doc.versions ?? [];
+    const text =
+      `${doc.title} (${doc.kind}) — updated ${new Date(doc.updatedAt).toLocaleString()}\n` +
+      `\n${doc.markdown}\n` +
+      (versions.length > 0 ? `\n${versions.length} previous version${versions.length === 1 ? '' : 's'}` : '');
+    return result(text, {
+      id: doc.id,
+      projectId: doc.projectId,
+      title: doc.title,
+      kind: doc.kind,
+      markdown: doc.markdown,
+      updatedAt: doc.updatedAt,
+      versions,
+    });
+  }
+
+  async function getShot(input) {
+    const shot = store.getShot(input);
+    if (!shot) throw new Error('Shot not found');
+    const text =
+      `**${shot.shotId} — ${shot.name}**\n` +
+      `\n${shot.prompt}\n` +
+      (shot.refs.length > 0 ? `\nRefs: ${shot.refs.join(', ')}` : '') +
+      (shot.edit ? `\nEdit: ${shot.edit}` : '') +
+      (shot.check ? `\nCHECK: ${shot.check}` : '');
+    return result(text, shot);
+  }
+
+  async function deleteDocument(input) {
+    const deleted = await store.deleteDocument(input);
+    return result(`Deleted document ${deleted.id}. The extension will remove it on the next sync.`, deleted);
   }
 
   /* ---------------------------------------------------------------- */

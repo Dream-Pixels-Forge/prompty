@@ -8,6 +8,7 @@
  */
 import { textKey } from './migrate.js';
 import { normalizeCategory, normalizePrompt } from './storage.js';
+import { normalizeProject, normalizeDocument, MAX_DOCUMENT_VERSIONS } from './documents.js';
 
 /** Wire protocol the extension speaks + the default agent address. */
 import { BRIDGE_PROTOCOL, DEFAULT_BRIDGE_URL } from './bridge-constants.js';
@@ -40,16 +41,42 @@ const FALLBACK_COLORS = ['#8b5cf6'];
  * @property {string} id
  * @property {string} name
  *
+ * @typedef {object} PendingProject
+ * @property {string} id
+ * @property {string} name
+ * @property {string} color
+ * @property {string} icon
+ * @property {string} description
+ * @property {number} order
+ * @property {number} createdAt
+ *
+ * @typedef {object} PendingDocument
+ * @property {string} id
+ * @property {string} projectId
+ * @property {string} title
+ * @property {import('./documents.js').DocumentKind} kind
+ * @property {string} markdown
+ * @property {number} createdAt
+ * @property {number} updatedAt
+ * @property {Array<{ markdown: string, updatedAt: number }>} [versions]
+ *
  * @typedef {object} Pending
  * @property {PendingPrompt[]} prompts
  * @property {PendingCategory[]} categories
+ * @property {PendingProject[]} projects
+ * @property {PendingDocument[]} documents
  * @property {{ id: string }[]} deleted
  *
  * @typedef {object} ApplyResult
  * @property {Prompt[]} prompts
  * @property {Category[]} categories
- * @property {{ added: number, updated: number, skipped: number, removed: number, categoriesAdded: number }} applied
+ * @property {Project[]} projects
+ * @property {Document[]} documents
+ * @property {{ added: number, updated: number, skipped: number, removed: number, categoriesAdded: number, projectsAdded: number, documentsAdded: number, documentsUpdated: number }} applied
  * @property {string[]} importedIds ids the bridge may acknowledge
+ *
+ * @typedef {import('./documents.js').Project} Project
+ * @typedef {import('./documents.js').Document} Document
  */
 
 /**
@@ -104,10 +131,16 @@ export function validatePending(payload) {
   /** @type {unknown} */
   const rawCategories = hasOwn(payload, 'categories') ? payload.categories : [];
   /** @type {unknown} */
+  const rawProjects = hasOwn(payload, 'projects') ? payload.projects : [];
+  /** @type {unknown} */
+  const rawDocuments = hasOwn(payload, 'documents') ? payload.documents : [];
+  /** @type {unknown} */
   const rawDeleted = hasOwn(payload, 'deleted') ? payload.deleted : [];
 
   if (!Array.isArray(rawPrompts)) return { ok: false, error: 'prompts is not an array' };
   if (!Array.isArray(rawCategories)) return { ok: false, error: 'categories is not an array' };
+  if (!Array.isArray(rawProjects)) return { ok: false, error: 'projects is not an array' };
+  if (!Array.isArray(rawDocuments)) return { ok: false, error: 'documents is not an array' };
   if (!Array.isArray(rawDeleted)) return { ok: false, error: 'deleted is not an array' };
   if (rawPrompts.length > MAX_PENDING_PROMPTS) {
     return { ok: false, error: `too many prompts (max ${MAX_PENDING_PROMPTS})` };
@@ -152,6 +185,33 @@ export function validatePending(payload) {
     categories.push({ id: entry.id, name: entry.name });
   }
 
+  /** @type {PendingProject[]} */
+  const projects = [];
+  for (const entry of rawProjects) {
+    if (!isRecord(entry)) continue;
+    if (typeof entry.id !== 'string' || entry.id === '') continue;
+    if (typeof entry.name !== 'string' || entry.name.trim() === '') continue;
+    projects.push({
+      id: entry.id,
+      name: entry.name.trim(),
+      color: typeof entry.color === 'string' ? entry.color : '#8b5cf6',
+      icon: typeof entry.icon === 'string' ? entry.icon : '📁',
+      description: typeof entry.description === 'string' ? entry.description : '',
+      order: typeof entry.order === 'number' && Number.isFinite(entry.order) ? entry.order : 0,
+      createdAt:
+        typeof entry.createdAt === 'number' && Number.isFinite(entry.createdAt)
+          ? entry.createdAt
+          : Date.now(),
+    });
+  }
+
+  /** @type {PendingDocument[]} */
+  const documents = [];
+  for (const entry of rawDocuments) {
+    const normalized = normalizeDocument(entry);
+    if (normalized) documents.push(normalized);
+  }
+
   /** @type {{ id: string }[]} */
   const deleted = [];
   for (const entry of rawDeleted) {
@@ -160,13 +220,13 @@ export function validatePending(payload) {
     deleted.push({ id: entry.id });
   }
 
-  return { ok: true, data: { prompts, categories, deleted } };
+  return { ok: true, data: { prompts, categories, projects, documents, deleted } };
 }
 
 /**
  * Merge a validated payload into a library snapshot. Pure: the input arrays
  * are never mutated and every added item goes through the storage normalizers.
- * @param {{ prompts: Prompt[], categories: Category[] }} library
+ * @param {{ prompts: Prompt[], categories: Category[], projects: Project[], documents: Document[] }} library
  * @param {Pending} pending
  * @param {{ now: number, newId: () => string, colors?: string[] }} options
  * @returns {ApplyResult}
@@ -291,10 +351,101 @@ export function applyPending(library, pending, options) {
     added++;
   }
 
+  // Merge projects (id-based, name dedup like categories).
+  /** @type {Project[]} */
+  const mergedProjects = library.projects.map((project) => ({ ...project }));
+  /** @type {Map<string, string>} server project id → local project id */
+  const projectIdMap = new Map();
+  /** @type {Map<string, string>} lowercased name → local project id */
+  const projectByName = new Map();
+  /** @type {Set<string>} project ids taken locally */
+  const projectTakenIds = new Set();
+  for (const project of mergedProjects) {
+    projectByName.set(nameKey(project.name), project.id);
+    projectTakenIds.add(project.id);
+  }
+  let projectsAdded = 0;
+  for (const incoming of pending.projects) {
+    const key = nameKey(incoming.name);
+    const existingId = projectByName.get(key);
+    if (existingId) {
+      projectIdMap.set(incoming.id, existingId);
+      continue;
+    }
+    const id = projectTakenIds.has(incoming.id) ? options.newId() : incoming.id;
+    const created =
+      normalizeProject({ ...incoming, id }) ?? null;
+    if (!created) continue;
+    mergedProjects.push(created);
+    projectByName.set(key, created.id);
+    projectTakenIds.add(created.id);
+    projectIdMap.set(incoming.id, created.id);
+    projectsAdded++;
+  }
+
+  // Merge documents (id-based upsert; markdown change → new version).
+  /** @type {Document[]} */
+  const mergedDocuments = library.documents.map((document) => ({ ...document }));
+  /** @type {Map<string, number>} document id → index in mergedDocuments */
+  const docIndexById = new Map();
+  mergedDocuments.forEach((doc, i) => docIndexById.set(doc.id, i));
+  let documentsAdded = 0;
+  let documentsUpdated = 0;
+  for (const incoming of pending.documents) {
+    importedIds.push(incoming.id);
+    if (tombstoned.has(incoming.id)) continue;
+
+    const existingIdx = docIndexById.get(incoming.id);
+    if (existingIdx !== undefined) {
+      const before = mergedDocuments[existingIdx];
+      if (before.markdown !== incoming.markdown) {
+        const version = { markdown: before.markdown, updatedAt: before.updatedAt };
+        const versions = before.versions ? [version, ...before.versions] : [version];
+        mergedDocuments[existingIdx] = {
+          ...before,
+          title: incoming.title ?? before.title,
+          kind: incoming.kind ?? before.kind,
+          markdown: incoming.markdown,
+          updatedAt: incoming.updatedAt ?? now,
+          versions: versions.slice(0, MAX_DOCUMENT_VERSIONS),
+        };
+      } else {
+        // unchanged, but update mutable fields
+        mergedDocuments[existingIdx] = {
+          ...before,
+          title: incoming.title ?? before.title,
+          kind: incoming.kind ?? before.kind,
+          updatedAt: incoming.updatedAt ?? before.updatedAt,
+        };
+      }
+      documentsUpdated++;
+      continue;
+    }
+
+    mergedDocuments.push({
+      ...incoming,
+      createdAt: incoming.createdAt ?? now,
+      updatedAt: incoming.updatedAt ?? now,
+    });
+    docIndexById.set(incoming.id, mergedDocuments.length - 1);
+    documentsAdded++;
+  }
+
   return {
     prompts,
     categories,
-    applied: { added, updated, skipped, removed, categoriesAdded },
+    projects: mergedProjects,
+    documents: mergedDocuments,
+    applied: {
+      added,
+      updated,
+      skipped,
+      removed,
+      categoriesAdded,
+      projectsAdded,
+      documentsAdded,
+      documentsUpdated,
+    },
     importedIds,
   };
 }

@@ -3,6 +3,42 @@
 All notable changes to Prompty. Versions follow [Semantic Versioning](https://semver.org/);
 before 1.0, minor versions may change stored data shapes, and every such change migrates silently.
 
+## [0.6.0] — unreleased · "Project Documents" (G15)
+
+Prompty's documents get a home of their own: projects group markdown files (screenplay,
+project-card, breakdown, prompt-sheet, rules, notes), each versioned up to 20 times, and
+prompt-sheet sections (`## G01 — Name` + fenced block) become insertable Prompty prompts
+linked back to the document they came from.
+
+### Added
+
+- **Projects & documents** (Projects view): a project list (color-coded rows, doc count,
+  last updated) → document list (kind icon/label, version chip) → document reader. The
+  reader renders markdown safely — DOM nodes + `textContent` only, no `innerHTML`, no
+  remote images, no HTML passthrough — with headings, paragraphs, bold/italic, lists,
+  tables, blockquotes, fenced code, inline code and links-as-text. A hostile document
+  (`<script>`, `javascript:` links, 600 KB body) renders inert or is refused.
+- **Document version diff** (G15 + G5): every document keeps up to 20 versions (newest
+  first). A version is compared word-by-word side by side against the current text, and
+  restoring one archives the current text as a new version; restoring is itself undoable.
+- **Agent bridge gains documents** (G15 + G14): `save_document` upserts by project +
+  title and creates a new version when the markdown changes; `list_projects`,
+  `list_documents`, `get_document`, `get_shot {project,shotId}` and `delete_document`
+  join the eight existing tools. Documents travel through the pending → import → ack
+  flow, one document per pending item, within the 1 MB cap.
+- **Share packs carry projects & documents**: `.prompty` packs now optionally bundle
+  `projects` and `documents` arrays (document version history is stripped, like prompt
+  history). Packs without them import as before; older Prompty given a pack with
+  documents imports prompts and reports documents as skipped — no crash.
+
+### Security
+
+- Markdown renderer builds nodes with `textContent` only — never `innerHTML`, never a
+  third-party sanitizer; fenced content is stored byte-for-byte so a single changed word
+  cannot silently break generation (anti-drift).
+- Documents live in `storage.local`, encrypted at rest when Vault Mode is on — the same
+  vault layer as prompts.
+
 ## [0.5.1] — 2026-11-14 · "Clean Room"
 
 The Chrome package no longer carries Firefox-only manifest keys, and the Chromium build is now

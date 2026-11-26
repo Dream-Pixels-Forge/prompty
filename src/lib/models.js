@@ -46,7 +46,20 @@ export function listModels() {
 }
 
 /**
- * Look up a profile by id.
+ * All models available to the user: built-ins plus custom profiles from
+ * settings. Custom profiles override built-ins with the same id.
+ * @param {ModelProfile[]} [customModels] user-defined profiles from settings
+ * @returns {ModelProfile[]}
+ */
+export function listAllModels(customModels) {
+  const byId = new Map();
+  for (const m of modelsCatalog) byId.set(m.id, { ...m });
+  for (const m of (customModels ?? [])) byId.set(m.id, { ...m });
+  return [...byId.values()];
+}
+
+/**
+ * Look up a profile by id (built-ins only).
  * @param {string} id
  * @returns {ModelProfile|undefined}
  */
@@ -56,12 +69,13 @@ export function getModel(id) {
 
 /**
  * Match an active-tab origin to the profile whose `hosts[]` contains it
- * (exact origin match, case-insensitive, ignoring port). Returns undefined
- * when no profile claims the site.
+ * (exact origin match, case-insensitive, ignoring port). Custom profiles are
+ * considered last so a user can override a built-in host mapping.
  * @param {string|null|undefined} origin e.g. "https://meta.ai"
+ * @param {ModelProfile[]} [customModels] user-defined profiles from settings
  * @returns {ModelProfile|undefined}
  */
-export function modelForOrigin(origin) {
+export function modelForOrigin(origin, customModels) {
   if (typeof origin !== 'string' || origin === '') return undefined;
   // Accept a full URL or an origin; extract the host.
   let host;
@@ -71,11 +85,16 @@ export function modelForOrigin(origin) {
     host = origin.replace(/^https?:\/\//, '');
   }
   const hostNoPort = host.toLowerCase().replace(/:.*$/, '');
-  return modelsCatalog.find((m) =>
+  const builtin = modelsCatalog.find((m) =>
     Array.isArray(m.hosts)
       ? m.hosts.some((h) => h.toLowerCase().replace(/:.*$/, '') === hostNoPort)
       : false,
   );
+  if (builtin) return builtin;
+  for (const m of (customModels ?? [])) {
+    if (Array.isArray(m.hosts) && m.hosts.some((h) => h.toLowerCase().replace(/:.*$/, '') === hostNoPort)) return m;
+  }
+  return undefined;
 }
 
 /**

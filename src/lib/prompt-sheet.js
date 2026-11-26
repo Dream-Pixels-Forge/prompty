@@ -23,6 +23,7 @@
  */
 import { getModel, modelForOrigin } from './models.js';
 import { wrapPrompt } from './wrappers.js';
+/** @typedef {import('./models.js').ModelProfile} ModelProfile */
 
 /** @typedef {import('./documents.js').Shot} Shot */
 
@@ -191,13 +192,14 @@ export function isKnownModelVariant(info) {
 }
 
 /**
- * Resolve a model profile for a variant, if one exists.
+ * Resolve a model profile for a variant, if one exists (built-ins + custom).
  * @param {string|null|undefined} modelId
+ * @param {ModelProfile[]} [customModels] user-defined profiles from settings
  * @returns {Object|undefined}
  */
-export function modelProfileForVariant(modelId) {
+export function modelProfileForVariant(modelId, customModels) {
   if (!modelId) return undefined;
-  return getModel(modelId);
+  return getModel(modelId) ?? (customModels ?? []).find((m) => m.id === modelId);
 }
 
 /**
@@ -206,12 +208,13 @@ export function modelProfileForVariant(modelId) {
  * else the neutral variant (modelId null/undefined), else the first variant.
  * @param {Shot[]} shots variants for the same shotId
  * @param {string|null|undefined} origin active-tab origin
+ * @param {ModelProfile[]} [customModels] user-defined profiles from settings
  * @returns {Shot|null}
  */
-export function selectVariantForSite(shots, origin) {
+export function selectVariantForSite(shots, origin, customModels) {
   if (!Array.isArray(shots) || shots.length === 0) return null;
   if (shots.length === 1) return shots[0];
-  const model = origin ? modelForOrigin(origin) : undefined;
+  const model = origin ? modelForOrigin(origin, customModels) : undefined;
   const targetModelId = model ? model.id : null;
   if (targetModelId) {
     const match = shots.find((s) => s.modelId === targetModelId);
@@ -227,10 +230,11 @@ export function selectVariantForSite(shots, origin) {
  * wrapper. Returns the prompt unchanged when there is no wrapper.
  * @param {string} text
  * @param {string|null|undefined} origin active-tab origin
+ * @param {ModelProfile[]} [customModels] user-defined profiles from settings
  * @returns {string}
  */
-export function wrapForSite(text, origin) {
-  const model = origin ? modelForOrigin(origin) : undefined;
+export function wrapForSite(text, origin, customModels) {
+  const model = origin ? modelForOrigin(origin, customModels) : undefined;
   const wrapperId = model ? model.wrapper : null;
   return wrapPrompt(String(text ?? ''), wrapperId);
 }
@@ -240,12 +244,13 @@ export function wrapForSite(text, origin) {
  * site, then apply the site's wrapper. Returns null when there are no shots.
  * @param {Shot[]} shots variants for the same shotId
  * @param {string|null|undefined} origin active-tab origin
+ * @param {ModelProfile[]} [customModels] user-defined profiles from settings
  * @returns {{ text: string, modelId: string|null, wrapped: boolean, shotId: string, name: string }|null}
  */
-export function prepareInsertForSite(shots, origin) {
-  const variant = selectVariantForSite(shots, origin);
+export function prepareInsertForSite(shots, origin, customModels) {
+  const variant = selectVariantForSite(shots, origin, customModels);
   if (!variant) return null;
-  const model = origin ? modelForOrigin(origin) : undefined;
+  const model = origin ? modelForOrigin(origin, customModels) : undefined;
   return {
     text: wrapPrompt(variant.prompt, model ? model.wrapper : null),
     modelId: variant.modelId ?? null,

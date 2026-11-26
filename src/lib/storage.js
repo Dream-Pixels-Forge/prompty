@@ -71,6 +71,8 @@ export const MAX_VERSIONS = 20;
  * @property {boolean} quickTriggerEnabled
  * @property {boolean} mcpBridgeEnabled G14: let a coding agent save prompts over loopback
  * @property {string} mcpBridgeUrl loopback base URL of the MCP bridge
+ * @property {{ id: string }[]} customModels G15b: user-defined model profiles
+ * @property {{ id: string }[]} customWrappers G15b: user-defined wrapper templates
  */
 
 /**
@@ -107,6 +109,10 @@ export const DEFAULT_SETTINGS = {
   quickTriggerEnabled: true,
   mcpBridgeEnabled: false,
   mcpBridgeUrl: DEFAULT_BRIDGE_URL,
+  /** User-added/overridden model profiles (G15b). */
+  customModels: [],
+  /** User-added wrapper templates (G15b). */
+  customWrappers: [],
 };
 
 /* ------------------------------------------------------------------ */
@@ -330,6 +336,16 @@ export function mergeSettings(base, patch) {
         typeof proposed === 'string' && proposed.length === 1 && proposed.trim() !== ''
           ? proposed
           : fallback;
+    } else if (key === 'customModels') {
+      // Validate each model profile; invalid entries dropped.
+      out[key] = Array.isArray(proposed)
+        ? proposed.map((m) => normalizeModel(m)).filter((m) => m !== null)
+        : [];
+    } else if (key === 'customWrappers') {
+      // Validate each wrapper template; invalid entries dropped.
+      out[key] = Array.isArray(proposed)
+        ? proposed.map((w) => normalizeWrapper(w)).filter((w) => w !== null)
+        : [];
     } else if (typeof fallback === 'boolean') {
       out[key] = boolOr(proposed, fallback);
     } else {

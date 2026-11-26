@@ -5,6 +5,8 @@
 import { t, tn } from '../lib/i18n.js';
 import browser from '../lib/browser.js';
 import { DEFAULT_SETTINGS } from '../lib/storage.js';
+import { normalizeModel, listModels } from '../lib/models.js';
+import { normalizeWrapper } from '../lib/wrappers.js';
 import { h, mount } from './dom.js';
 import { normalizeSiteInput, removeRecipe, toggleRecipe, upsertRecipe } from './library.js';
 import { applyImportData, parseImport, validateRecipeInput } from './logic.js';
@@ -18,6 +20,8 @@ import { save, state } from './store.js';
 /**
  * @typedef {import('../lib/storage.js').Settings} Settings
  * @typedef {import('../lib/storage.js').Recipe} Recipe
+ * @typedef {{ id: string, label: string, dialect: string, notes?: string }} ModelView
+ * @typedef {{ id: string, label: string, notes?: string }} WrapperView
  */
 
 /** @type {Recipe[]|null} */
@@ -63,6 +67,7 @@ export function renderSettings(root) {
       memorySection(),
       sitesSection(s),
       recipesSection(s),
+      modelsSection(s),
       vaultSection(section, () => renderSettings(root)),
       bridgeSection(section, () => renderSettings(root)),
       backupSection(),
@@ -433,6 +438,295 @@ async function editRecipe(recipe, fromBuiltin = false) {
   }
   await save({ settings: next });
   toast(t('setRecipeSaved', result.originPattern));
+}
+
+/* ------------------------------------------------------------------ */
+/* Model profiles & wrappers (G15b)                                    */
+/* ------------------------------------------------------------------ */
+
+const MODEL_TEMPLATE = {
+  id: 'custom-model',
+  label: 'My custom model',
+  hosts: ['example.ai'],
+  dialect: 'timecoded',
+  wrapper: null,
+  maxPromptChars: null,
+  negativePrompt: false,
+  refSlots: { images: 0, videos: 0, audio: 0 },
+  durations: null,
+  aspectRatios: null,
+  notes: 'What this model is for',
+  source: 'https://vendor.example.com/docs',
+  verified: false,
+};
+
+const WRAPPER_TEMPLATE = {
+  id: 'custom-wrapper',
+  label: 'My custom wrapper',
+  template: '<<<PROMPT\n{prompt}\nPROMPT>>>',
+  notes: 'What this wrapper is for',
+  source: 'https://vendor.example.com/docs',
+};
+
+/** @param {Settings} s */
+function modelsSection(s) {
+  const customModels = /** @type {ModelView[]} */ (
+    Array.isArray(s.customModels) ? s.customModels : []
+  );
+  const customWrappers = /** @type {WrapperView[]} */ (
+    Array.isArray(s.customWrappers) ? s.customWrappers : []
+  );
+  return section(
+    t('setModels'),
+    t('setModelsDesc'),
+    h('h3', { class: 'settings__sub' }, t('setYourModels')),
+    customModels.length === 0
+      ? h('p', { class: 'muted' }, t('noneYet'))
+      : h('ul', { class: 'list' }, ...customModels.map((m) => modelRow(m))),
+    h('h3', { class: 'settings__sub' }, t('setBuiltInModels')),
+    h(
+      'ul',
+      { class: 'list' },
+      ...listModels().map((m) => builtinModelRow(m)),
+    ),
+    h(
+      'button',
+      { class: 'btn', type: 'button', on: { click: () => void editModel() } },
+      t('setAddModel'),
+    ),
+    h('h3', { class: 'settings__sub' }, t('setYourWrappers')),
+    customWrappers.length === 0
+      ? h('p', { class: 'muted' }, t('noneYet'))
+      : h('ul', { class: 'list' }, ...customWrappers.map((w) => wrapperRow(w))),
+    h(
+      'button',
+      { class: 'btn', type: 'button', on: { click: () => void editWrapper() } },
+      t('setAddWrapper'),
+    ),
+  );
+}
+
+/**
+ * @param {ModelView} m
+ */
+function modelRow(m) {
+  return h(
+    'li',
+    { class: 'list__row' },
+    h(
+      'span',
+      { class: 'list__main' },
+      h('span', null, m.label),
+      h('span', { class: 'mono muted' }, m.id),
+      m.notes ? h('span', { class: 'muted' }, m.notes) : null,
+    ),
+    h('span', { class: 'chip chip--model' }, m.dialect),
+    h(
+      'button',
+      {
+        class: 'btn btn--ghost btn--sm',
+        type: 'button',
+        on: { click: () => void editModel(m) },
+      },
+      t('edit'),
+    ),
+    h(
+      'button',
+      {
+        class: 'icon-btn icon-btn--danger',
+        type: 'button',
+        'aria-label': t('setDeleteModel', m.id),
+        on: {
+          click: () =>
+            void save({
+              settings: {
+                ...state.settings,
+                customModels: state.settings.customModels.filter(
+                  (x) => x.id !== m.id,
+                ),
+              },
+            }),
+        },
+      },
+      '🗑',
+    ),
+  );
+}
+
+/**
+ * @param {{ id: string, label: string, dialect: string, verified: boolean, notes?: string }} m
+ */
+function builtinModelRow(m) {
+  return h(
+    'li',
+    { class: 'list__row' },
+    h(
+      'span',
+      { class: 'list__main' },
+      h('span', null, m.label),
+      h('span', { class: 'mono muted' }, m.id),
+      m.notes ? h('span', { class: 'muted' }, m.notes) : null,
+    ),
+    h('span', { class: 'chip chip--model' }, m.dialect),
+    m.verified
+      ? h('span', { class: 'chip chip--ok' }, t('setVerified'))
+      : h('span', { class: 'chip chip--warn' }, t('setUnverified')),
+  );
+}
+
+/**
+ * @param {WrapperView} w
+ */
+function wrapperRow(w) {
+  return h(
+    'li',
+    { class: 'list__row' },
+    h(
+      'span',
+      { class: 'list__main' },
+      h('span', null, w.label),
+      h('span', { class: 'mono muted' }, w.id),
+      w.notes ? h('span', { class: 'muted' }, w.notes) : null,
+    ),
+    h(
+      'button',
+      {
+        class: 'btn btn--ghost btn--sm',
+        type: 'button',
+        on: { click: () => void editWrapper(w) },
+      },
+      t('edit'),
+    ),
+    h(
+      'button',
+      {
+        class: 'icon-btn icon-btn--danger',
+        type: 'button',
+        'aria-label': t('setDeleteWrapper', w.id),
+        on: {
+          click: () =>
+            void save({
+              settings: {
+                ...state.settings,
+                customWrappers: state.settings.customWrappers.filter(
+                  (x) => x.id !== w.id,
+                ),
+              },
+            }),
+        },
+      },
+      '🗑',
+    ),
+  );
+}
+
+/**
+ * @param {object} [model]
+ * @param {boolean} [fromBuiltin]
+ */
+async function editModel(model, fromBuiltin = false) {
+  const start = model ?? MODEL_TEMPLATE;
+  const text = h('textarea', {
+    class: 'mono',
+    rows: '14',
+    spellcheck: 'false',
+    value: JSON.stringify(start, null, 2),
+  });
+  const errors = h('ul', { class: 'field__error' });
+  const result = await openModal({
+    title: model && !fromBuiltin ? t('setEditModel') : t('setNewModel'),
+    wide: true,
+    body: h(
+      'div',
+      { class: 'stack' },
+      h(
+        'label',
+        { class: 'field' },
+        h('span', { class: 'field__label' }, t('setModelJson')),
+        text,
+      ),
+      errors,
+    ),
+    submitLabel: t('setSaveRecipe'),
+    onSubmit: () => {
+      const normalized = normalizeModel(text.value);
+      if (!normalized) {
+        mount(errors, [h('li', null, t('setInvalidModel'))]);
+        return null;
+      }
+      mount(errors, []);
+      return normalized;
+    },
+  });
+  if (!result) return;
+  await save({
+    settings: {
+      ...state.settings,
+      customModels: upsertById(state.settings.customModels ?? [], result),
+    },
+  });
+  toast(t('setModelSaved', result.label));
+}
+
+/**
+ * @param {object} [wrapper]
+ */
+async function editWrapper(wrapper) {
+  const start = wrapper ?? WRAPPER_TEMPLATE;
+  const text = h('textarea', {
+    class: 'mono',
+    rows: '10',
+    spellcheck: 'false',
+    value: JSON.stringify(start, null, 2),
+  });
+  const errors = h('ul', { class: 'field__error' });
+  const result = await openModal({
+    title: wrapper ? t('setEditWrapper') : t('setNewWrapper'),
+    wide: true,
+    body: h(
+      'div',
+      { class: 'stack' },
+      h(
+        'label',
+        { class: 'field' },
+        h('span', { class: 'field__label' }, t('setWrapperJson')),
+        text,
+      ),
+      errors,
+    ),
+    submitLabel: t('setSaveRecipe'),
+    onSubmit: () => {
+      const normalized = normalizeWrapper(text.value);
+      if (!normalized) {
+        mount(errors, [h('li', null, t('setInvalidWrapper'))]);
+        return null;
+      }
+      mount(errors, []);
+      return normalized;
+    },
+  });
+  if (!result) return;
+  await save({
+    settings: {
+      ...state.settings,
+      customWrappers: upsertById(state.settings.customWrappers ?? [], result),
+    },
+  });
+  toast(t('setWrapperSaved', result.label));
+}
+
+/**
+ * Upsert an item into an array keyed by id (custom overrides built-in).
+ * @template {{ id: string }} T
+ * @param {T[]} list
+ * @param {T} item
+ * @returns {T[]}
+ */
+function upsertById(list, item) {
+  const idx = list.findIndex((x) => x.id === item.id);
+  const next = list.filter((x) => x.id !== item.id);
+  next.push(item);
+  return idx === -1 ? next : next;
 }
 
 /* ------------------------------------------------------------------ */

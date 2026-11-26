@@ -97,6 +97,10 @@ describe('usage', () => {
       /^Recipe must be an object$/,
       /^Invalid JSON: $/,
       /^What this recipe is for$/,
+      /^What this model is for$/,
+      /^What this wrapper is for$/,
+      /^My custom model$/,
+      /^My custom wrapper$/,
       /^Ctrl\+Enter$/, // a key chord, not a word
       /^example\.com$/, // placeholder domain
     ];

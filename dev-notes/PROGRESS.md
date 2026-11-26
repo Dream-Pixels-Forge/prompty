@@ -161,6 +161,21 @@ are checked by `scripts/validate-manifests.mjs` (target shape, cross-browser key
 
 Release pass: version 0.5.1, `CHANGELOG.md`, store listing and landing-page version.
 
+### v0.5.2 — G15b multi-model prompt sheets
+
+| PR  | Subgoal / change                                                               | Status    |
+| --- | ------------------------------------------------------------------------------ | --------- |
+| —   | Model profiles with sourced limits (9 models)                                  | ✅ Merged |
+| —   | Multi-variant prompt sheets (per-shot, per-model variants)                     | ✅ Merged |
+| —   | Wrappers (`meta-ai-pass-through`) + site-aware insert                          | ✅ Merged |
+| —   | Convert (structure only, cut-syntax rewrite)                                   | ✅ Merged |
+| —   | MCP: `list_models`, `get_shot {model?}`, `save_document` variant counts        | ✅ Merged |
+| —   | Packs carry models/wrappers                                                    | ✅ Merged |
+| —   | Settings UI for custom models/wrappers                                         | ✅ Merged |
+| —   | i18n (EN + FR) for all new strings                                             | ✅ Merged |
+
+Release pass: version 0.5.2, `CHANGELOG.md`, store listing, landing-page version.
+
 ### Open backlog (ROADMAP.md)
 
 1. **G19** Smart library hygiene — near-duplicate detection, auto-tag suggestions, archive dormant

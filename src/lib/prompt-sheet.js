@@ -254,3 +254,54 @@ export function prepareInsertForSite(shots, origin) {
     name: variant.name,
   };
 }
+
+/**
+ * G15b — Convert a shot prompt between model dialects, structure only.
+ *
+ * Rewrites only the cut syntax between sourced dialects. Never changes,
+ * adds or removes a word of shot content. The result is flagged
+ * autoConverted so the UI can show "auto-converted · review" until the
+ * user edits or approves it.
+ *
+ * Cut-marker rules (from G9c dialect writers):
+ *   Muse: ends with "STOP." / "STOP. HARD CUT." / "HARD CUT on a matching shape."
+ *   Seedance: begins with "At N seconds, <cut>." (cut event at a time point)
+ * @param {string} prompt shot prompt text
+ * @param {string|null|undefined} sourceDialect source dialect (muse|seedance|timecoded|script|one-take|null)
+ * @param {string|null|undefined} targetDialect target dialect
+ * @returns {{ prompt: string, autoConverted: boolean, sourceDialect: string|null, targetDialect: string|null }}
+ */
+export function convertVariant(prompt, sourceDialect, targetDialect) {
+  const text = String(prompt ?? '');
+  const src = sourceDialect ?? null;
+  const tgt = targetDialect ?? null;
+  let content = text;
+  let changed = false;
+
+  // Strip source-dialect cut markers.
+  if (src === 'muse') {
+    const before = content;
+    content = content.replace(/\s*STOP\.\s*HARD CUT\.\s*$/, '');
+    content = content.replace(/\s*HARD CUT on a matching shape\.\s*$/, '');
+    content = content.replace(/\s*STOP\.\s*$/, '');
+    if (content !== before) changed = true;
+  } else if (src === 'seedance') {
+    const before = content;
+    content = content.replace(
+      /^At \d+ seconds, (hard cut|match cut|smash cut|the camera whip-pans and completes the transition|slow dissolve|no cut, the camera keeps moving)\.?\s*/,
+      '',
+    );
+    if (content !== before) changed = true;
+  }
+
+  // Target-dialect markers are not added for a single shot (no sequence
+  // context for timecodes or shot numbers). The result is neutral content.
+  // changed stays true if we stripped anything.
+
+  return {
+    prompt: content,
+    autoConverted: changed,
+    sourceDialect: src,
+    targetDialect: tgt,
+  };
+}

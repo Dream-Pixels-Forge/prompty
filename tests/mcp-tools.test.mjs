@@ -40,6 +40,7 @@ describe('tool definitions', () => {
       'get_shot',
       'list_categories',
       'list_documents',
+      'list_models',
       'list_projects',
       'list_prompts',
       'save_document',
@@ -236,6 +237,136 @@ describe('categories and bridge status', () => {
     });
     expect(result.structuredContent.url).toBe('http://127.0.0.1:47821');
     expect(result.structuredContent.token).toMatch(/^[a-f0-9]{48}$/);
+  });
+});
+
+describe('list_models', () => {
+  it('returns all model profiles with dialect and limits', async () => {
+    const { tools } = await setup();
+    const result = await tools.call('list_models', {});
+    expect(result.isError).toBeFalsy();
+    const models = result.structuredContent.models;
+    expect(Array.isArray(models)).toBe(true);
+    expect(models.length).toBeGreaterThan(0);
+    const kling = models.find((m) => m.id === 'kling');
+    expect(kling).toMatchObject({
+      dialect: 'timecoded',
+      maxPromptChars: 8000,
+      negativePrompt: true,
+      verified: true,
+    });
+    const muse = models.find((m) => m.id === 'muse');
+    expect(muse).toMatchObject({
+      dialect: 'muse',
+      wrapper: 'meta-ai-pass-through',
+      verified: false,
+    });
+  });
+});
+
+describe('save_document (G15b)', () => {
+  const promptSheet = `## G08 — Love, then greed
+**Refs:** 1 \`@heroine\` · 2 \`@plate\`
+**Edit:** keep under 2 s
+**CHECK:** identity matches
+
+\`\`\`muse
+{heroine} reaches for {hero}, then he pulls back. STOP. HARD CUT.
+\`\`\`
+\`\`\`kling
+{heroine} reaches for {hero}, then he pulls back.
+\`\`\`
+\`\`\`
+neutral variant here
+\`\`\``;
+
+  it('reports per-model variant counts and lint warnings', async () => {
+    const { tools } = await setup();
+    const result = await tools.call('save_document', {
+      project: 'GOLDHUNTER',
+      title: 'PROMPTS_G08-v3',
+      kind: 'prompt-sheet',
+      markdown: promptSheet,
+      extractPrompts: true,
+    });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent.variantCounts).toMatchObject({
+      muse: 1,
+      kling: 1,
+      neutral: 1,
+    });
+    expect(Array.isArray(result.structuredContent.lintWarnings)).toBe(true);
+  });
+
+  it('re-save with same markdown creates no new version', async () => {
+    const { tools } = await setup();
+    await tools.call('save_document', {
+      project: 'GOLDHUNTER',
+      title: 'PROMPTS_G08-v3',
+      kind: 'prompt-sheet',
+      markdown: promptSheet,
+      extractPrompts: true,
+    });
+    const result = await tools.call('save_document', {
+      project: 'GOLDHUNTER',
+      title: 'PROMPTS_G08-v3',
+      kind: 'prompt-sheet',
+      markdown: promptSheet,
+      extractPrompts: true,
+    });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent.versions).toBe(0);
+  });
+});
+
+describe('get_shot (G15b)', () => {
+  const promptSheet = `## G08 — Love, then greed
+**Refs:** 1 \`@heroine\` · 2 \`@plate\`
+
+\`\`\`muse
+{heroine} reaches for {hero}, then he pulls back. STOP. HARD CUT.
+\`\`\`
+\`\`\`kling
+{heroine} reaches for {hero}, then he pulls back.
+\`\`\``;
+
+  it('returns the model variant when model is specified', async () => {
+    const { tools } = await setup();
+    await tools.call('save_document', {
+      project: 'GOLDHUNTER',
+      title: 'PROMPTS_G08',
+      kind: 'prompt-sheet',
+      markdown: promptSheet,
+      extractPrompts: true,
+    });
+
+    const kling = await tools.call('get_shot', {
+      project: 'GOLDHUNTER',
+      shotId: 'G08',
+      model: 'kling',
+    });
+    expect(kling.isError).toBeFalsy();
+    expect(kling.structuredContent.prompt).toContain('{heroine} reaches for {hero}');
+
+    const muse = await tools.call('get_shot', {
+      project: 'GOLDHUNTER',
+      shotId: 'G08',
+      model: 'muse',
+    });
+    expect(muse.isError).toBeFalsy();
+    expect(muse.structuredContent.prompt).toContain('STOP. HARD CUT.');
+  });
+
+  it('returns neutral variant when model not specified', async () => {
+    const { tools } = await setup();
+    const result = await tools.call('save_document', {
+      project: 'GOLDHUNTER',
+      title: 'PROMPTS_G08',
+      kind: 'prompt-sheet',
+      markdown: promptSheet,
+      extractPrompts: true,
+    });
+    expect(result.isError).toBeFalsy();
   });
 });
 

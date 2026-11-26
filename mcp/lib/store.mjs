@@ -134,6 +134,156 @@ const KNOWN_MODELS = new Set([
 ]);
 
 /**
+ * Model profiles (inline copy of src/assets/models.json for the MCP store).
+ * Only vendor-sourced numbers are kept; everything else is null.
+ */
+const MODEL_PROFILES = [
+  {
+    id: 'muse',
+    label: 'Muse Video',
+    hosts: ['meta.ai', 'www.meta.ai'],
+    dialect: 'muse',
+    wrapper: 'meta-ai-pass-through',
+    maxPromptChars: null,
+    negativePrompt: false,
+    refSlots: { images: 0, videos: 0, audio: 0 },
+    durations: null,
+    aspectRatios: null,
+    source: 'Field-tested by owner via meta.ai (Muse)',
+    verified: false,
+  },
+  {
+    id: 'seedance-2.5',
+    label: 'Seedance 2.5',
+    hosts: ['dreamina.capcut.com', 'jimeng.jianying.com', 'console.byteplus.com'],
+    dialect: 'seedance',
+    wrapper: null,
+    maxPromptChars: null,
+    negativePrompt: false,
+    refSlots: { images: 0, videos: 0, audio: 0 },
+    durations: null,
+    aspectRatios: null,
+    source: 'Seedance 2.5 prompt guide (BytePlus ModelArk)',
+    verified: false,
+  },
+  {
+    id: 'kling',
+    label: 'Kling',
+    hosts: ['kling.ai', 'www.kling.ai'],
+    dialect: 'timecoded',
+    wrapper: null,
+    maxPromptChars: 8000,
+    negativePrompt: true,
+    refSlots: { images: 10, videos: 0, audio: 0 },
+    durations: [3, 5, 10, 15, 20, 30],
+    aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
+    source: 'https://kling.ai/document-api/api/usage-guide/kling-4-0.md',
+    verified: true,
+  },
+  {
+    id: 'minimax-hailuo',
+    label: 'MiniMax Hailuo',
+    hosts: ['hailuo.ai', 'www.hailuo.ai'],
+    dialect: 'timecoded',
+    wrapper: null,
+    maxPromptChars: 2000,
+    negativePrompt: false,
+    refSlots: { images: 1, videos: 1, audio: 0 },
+    durations: [6, 10],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    source: 'https://platform.minimax.io/docs/api-reference/video-generation-fl2v',
+    verified: true,
+  },
+  {
+    id: 'veo',
+    label: 'Google Veo',
+    hosts: [],
+    dialect: 'timecoded',
+    wrapper: null,
+    maxPromptChars: null,
+    negativePrompt: false,
+    refSlots: { images: 0, videos: 0, audio: 0 },
+    durations: null,
+    aspectRatios: null,
+    source: 'https://cloud.google.com/vertex-ai/generative-ai/docs/video/generate-videos-from-text',
+    verified: false,
+  },
+  {
+    id: 'runway',
+    label: 'Runway',
+    hosts: ['runwayml.com', 'app.runwayml.com'],
+    dialect: 'script',
+    wrapper: null,
+    maxPromptChars: null,
+    negativePrompt: false,
+    refSlots: { images: 0, videos: 0, audio: 0 },
+    durations: null,
+    aspectRatios: null,
+    source: 'https://runway.com/research/introducing-gen-3-alpha',
+    verified: false,
+  },
+  {
+    id: 'wan',
+    label: 'Wan',
+    hosts: [],
+    dialect: 'timecoded',
+    wrapper: null,
+    maxPromptChars: null,
+    negativePrompt: false,
+    refSlots: { images: 0, videos: 0, audio: 0 },
+    durations: null,
+    aspectRatios: null,
+    source: 'Not sourced — placeholder profile pending vendor documentation.',
+    verified: false,
+  },
+  {
+    id: 'luma',
+    label: 'Luma Dream Machine',
+    hosts: ['lumalabs.ai', 'lumalabs.com'],
+    dialect: 'timecoded',
+    wrapper: null,
+    maxPromptChars: null,
+    negativePrompt: false,
+    refSlots: { images: 0, videos: 0, audio: 0 },
+    durations: null,
+    aspectRatios: null,
+    source: 'Not sourced — placeholder profile pending vendor documentation.',
+    verified: false,
+  },
+  {
+    id: 'higgsfield',
+    label: 'Higgsfield',
+    hosts: ['higgsfield.ai', 'www.higgsfield.ai'],
+    dialect: 'timecoded',
+    wrapper: null,
+    maxPromptChars: null,
+    negativePrompt: false,
+    refSlots: { images: 0, videos: 0, audio: 0 },
+    durations: null,
+    aspectRatios: null,
+    source: 'Not sourced — placeholder profile pending vendor documentation.',
+    verified: false,
+  },
+];
+
+/**
+ * List all model profiles.
+ * @returns {object[]}
+ */
+function listModels() {
+  return MODEL_PROFILES.map((m) => ({ ...m }));
+}
+
+/**
+ * Look up a model profile by id.
+ * @param {string} id
+ * @returns {object|undefined}
+ */
+function getModelProfile(id) {
+  return MODEL_PROFILES.find((m) => m.id === id);
+}
+
+/**
  * @param {string} info
  * @returns {boolean}
  */
@@ -157,6 +307,47 @@ function parseRefs(refsText) {
     }
   }
   return refs;
+}
+
+/**
+ * Lint a shot's prompt text against a model profile. Warnings only.
+ * @param {{ text: string, refs?: string[] }} shot
+ * @param {object} model
+ * @returns {Array<{ key: string, text: string }>}
+ */
+function lintForModel(shot, model) {
+  /** @type {Array<{ key: string, text: string }>} */
+  const out = [];
+  const text = typeof shot?.text === 'string' ? shot.text : '';
+  const refs = Array.isArray(shot?.refs) ? shot.refs : [];
+
+  if (model.maxPromptChars !== null && text.length > model.maxPromptChars) {
+    out.push({
+      key: 'lintModelChars',
+      text: `${text.length} chars: ${model.label} accepts about ${model.maxPromptChars}; trim the prompt.`,
+    });
+  }
+
+  const slots = model.refSlots ?? { images: 0, videos: 0, audio: 0 };
+  for (const slot of ['images', 'videos', 'audio']) {
+    const n = refs.filter((r) => r.startsWith('@' + slot.slice(0, 1))).length;
+    const limit = slots[slot];
+    if (limit !== null && n > limit) {
+      out.push({
+        key: 'lintModelRefs',
+        text: `${n} ${slot} refs: ${model.label} takes ${limit} ${slot} reference slot(s).`,
+      });
+    }
+  }
+
+  if (/negative\s*prompt/i.test(text) && model.negativePrompt !== true) {
+    out.push({
+      key: 'lintModelNegative',
+      text: `Negative-prompt section present but ${model.label} has no negative-prompt field.`,
+    });
+  }
+
+  return out;
 }
 
 /** Duplicate key: whitespace collapsed, case-folded (same rule as the extension). */
@@ -392,7 +583,26 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
       (doc) => doc.projectId === projectId && textKey(doc.title) === textKey(title),
     );
 
-    let shots;
+    let variantCounts;
+    let lintWarnings;
+    if (extractPrompts) {
+      const shots = extractShots(markdown);
+      /** @type {Record<string, number>} */
+      variantCounts = {};
+      lintWarnings = [];
+      for (const shot of shots) {
+        const mid = shot.modelId ?? 'neutral';
+        variantCounts[mid] = (variantCounts[mid] ?? 0) + 1;
+        const model = getModelProfile(mid === 'neutral' ? 'timecoded' : mid);
+        if (model) {
+          lintWarnings.push(...lintForModel(shot, model));
+        }
+      }
+    } else {
+      variantCounts = {};
+      lintWarnings = [];
+    }
+
     if (existing) {
       if (existing.markdown !== markdown) {
         const version = { markdown: existing.markdown, updatedAt: existing.updatedAt };
@@ -403,12 +613,12 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
       existing.updatedAt = now();
       existing.kind = kind;
       await persist();
-      shots = extractPrompts ? extractShots(markdown, projectName).length : 0;
       return {
         document: { id: existing.id, projectId, title: existing.title, kind: existing.kind },
         created: false,
         versions: existing.versions ? existing.versions.length : 0,
-        shots,
+        variantCounts,
+        lintWarnings,
       };
     }
 
@@ -427,12 +637,12 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
     };
     state.documents.push(document);
     await persist();
-    shots = extractPrompts ? extractShots(markdown, projectName).length : 0;
     return {
       document: { id: document.id, projectId, title: document.title, kind: document.kind },
       created: true,
       versions: 0,
-      shots,
+      variantCounts,
+      lintWarnings,
     };
   };
 
@@ -499,14 +709,25 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
   const getShot = (input) => {
     const projectName = typeof input?.project === 'string' ? input.project : '';
     const shotId = typeof input?.shotId === 'string' ? input.shotId : '';
+    const modelId = typeof input?.model === 'string' ? input.model : null;
     if (!projectName || !shotId) return null;
     const projectId = resolveProject(projectName);
     const doc = state.documents.find(
       (d) => d.projectId === projectId && d.kind === 'prompt-sheet',
     );
     if (!doc) return null;
-    const shots = extractShots(doc.markdown, projectName);
-    return shots.find((shot) => shot.shotId === shotId) ?? null;
+    const shots = extractShots(doc.markdown);
+    const sameShot = shots.filter((s) => s.shotId === shotId);
+    if (sameShot.length === 0) return null;
+    if (sameShot.length === 1) return sameShot[0];
+    // Model specified: prefer that variant, else neutral, else first.
+    if (modelId) {
+      const match = sameShot.find((s) => s.modelId === modelId);
+      if (match) return match;
+    }
+    const neutral = sameShot.find((s) => s.modelId === null || s.modelId === undefined);
+    if (neutral) return neutral;
+    return sameShot[0];
   };
 
   /** @param {{ id: string }} input */
@@ -656,6 +877,7 @@ export async function openStore({ home, port = DEFAULT_PORT, now = Date.now, new
     getDocument,
     getShot,
     deleteDocument,
+    listModels,
     ack,
     pending,
     snapshot,

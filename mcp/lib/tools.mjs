@@ -116,6 +116,12 @@ export const toolDefinitions = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'list_models',
+    description:
+      'List the video generation model profiles Prompty knows about (muse, seedance-2.5, kling, minimax-hailuo, veo, runway, wan, luma, higgsfield). Each profile has dialect, wrapper, prompt char limits, reference slots, durations, aspect ratios, and a source citation. Use it to write prompts within model limits.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
     name: 'save_document',
     description:
       'Save a markdown document to a project in the user\'s Prompty library. Use it when the user produces or revises a project file (screenplay, project card, breakdown, prompt sheet, rules, notes). The document is versioned on change; if extractPrompts is true, prompt-sheet sections (## ID — Name with fenced code blocks) are extracted as insertable prompts.',
@@ -183,6 +189,7 @@ export const toolDefinitions = [
       properties: {
         project: { type: 'string', description: 'Project name.' },
         shotId: { type: 'string', description: 'Shot id, e.g. "G08".' },
+        model: { type: 'string', description: 'Model id to select a specific variant (e.g. "kling").' },
       },
       required: ['project', 'shotId'],
     },
@@ -223,6 +230,8 @@ export function createTools(store) {
         return guard(async () => listCategories());
       case 'bridge_status':
         return guard(async () => bridgeStatus());
+      case 'list_models':
+        return guard(async () => listModels());
       case 'save_document':
         return guard(async () => saveDocument(input));
       case 'list_projects':
@@ -379,6 +388,17 @@ export function createTools(store) {
     );
   }
 
+  async function listModels() {
+    const models = store.listModels();
+    const text =
+      models.length === 0
+        ? 'No model profiles.'
+        : `${models.length} model profile${models.length === 1 ? '' : 's'}:\n${models
+            .map((m) => `• ${m.label} (${m.id}) — ${m.dialect}${m.wrapper ? `, wrapper: ${m.wrapper}` : ''}${m.maxPromptChars !== null ? `, max ${m.maxPromptChars} chars` : ''}`)
+            .join('\n')}`;
+    return result(text, { models });
+  }
+
   /* ---------------------------------------------------------------- */
   /* Document tools                                                     */
   /* ---------------------------------------------------------------- */
@@ -392,13 +412,22 @@ export function createTools(store) {
       extractPrompts: input.extractPrompts === true,
     });
     const verb = saved.created ? 'Saved' : 'Updated';
+    const counts = Object.entries(saved.variantCounts ?? {})
+      .map(([model, n]) => `${n} ${model}`)
+      .join(', ') || '0 variants';
+    const warnings = saved.lintWarnings ?? [];
+    const warningText =
+      warnings.length === 0
+        ? ''
+        : `\nWarnings: ${warnings.map((w) => w.text).join('; ')}`;
     return result(
-      `${verb} document “${saved.document.title}” in project “${input.project}” (${saved.versions} version${saved.versions === 1 ? '' : 's'}, ${saved.shots} shot${saved.shots === 1 ? '' : 's'}). It will appear in Prompty on the next sync.`,
+      `${verb} document “${saved.document.title}” in project “${input.project}” (${saved.versions} version${saved.versions === 1 ? '' : 's'}, ${counts}). It will appear in Prompty on the next sync.${warningText}`,
       {
         created: saved.created,
         document: saved.document,
         versions: saved.versions,
-        shots: saved.shots,
+        variantCounts: saved.variantCounts,
+        lintWarnings: saved.lintWarnings,
         pending: true,
       },
     );

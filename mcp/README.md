@@ -99,11 +99,12 @@ MCP client ──stdio──► prompty-mcp ──HTTP 127.0.0.1──► Prompt
 | `delete_prompt`   | Queue a deletion (a tombstone the extension applies on the next sync).     |
 | `list_categories` | Categories with prompt counts, so the agent reuses names instead of inventing them. |
 | `bridge_status`   | Running state, loopback URL, token, pending count, library path.          |
-| `save_document`   | Save a markdown document to a project (`project`, `title`, `kind`, `markdown` required; `extractPrompts` optional). Upserts by project + title and creates a new version when the markdown changes. |
+| `list_models`     | Video generation model profiles (dialect, wrapper, limits, ref slots). Agents write prompts within limits. |
+| `save_document`   | Save a markdown document to a project (`project`, `title`, `kind`, `markdown` required; `extractPrompts` optional). Reports per-model variant counts and lint warnings. |
 | `list_projects`   | Projects with color, icon and order.                                     |
 | `list_documents`  | Documents in a project (or all), with id, title, kind, last-updated time.|
 | `get_document`    | One document in full by id or by project + title, with markdown and versions. |
-| `get_shot`        | One shot from a prompt-sheet: prompt, refs, edit and check lines.        |
+| `get_shot`        | One shot from a prompt-sheet: prompt, refs, edit and check lines. Optional `model` selects a specific variant. |
 | `delete_document` | Queue a deletion by id (tombstone applied on next sync).                 |
 
 Template variables the popup already understands are parsed and reported back:

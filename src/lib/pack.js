@@ -7,6 +7,8 @@
  */
 import { normalizeCategory, normalizePrompt } from './storage.js';
 import { normalizeProject, normalizeDocument, MAX_DOCUMENT_SIZE } from './documents.js';
+import { normalizeModel } from './models.js';
+import { normalizeWrapper } from './wrappers.js';
 
 /**
  * @typedef {import('./storage.js').Prompt} Prompt
@@ -25,6 +27,8 @@ import { normalizeProject, normalizeDocument, MAX_DOCUMENT_SIZE } from './docume
  * @property {Category[]} categories
  * @property {Project[]} [projects]    G15: optional, absent in older packs
  * @property {Document[]} [documents] G15: optional, absent in older packs
+ * @property {{ id: string }[]} [models]      G15b: optional model profiles
+ * @property {{ id: string }[]} [wrappers]    G15b: optional wrapper templates
  */
 
 export const PACK_FORMAT = 'prompty-pack';
@@ -68,11 +72,12 @@ function shareableDocument(d) {
  * @param {{ prompts: Prompt[], categories: Category[] }} lib
  * @param {string[]} ids prompts to share, in this order
  * @param {{ name: string, author?: string, description?: string, now?: number,
- *   projects?: Project[], documents?: Document[] }} meta
+ *   projects?: Project[], documents?: Document[], models?: object[],
+ *   wrappers?: object[] }} meta
  * @returns {Pack}
  */
 export function buildPack(lib, ids, { name, author = '', description = '', now = Date.now(),
-  projects, documents }) {
+  projects, documents, models, wrappers }) {
   const byId = new Map(lib.prompts.map((p) => [p.id, p]));
   const prompts = ids
     .map((id) => byId.get(id))
@@ -93,6 +98,24 @@ export function buildPack(lib, ids, { name, author = '', description = '', now =
   if (clip(description, MAX_DESCRIPTION)) pack.description = clip(description, MAX_DESCRIPTION);
   if (Array.isArray(projects)) pack.projects = projects;
   if (Array.isArray(documents)) pack.documents = documents.map(shareableDocument);
+  if (Array.isArray(models)) {
+    /** @type {{ id: string }[]} */
+    const normalizedModels = [];
+    for (const m of models) {
+      const nm = normalizeModel(m);
+      if (nm) normalizedModels.push(nm);
+    }
+    pack.models = normalizedModels;
+  }
+  if (Array.isArray(wrappers)) {
+    /** @type {{ id: string }[]} */
+    const normalizedWrappers = [];
+    for (const w of wrappers) {
+      const nw = normalizeWrapper(w);
+      if (nw) normalizedWrappers.push(nw);
+    }
+    pack.wrappers = normalizedWrappers;
+  }
   return pack;
 }
 
@@ -187,6 +210,22 @@ export function parsePack(text) {
     documents.push(d);
   }
 
+  /** @type {{ id: string }[]} */
+  const models = [];
+  const rawModels = Array.isArray(r.models) ? r.models : [];
+  for (const item of rawModels) {
+    const m = normalizeModel(item);
+    if (m) models.push(m);
+  }
+
+  /** @type {{ id: string }[]} */
+  const wrappers = [];
+  const rawWrappers = Array.isArray(r.wrappers) ? r.wrappers : [];
+  for (const item of rawWrappers) {
+    const w = normalizeWrapper(item);
+    if (w) wrappers.push(w);
+  }
+
   /** @type {Pack} */
   const pack = {
     format: PACK_FORMAT,
@@ -198,6 +237,8 @@ export function parsePack(text) {
   };
   if (projects.length) pack.projects = projects;
   if (documents.length) pack.documents = documents;
+  if (models.length) pack.models = models;
+  if (wrappers.length) pack.wrappers = wrappers;
   if (clip(r.author, MAX_NAME)) pack.author = clip(r.author, MAX_NAME);
   if (clip(r.description, MAX_DESCRIPTION)) pack.description = clip(r.description, MAX_DESCRIPTION);
   return { ok: true, pack };

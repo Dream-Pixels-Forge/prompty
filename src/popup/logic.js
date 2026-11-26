@@ -11,6 +11,8 @@ import {
   normalizeCategory,
   normalizePrompt,
 } from '../lib/storage.js';
+import { normalizeModel } from '../lib/models.js';
+import { normalizeWrapper } from '../lib/wrappers.js';
 import { extractVariables } from '../lib/variables.js';
 
 /**
@@ -244,10 +246,10 @@ export function parseImport(jsonText) {
  * Apply parsed import data in REPLACE or MERGE mode (SPEC §1: import = REPLACE
  * (OK) or MERGE by id (Cancel)). Pure — reuses storage.js normalizers so no
  * untrusted key ever merges generically (SECURITY.md).
- * @param {{ prompts?: unknown[], categories?: unknown[], settings?: unknown }|null} data validated envelope data
- * @param {{ prompts?: Prompt[], categories?: Category[], settings?: unknown }|null|undefined} library current library
+ * @param {{ prompts?: unknown[], categories?: unknown[], models?: unknown[], wrappers?: unknown[], settings?: unknown }|null} data validated envelope data
+ * @param {{ prompts?: Prompt[], categories?: Category[], models?: { id: string }[], wrappers?: { id: string }[], settings?: unknown }|null|undefined} library current library
  * @param {'replace'|'merge'} mode
- * @returns {{ prompts: Prompt[], categories: Category[], settings: Settings }}
+ * @returns {{ prompts: Prompt[], categories: Category[], models: { id: string }[], wrappers: { id: string }[], settings: Settings }}
  */
 export function applyImportData(data, library, mode) {
   const dataRecord = isRecord(data) ? data : {};
@@ -266,24 +268,44 @@ export function applyImportData(data, library, mode) {
     const normalized = normalizeCategory(raw);
     if (normalized) incomingCategoriesNormalized.push(normalized);
   }
+  /** @type {{ id: string }[]} */
+  const incomingModelsNormalized = [];
+  for (const raw of Array.isArray(dataRecord.models) ? dataRecord.models : []) {
+    const normalized = normalizeModel(raw);
+    if (normalized) incomingModelsNormalized.push(normalized);
+  }
+  /** @type {{ id: string }[]} */
+  const incomingWrappersNormalized = [];
+  for (const raw of Array.isArray(dataRecord.wrappers) ? dataRecord.wrappers : []) {
+    const normalized = normalizeWrapper(raw);
+    if (normalized) incomingWrappersNormalized.push(normalized);
+  }
   const incoming = {
     prompts: incomingPromptsNormalized,
     categories: incomingCategoriesNormalized,
+    models: incomingModelsNormalized,
+    wrappers: incomingWrappersNormalized,
   };
 
   if (mode === 'replace') {
     return {
       prompts: incoming.prompts,
       categories: incoming.categories,
+      models: incoming.models,
+      wrappers: incoming.wrappers,
       settings: importedSettings(dataRecord, library),
     };
   }
 
   const existingPrompts = asList(library?.prompts);
   const existingCategories = asList(library?.categories);
+  const existingModels = asList(library?.models);
+  const existingWrappers = asList(library?.wrappers);
   return {
     prompts: mergeById(existingPrompts, incoming.prompts),
     categories: mergeById(existingCategories, incoming.categories),
+    models: mergeById(existingModels, incoming.models),
+    wrappers: mergeById(existingWrappers, incoming.wrappers),
     settings: importedSettings(dataRecord, library),
   };
 }

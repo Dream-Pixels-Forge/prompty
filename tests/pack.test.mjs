@@ -245,4 +245,48 @@ describe('packs carry projects and documents (G15)', () => {
     const parsed = parsePack(JSON.stringify(pack));
     expect(parsed).toEqual({ ok: true, pack });
   });
+
+  it('buildPack carries models and wrappers when provided', () => {
+    const models = [{ id: 'kling', label: 'Kling', hosts: ['kling.ai'], dialect: 'timecoded', wrapper: null, maxPromptChars: 8000, negativePrompt: true, refSlots: { images: 10, videos: 0, audio: 0 }, durations: [3, 5, 10], aspectRatios: ['16:9'], notes: '', source: 'x', verified: true }];
+    const wrappers = [{ id: 'meta-ai-pass-through', label: 'Meta AI pass-through', template: '<<<PROMPT\n{prompt}\nPROMPT>>>', notes: '', source: 'x' }];
+    const pack = buildPack(lib, ['a'], { name: 'Kit', models, wrappers });
+    /** @type {{ id: string }[]} */
+    const modelsOut = pack.models ?? [];
+    expect(modelsOut).toHaveLength(1);
+    expect(modelsOut[0].id).toBe('kling');
+    /** @type {{ id: string }[]} */
+    const wrappersOut = pack.wrappers ?? [];
+    expect(wrappersOut).toHaveLength(1);
+    expect(wrappersOut[0].id).toBe('meta-ai-pass-through');
+  });
+
+  it('buildPack omits models/wrappers when not provided', () => {
+    const pack = buildPack(lib, ['a'], { name: 'Kit' });
+    expect('models' in pack).toBe(false);
+    expect('wrappers' in pack).toBe(false);
+  });
+
+  it('parsePack reads models and wrappers when present', () => {
+    const models = [{ id: 'kling', label: 'Kling', hosts: ['kling.ai'], dialect: 'timecoded', wrapper: null, maxPromptChars: 8000, negativePrompt: true, refSlots: { images: 10, videos: 0, audio: 0 }, durations: [3, 5, 10], aspectRatios: ['16:9'], notes: '', source: 'x', verified: true }];
+    const wrappers = [{ id: 'meta-ai-pass-through', label: 'Meta AI pass-through', template: '<<<PROMPT\n{prompt}\nPROMPT>>>', notes: '', source: 'x' }];
+    const pack = buildPack(lib, ['a'], { name: 'Kit', models, wrappers });
+    const parsed = parsePack(JSON.stringify(pack));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    /** @type {{ id: string }[]} */
+    const modelsOut = parsed.pack.models ?? [];
+    /** @type {{ id: string }[]} */
+    const wrappersOut = parsed.pack.wrappers ?? [];
+    expect(modelsOut).toEqual([expect.objectContaining({ id: 'kling' })]);
+    expect(wrappersOut).toEqual([expect.objectContaining({ id: 'meta-ai-pass-through' })]);
+  });
+
+  it('parsePack tolerates packs without models/wrappers (older packs)', () => {
+    const pack = buildPack(lib, ['a'], { name: 'Kit' });
+    const parsed = parsePack(JSON.stringify(pack));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.pack.models).toBeUndefined();
+    expect(parsed.pack.wrappers).toBeUndefined();
+  });
 });

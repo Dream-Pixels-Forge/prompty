@@ -31,6 +31,33 @@ linked back to the document they came from.
   history). Packs without them import as before; older Prompty given a pack with
   documents imports prompts and reports documents as skipped — no crash.
 
+### Multi-model prompt sheets (G15b)
+
+- **Model profiles** (`src/assets/models.json` + `src/lib/models.json`): nine profiles
+  (Muse, Seedance 2.5, Kling, MiniMax Hailuo, Veo, Runway, Wan, Luma, Higgsfield) with
+  dialect, wrapper, limits, ref slots and durations/aspect ratios. Only vendor-sourced
+  numbers are kept (Kling <8,000 chars, 10 image refs; Hailuo 2,000 chars); everything
+  else is `null` / `verified: false` — never guessed.
+- **Multi-variant prompt sheets**: one shot holds one variant per model (fenced block
+  info string = model id; no info string = neutral). Each variant becomes its own
+  linked prompt tagged `<shotId>` + `<modelId>`. Re-saving updates in place (stable id).
+- **Wrappers** (`src/lib/wrappers.js`): `meta-ai-pass-through` wraps Muse prompts on
+  meta.ai so the assistant doesn't rewrite them. Users can add/override profiles and
+  wrappers in Settings (JSON, validated like custom site recipes).
+- **Site-aware insert**: `!` palette and reader pick the variant matching the active
+  site's model profile → else neutral → else ask; apply the site wrapper. Palette shows
+  model badge per result.
+- **Convert (structure only)**: rewrites only cut syntax between dialects
+  (Muse `STOP. HARD CUT.` ↔ Seedance `At N seconds, hard cut.`); never touches shot
+  content words. Result flagged `auto-converted · review`.
+- **Model lint** (`lintForModel`): warns over `maxPromptChars`, too many refs,
+  negative-prompt on models without the field, duration/aspect baked into prompt.
+  Warnings only; never block insert.
+- **MCP**: `list_models` exposes profiles; `get_shot {project,shotId,model?}` returns
+  the right variant + wrapper + refs + check + tips; `save_document` reports per-model
+  variant counts and lint warnings.
+- **Share packs carry models & wrappers**: optional arrays; older packs unaffected.
+
 ### Security
 
 - Markdown renderer builds nodes with `textContent` only — never `innerHTML`, never a

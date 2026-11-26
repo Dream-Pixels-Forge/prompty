@@ -8,6 +8,8 @@
 import browser from './browser.js';
 import { DEFAULT_BRIDGE_URL } from './bridge-constants.js';
 import { normalizeStoredComposition } from './sequence.js';
+import { normalizeModel } from './models.js';
+import { normalizeWrapper } from './wrappers.js';
 
 /**
  * @typedef {object} Prompt
@@ -86,6 +88,8 @@ export const MAX_VERSIONS = 20;
  * @property {Prompt[]} prompts
  * @property {Category[]} categories
  * @property {Settings} settings
+ * @property {{ id: string }[]} [models]     G15b: user model profiles
+ * @property {{ id: string }[]} [wrappers]  G15b: user wrapper templates
  */
 
 /** Allowed settings keys (whitelist). NO generic deep merge — SECURITY.md. */
@@ -374,7 +378,9 @@ export function appendSnippet(snippets, data) {
 /* storage.local wrappers (default to the browser shim)                */
 /* ------------------------------------------------------------------ */
 
-const STORAGE_KEYS = /** @type {const} */ (['prompts', 'categories', 'settings']);
+const STORAGE_KEYS = /** @type {const} */ (
+  ['prompts', 'categories', 'settings', 'models', 'wrappers']
+);
 
 /**
  * Resolve the storage area to use: an injected area (tests, background) or
@@ -414,13 +420,27 @@ export async function readAll(area) {
     if (normalized) categories.push(normalized);
   }
   const settings = mergeSettings(DEFAULT_SETTINGS, isRecord(raw.settings) ? raw.settings : null);
-  return { prompts, categories, settings };
+  /** @type {{ id: string }[]} */
+  const models = [];
+  const rawModels = Array.isArray(raw.models) ? raw.models : [];
+  for (const item of rawModels) {
+    const m = normalizeModel(item);
+    if (m) models.push(m);
+  }
+  /** @type {{ id: string }[]} */
+  const wrappers = [];
+  const rawWrappers = Array.isArray(raw.wrappers) ? raw.wrappers : [];
+  for (const item of rawWrappers) {
+    const w = normalizeWrapper(item);
+    if (w) wrappers.push(w);
+  }
+  return { prompts, categories, settings, models, wrappers };
 }
 
 /**
  * Write the library back to a storage area.
  * @param {{ get: Function, set: Function }} [area] defaults to browser.storage.local
- * @param {{ prompts?: Prompt[], categories?: Category[], settings?: unknown, projects?: Project[], documents?: Document[] }|undefined} [partialData]
+ * @param {{ prompts?: Prompt[], categories?: Category[], settings?: unknown, projects?: Project[], documents?: Document[], models?: object[], wrappers?: object[] }|undefined} [partialData]
  * @returns {Promise<void>}
  */
 export async function writeAll(area, partialData) {
@@ -444,6 +464,12 @@ export async function writeAll(area, partialData) {
   }
   if (Array.isArray(partialData?.documents)) {
     payload.documents = partialData.documents.filter((item) => item !== null);
+  }
+  if (Array.isArray(partialData?.models)) {
+    payload.models = partialData.models.filter((item) => item !== null);
+  }
+  if (Array.isArray(partialData?.wrappers)) {
+    payload.wrappers = partialData.wrappers.filter((item) => item !== null);
   }
   if (Object.keys(payload).length > 0) await store.set(payload);
 }

@@ -237,6 +237,85 @@
   ]);
 
   /**
+   * Host → model id for site-aware variant selection (inline port of
+   * src/lib/models.js modelForOrigin; content scripts cannot import).
+   * Kept in sync with src/assets/models.json hosts.
+   */
+  const SHOT_MODEL_HOSTS = /** @type {Record<string, string>} */ ({
+    'meta.ai': 'muse',
+    'www.meta.ai': 'muse',
+    'dreamina.capcut.com': 'seedance-2.5',
+    'jimeng.jianying.com': 'seedance-2.5',
+    'console.byteplus.com': 'seedance-2.5',
+    'kling.ai': 'kling',
+    'www.kling.ai': 'kling',
+    'hailuo.ai': 'minimax-hailuo',
+    'www.hailuo.ai': 'minimax-hailuo',
+  });
+
+  /**
+   * Meta AI pass-through wrapper (verbatim from tests/fixtures/goldhunter-g08-multimodel.md).
+   * Kept in sync with src/lib/wrappers.js.
+   */
+  const SHOT_META_AI_PASS_THROUGH = `VIDEO GENERATION — PASS-THROUGH MODE.
+The text between <<<PROMPT and PROMPT>>> is the final video prompt. Send it to the video model exactly as written: do not rewrite, summarize, shorten, translate, improve or add anything. Do not add characters, objects, camera moves, effects or events.
+Use ONLY the images attached to THIS message as references, in the order they are attached. Never use any image or video generated earlier in this conversation as a reference.
+First generate the start frame as a still image and show it to me before animating.
+Before generating the video, show me the exact prompt you will send, word for word, and wait for my "GO".
+
+<<<PROMPT
+{prompt}
+PROMPT>>>`;
+
+  /**
+   * Model id for an origin (host match, case-insensitive, ignoring port).
+   * @param {string|null|undefined} origin
+   * @returns {string|null}
+   */
+  function shotModelIdForOrigin(origin) {
+    if (typeof origin !== 'string' || origin === '') return null;
+    let host;
+    try {
+      host = new URL(origin).host;
+    } catch {
+      host = origin.replace(/^https?:\/\//, '');
+    }
+    host = host.toLowerCase().replace(/:.*$/, '');
+    return SHOT_MODEL_HOSTS[host] ?? null;
+  }
+
+  /**
+   * Select the variant for a site: profile model → neutral → first.
+   * @param {Array<{modelId:string|null, prompt:string}>} shots
+   * @param {string|null|undefined} origin
+   * @returns {{modelId:string|null, prompt:string}|null}
+   */
+  function selectShotVariantForSite(shots, origin) {
+    if (!Array.isArray(shots) || shots.length === 0) return null;
+    if (shots.length === 1) return shots[0];
+    const targetModelId = shotModelIdForOrigin(origin);
+    if (targetModelId) {
+      const match = shots.find((s) => s.modelId === targetModelId);
+      if (match) return match;
+    }
+    const neutral = shots.find((s) => s.modelId === null || s.modelId === undefined);
+    if (neutral) return neutral;
+    return shots[0];
+  }
+
+  /**
+   * Wrap a prompt for a site if its model profile has a wrapper.
+   * @param {string} prompt
+   * @param {string|null|undefined} origin
+   * @returns {string}
+   */
+  function wrapShotForSite(prompt, origin) {
+    const modelId = shotModelIdForOrigin(origin);
+    if (modelId !== 'muse') return String(prompt ?? '');
+    return SHOT_META_AI_PASS_THROUGH.replace('{prompt}', String(prompt ?? ''));
+  }
+
+  /**
    * Parse Refs line into array of @reference tokens.
    * @param {string} refsText
    * @returns {string[]}
@@ -2474,10 +2553,15 @@ button:focus-visible { outline: 2px solid var(--pf-accent-text); outline-offset:
     const selected = topItems[paletteSelectedIndex].item;
     const isShot = selected.kind === 'shot';
 
-    // Shots insert directly — no variable form in the in-page palette
-    // (variable fill-in for shot prompts lives in the popup reader).
+    // Shots insert site-aware: select the variant matching the active site's
+    // model profile, then apply the site wrapper (e.g. Muse pass-through on
+    // meta.ai). No variable form in the in-page palette (that lives in the
+    // popup reader).
     if (isShot) {
-      const text = String(selected.prompt ?? '');
+      const origin = typeof window !== 'undefined' && window.location ? window.location.origin : null;
+      const sameShot = paletteItems.filter((i) => i.kind === 'shot' && i.shotId === selected.shotId);
+      const variant = selectShotVariantForSite(sameShot, origin);
+      const text = variant ? wrapShotForSite(String(variant.prompt ?? ''), origin) : String(selected.prompt ?? '');
       const result = insertInto(paletteTarget, text, 'insert');
       if (result.success) {
         showToast({ message: tr('pageInserted', 'Inserted'), icon: '✓' });

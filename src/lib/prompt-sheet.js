@@ -21,7 +21,8 @@
  * Prompt text is stored byte-for-byte (trimmed of the fence only) — never
  * rewritten (G15b anti-drift rule).
  */
-import { getModel } from './models.js';
+import { getModel, modelForOrigin } from './models.js';
+import { wrapPrompt } from './wrappers.js';
 
 /** @typedef {import('./documents.js').Shot} Shot */
 
@@ -197,4 +198,59 @@ export function isKnownModelVariant(info) {
 export function modelProfileForVariant(modelId) {
   if (!modelId) return undefined;
   return getModel(modelId);
+}
+
+/**
+ * Select the shot variant to insert for a given site origin.
+ * Prefers the variant whose modelId matches the site's model profile id,
+ * else the neutral variant (modelId null/undefined), else the first variant.
+ * @param {Shot[]} shots variants for the same shotId
+ * @param {string|null|undefined} origin active-tab origin
+ * @returns {Shot|null}
+ */
+export function selectVariantForSite(shots, origin) {
+  if (!Array.isArray(shots) || shots.length === 0) return null;
+  if (shots.length === 1) return shots[0];
+  const model = origin ? modelForOrigin(origin) : undefined;
+  const targetModelId = model ? model.id : null;
+  if (targetModelId) {
+    const match = shots.find((s) => s.modelId === targetModelId);
+    if (match) return match;
+  }
+  const neutral = shots.find((s) => s.modelId === null || s.modelId === undefined);
+  if (neutral) return neutral;
+  return shots[0];
+}
+
+/**
+ * Wrap a prompt for a given site origin if the site's model profile has a
+ * wrapper. Returns the prompt unchanged when there is no wrapper.
+ * @param {string} text
+ * @param {string|null|undefined} origin active-tab origin
+ * @returns {string}
+ */
+export function wrapForSite(text, origin) {
+  const model = origin ? modelForOrigin(origin) : undefined;
+  const wrapperId = model ? model.wrapper : null;
+  return wrapPrompt(String(text ?? ''), wrapperId);
+}
+
+/**
+ * Prepare a shot for insertion into a page: select the variant matching the
+ * site, then apply the site's wrapper. Returns null when there are no shots.
+ * @param {Shot[]} shots variants for the same shotId
+ * @param {string|null|undefined} origin active-tab origin
+ * @returns {{ text: string, modelId: string|null, wrapped: boolean, shotId: string, name: string }|null}
+ */
+export function prepareInsertForSite(shots, origin) {
+  const variant = selectVariantForSite(shots, origin);
+  if (!variant) return null;
+  const model = origin ? modelForOrigin(origin) : undefined;
+  return {
+    text: wrapPrompt(variant.prompt, model ? model.wrapper : null),
+    modelId: variant.modelId ?? null,
+    wrapped: Boolean(model && model.wrapper),
+    shotId: variant.shotId,
+    name: variant.name,
+  };
 }

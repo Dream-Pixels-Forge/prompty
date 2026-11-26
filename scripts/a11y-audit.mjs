@@ -40,7 +40,7 @@ if (!sw) sw = await ctx.waitForEvent('serviceworker');
 const id = new URL(sw.url()).host;
 const page = await ctx.newPage();
 await page.goto(`chrome-extension://${id}/popup/index.html`);
-await page.waitForSelector('.card');
+await page.waitForSelector('.emptyView, .card', { timeout: 60000 }); const isEmpty = await page.locator('.emptyView').first().isVisible(); console.log('Initial state:', isEmpty ? 'empty' : 'has cards');
 const scheme = process.argv[2] ?? 'light';
 await page.emulateMedia({ colorScheme: scheme });
 const run = async (label) => {
